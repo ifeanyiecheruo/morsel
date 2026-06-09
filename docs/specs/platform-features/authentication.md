@@ -45,11 +45,11 @@ The deployer re-exchanges on every deploy run and does not need a refresh token.
 
 ## Deploy Auth Flow
 
-`morsel app deploy` always calls `Platform.DeployCredentials()` to obtain a deploy identity token, then submits it to `POST /api/token/deploy`. The Morsel API delegates validation to `Platform.ValidateDeployToken()`. The deploy command has no knowledge of GitHub JWKS, local signing keys, or any other platform-specific mechanism.
+`morsel app deploy` always calls `Platform.DeployToken()` to obtain a deploy identity token, then submits it to `POST /api/token/deploy`. The Morsel API delegates validation to `Platform.ValidateDeployToken()`. The deploy command has no knowledge of GitHub JWKS, local signing keys, or any other platform-specific mechanism.
 
 ```
 morsel app deploy
-  → Platform.DeployCredentials() → deploy identity token
+  → Platform.DeployToken() → deploy identity token
   → POST /api/token/deploy  { token: "<deploy-identity-token>" }
 
 Morsel API
@@ -66,7 +66,7 @@ morsel app deploy
   → re-exchanges on next deploy run (no refresh token)
 ```
 
-Platform-specific implementations of `DeployCredentials()` and `ValidateDeployToken()` are documented in the platform docs. See [platform/gcp.md](../platform/gcp.md) and [platform/local.md](../platform/local.md).
+Platform-specific implementations of `DeployToken()` and `ValidateDeployToken()` are documented in the platform docs. See [platform/gcp.md](../platform/gcp.md) and [platform/local.md](../platform/local.md).
 
 ---
 

@@ -17,7 +17,7 @@
 _Delivers: buildable binary, platform interface, project structure._
 
 - [ ] Initialise Go module; define top-level directory layout: `cmd/`, `internal/`, `platform/`
-- [ ] `platform/platform.go` — all interfaces and supporting types exactly as specced (`Platform`, `Bootstrapper`, `Deployer`, `BlobStore`, `SecretStore`, `CredentialProvider` with `DeployCredentials()` and `ValidateDeployToken()`, `DNSProvider`, `CertProvider`, `PricingProvider`, `Prices`, `Prompt`, `Plan`, `Resource`, `DeployCredentials`)
+- [ ] `platform/platform.go` — all interfaces and supporting types exactly as specced (`Platform`, `Bootstrapper`, `Deployer`, `BlobStore`, `SecretStore`, `CredentialProvider` with `DeployToken()` and `ValidateDeployToken()`, `DNSProvider`, `CertProvider`, `PricingProvider`, `Prices`, `Prompt`, `Plan`, `Resource`, `DeployCredentials`)
 - [ ] `platform/local/platform.go` — `LocalPlatform` struct implementing `Platform`; every method compiles but returns stubs or `ErrNotImplemented`
 - [ ] Platform selection and DI wiring in `cmd/morsel/main.go` (`--platform` flag reads profile JSON, constructs the right implementation)
 - [ ] `Makefile` with `build`, `test`, `lint`, `run-local` targets
@@ -125,10 +125,10 @@ _Delivers: `morsel app deploy` works end-to-end on LocalPlatform — push a chan
 
 - [ ] Local container registry provisioned during bootstrap (`registry:2` Deployment in `morsel` namespace)
 - [ ] Repo slug derivation — read git root directory name; prefix with `localhost/`; sanitize to slug format
-- [ ] `LocalPlatform.DeployCredentials()` — generate JWT signed with `local-deploy-signing-key` with `{ "repository": "localhost/{dirname}", "ref": "...", "sha": "..." }`
+- [ ] `LocalPlatform.DeployToken()` — generate JWT signed with `local-deploy-signing-key` with `{ "repository": "localhost/{dirname}", "ref": "...", "sha": "..." }`
 - [ ] `LocalPlatform.Deploy().StagingRegistry()` — return in-cluster registry URL
 - [ ] Staging handshake skipped on LocalPlatform — deployer pushes directly to canonical registry
-- [ ] `morsel app deploy` unified path — call `Platform.DeployCredentials()`; exchange at `POST /api/token/deploy`; build images; push; call sync + deploy APIs; emit annotations when in CI
+- [ ] `morsel app deploy` unified path — call `Platform.DeployToken()`; exchange at `POST /api/token/deploy`; build images; push; call sync + deploy APIs; emit annotations when in CI
 - [ ] Reference GitHub Actions workflow file (`.github/workflows/morsel-deploy.yml`)
 - [ ] Deploy output formatting — per-app status lines, approval warnings, failure messages
 
@@ -331,7 +331,7 @@ _Delivers: full production deployment on GCP; operator runs `morsel service boot
 - [ ] `GCPPlatform.DNS()` — Cloudflare implementation (alternate; token from SecretStore)
 - [ ] `GCPPlatform.Certs()` — ACME DNS-01 via Cloud DNS or Cloudflare
 - [ ] `GCPPlatform.Pricing()` — Cloud Billing Catalog API (`cloudbilling.googleapis.com`)
-- [ ] `GCPPlatform.DeployCredentials()` — obtain GitHub OIDC token from GitHub Actions environment (`ACTIONS_ID_TOKEN_REQUEST_URL`); fails if `GITHUB_ACTIONS` not set
+- [ ] `GCPPlatform.DeployToken()` — obtain GitHub OIDC token from GitHub Actions environment (`ACTIONS_ID_TOKEN_REQUEST_URL`); fails if `GITHUB_ACTIONS` not set
 - [ ] `GCPPlatform.ValidateDeployToken()` — fetch GitHub JWKS (cached), validate JWT signature, extract `repository` claim, return `org/repo` slug; generate short-lived Artifact Registry staging push credentials via WIF and attach to token response
 - [ ] `POST /api/token/gcp-oidc` in Morsel API — validate GCP identity token (IAP-issued); issue operator token
 - [ ] Admin UI authentication via IAP — IAP injects identity header; Morsel API verifies and exchanges for Morsel token

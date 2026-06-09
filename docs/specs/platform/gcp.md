@@ -90,7 +90,7 @@ No secret versions are managed by Morsel — the current version is always used.
 
 ### CredentialProvider — Workload Identity
 
-The `CredentialProvider.Token()` method returns a short-lived GCP access token from the ambient GKE Workload Identity metadata server. No external calls or credential files required — the token is available at `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token`.
+The `CredentialProvider.AmbientToken()` method returns a short-lived GCP access token from the ambient GKE Workload Identity metadata server. No external calls or credential files required — the token is available at `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token`.
 
 ### DNSProvider — Cloud DNS
 
@@ -139,7 +139,7 @@ Morsel API pod
 
 **Developer CI registry access** is brokered by the Morsel API. When a CI runner exchanges its GitHub OIDC token at `POST /api/token/deploy`, the Morsel API uses its own `morsel-api-sa` credentials to generate short-lived staging registry push credentials scoped to that caller's path, and returns them alongside the Morsel token. The CI runner never holds GCP credentials.
 
-`GCPPlatform.DeployCredentials()` reads the GitHub OIDC token from the GitHub Actions environment. `GCPPlatform.ValidateDeployToken(token)` fetches GitHub's JWKS (public endpoint, cached), validates the JWT signature, and extracts the `repository` claim. See [platform-features/authentication.md — Deploy Auth Flow](../platform-features/authentication.md).
+`GCPPlatform.DeployToken()` reads the GitHub OIDC token from the GitHub Actions environment. `GCPPlatform.ValidateDeployToken(token)` fetches GitHub's JWKS (public endpoint, cached), validates the JWT signature, and extracts the `repository` claim. See [platform-features/authentication.md — Deploy Auth Flow](../platform-features/authentication.md).
 
 ---
 

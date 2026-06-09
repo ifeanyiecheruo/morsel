@@ -254,7 +254,7 @@ morsel lint --staged
 Deploys all apps declared in `.morsel/`. Works identically locally and in CI — the `Platform` interface abstracts all credential and registry differences.
 
 In CI (`GITHUB_ACTIONS=true`):
-- Calls `Platform.DeployCredentials()` to exchange GitHub OIDC token for Morsel token and registry credentials
+- Calls `Platform.DeployToken()` to exchange GitHub OIDC token for Morsel token and registry credentials
 - Pushes images to staging container registry (staging handshake)
 - Emits GitHub Actions annotations for errors and approval warnings
 
@@ -327,7 +327,7 @@ Bootstrap provisioning takes 8–15 minutes on first run (dominated by Kubernete
 Owns the platform OAuth browser flow, profile file lifecycle, silent token refresh, `operator login`, and `operator logout`. See [platform-features/authentication.md](../platform-features/authentication.md).
 
 ### Deployment
-Owns `morsel app deploy` — the reference deploy implementation for both local and CI contexts. Calls `Platform.DeployCredentials()` to abstract credential differences. See [platform-features/deployment.md](../platform-features/deployment.md).
+Owns `morsel app deploy` — the reference deploy implementation for both local and CI contexts. Calls `Platform.DeployToken()` to abstract credential differences. See [platform-features/deployment.md](../platform-features/deployment.md).
 
 ### Networking (bootstrap-time)
 During `service bootstrap`, provisions the platform gateway classes and configures the DNS provider connection, then waits for the initial TLS certificate. Post-bootstrap, networking is managed entirely by the Morsel API.

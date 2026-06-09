@@ -121,7 +121,7 @@ No encryption at rest — local development only.
 
 ### CredentialProvider — Local deploy token
 
-`CredentialProvider.DeployCredentials()` generates a minimal signed JWT:
+`CredentialProvider.DeployToken()` generates a minimal signed JWT:
 
 ```json
 {
@@ -135,7 +135,7 @@ The JWT is signed with `local-deploy-signing-key`, generated at bootstrap and st
 
 `CredentialProvider.ValidateDeployToken(token)` validates the incoming JWT signature against `local-deploy-signing-key` and returns `localhost/{dirname}` as the repo slug. The Morsel API's `POST /api/token/deploy` handler calls this method — it contains no GitHub-specific logic. See [platform-features/authentication.md — Deploy Auth Flow](../platform-features/authentication.md).
 
-`CredentialProvider.Token()` (ambient service identity, used by Morsel API itself) returns an empty string — no cloud identity is required locally.
+`CredentialProvider.AmbientToken()` (ambient service identity, used by Morsel API itself) returns an empty string — no cloud identity is required locally.
 
 ### DNSProvider — No-op (`*.morsel.localhost`)
 
@@ -210,7 +210,7 @@ No GitHub remote is required. The command derives the repo slug from the git roo
 
 The deploy flow is identical to GitHub Actions — only the identity source differs:
 
-1. `LocalPlatform.DeployCredentials()` generates a signed JWT with `{ "repository": "localhost/my-app" }` and exchanges it at `POST /api/token/github-oidc` for a short-lived developer token. The API accepts the `repository` claim without GitHub JWKS validation.
+1. `LocalPlatform.DeployToken()` generates a signed JWT with `{ "repository": "localhost/my-app" }` and exchanges it at `POST /api/token/deploy` for a short-lived developer token.
 2. Discovers all `*.morsel.json` files in `.morsel/`
 3. Calls `POST /api/repos/localhost/my-app/sync` with the full app list and current git SHA
 4. Builds each app's container image in parallel using the local Docker or Podman daemon

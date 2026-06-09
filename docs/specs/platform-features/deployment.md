@@ -124,7 +124,7 @@ jobs:
 
 When `GITHUB_ACTIONS=true`:
 
-1. Calls `Platform.DeployCredentials()` — posts the GitHub OIDC token directly to `POST /api/token/github-oidc`; Morsel API validates it against GitHub's public JWKS and returns a Morsel access token plus short-lived staging registry push credentials
+1. Calls `Platform.DeployToken()` — posts the GitHub OIDC token directly to `POST /api/token/github-oidc`; Morsel API validates it against GitHub's public JWKS and returns a Morsel access token plus short-lived staging registry push credentials
 2. Discovers all `*.morsel.json` files in `.morsel/`
 3. Calls `POST /api/repos/:slug/sync` with the full declared app list and current git SHA
 4. For each app in parallel:
@@ -172,7 +172,7 @@ The slug is stable as long as the directory name does not change. No configurati
 
 ### Auth and image push
 
-1. `LocalPlatform.DeployCredentials()` generates a signed JWT with `{ "repository": "localhost/{dirname}" }` and exchanges it at `POST /api/token/github-oidc` for a short-lived Morsel developer token. The Morsel API on LocalPlatform skips GitHub JWKS validation and trusts the submitted `repository` claim directly. See [platform-features/authentication.md — Local Deploy Auth](authentication.md).
+1. `LocalPlatform.DeployToken()` generates a signed JWT with `{ "repository": "localhost/{dirname}" }` and exchanges it at `POST /api/token/github-oidc` for a short-lived Morsel developer token. The Morsel API on LocalPlatform skips GitHub JWKS validation and trusts the submitted `repository` claim directly. See [platform-features/authentication.md — Local Deploy Auth](authentication.md).
 2. Discovers all `*.morsel.json` files in `.morsel/`
 3. Calls `POST /api/repos/localhost/{dirname}/sync` with the full declared app list and current git SHA
 4. For each app in parallel:

@@ -136,10 +136,17 @@ type SecretStore interface {
 
 ```go
 type CredentialProvider interface {
-    // Token returns a credential token for authenticating to platform services.
-    // On GCPPlatform this returns a Workload Identity access token.
-    // On LocalPlatform this is a no-op returning an empty token.
-    Token(ctx context.Context) (string, error)
+    // AmbientToken returns a short-lived platform access token for ambient service identity.
+    // On GCPPlatform this is a Workload Identity token. On LocalPlatform it returns "".
+    AmbientToken(ctx context.Context) (string, error)
+
+    // DeployToken generates a deploy identity token for the current repo.
+    // Called client-side (morsel app deploy) before exchanging at POST /api/token/deploy.
+    DeployToken(ctx context.Context) (string, error)
+
+    // ValidateDeployToken validates a deploy identity token and returns the repo slug.
+    // Called server-side by the POST /api/token/deploy handler.
+    ValidateDeployToken(ctx context.Context, token string) (slug string, err error)
 }
 ```
 
