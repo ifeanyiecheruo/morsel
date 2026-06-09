@@ -7,35 +7,28 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ifeanyiecheruo/morsel/platform"
-	"github.com/ifeanyiecheruo/morsel/platform/local"
+	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 )
 
 func main() {
 	platformFlag := flag.String("platform", "", "platform implementation to use (local|gcp); overrides profile")
 	flag.Parse()
 
-	_, err := selectPlatform(*platformFlag)
+	_, err := platforms.Create(resolvedPlatformName(*platformFlag))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Subcommand routing is added in subsequent features.
-	// For now the binary compiles, selects a platform, and exits cleanly.
 }
 
-func selectPlatform(override string) (platform.Platform, error) {
-	name := override
-	if name == "" {
-		name = loadProfilePlatform()
+// resolvedPlatformName returns the flag value if set, otherwise reads from the profile.
+func resolvedPlatformName(override string) string {
+	if override != "" {
+		return override
 	}
-	switch name {
-	case "local", "":
-		return local.New(), nil
-	default:
-		return nil, fmt.Errorf("unknown platform %q (supported: local)", name)
-	}
+	return loadProfilePlatform()
 }
 
 // loadProfilePlatform reads the platform name from the active profile file.

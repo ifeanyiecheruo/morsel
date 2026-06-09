@@ -8,7 +8,7 @@ import (
 
 type localDeployer struct{}
 
-func (d *localDeployer) Credentials(_ context.Context) (platform.DeployCredentials, error) {
+func (ld *localDeployer) Credentials(_ context.Context) (platform.DeployCredentials, error) {
 	return platform.DeployCredentials{}, platform.ErrNotImplemented
 }
-func (d *localDeployer) StagingRegistry() string { return "" }
+func (ld *localDeployer) StagingRegistry() string { return "" }

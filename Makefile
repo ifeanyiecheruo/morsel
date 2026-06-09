@@ -1,7 +1,8 @@
-.PHONY: build test lint run-local ci
+.PHONY: build test lint run ci
 
 build:
 	go build -o bin/morsel ./cmd/morsel
+	go build -o bin/morsel-api ./cmd/morsel-api
 
 test:
 	go test ./...

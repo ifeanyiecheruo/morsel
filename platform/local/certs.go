@@ -10,9 +10,9 @@ import (
 
 type localCertProvider struct{}
 
-func (c *localCertProvider) Provision(_ context.Context, _ string) (*tls.Certificate, error) {
+func (lct *localCertProvider) Provision(_ context.Context, _ string) (*tls.Certificate, error) {
 	return nil, platform.ErrNotImplemented
 }
-func (c *localCertProvider) Renew(_ context.Context, _ string, _ time.Duration) (*tls.Certificate, error) {
+func (lct *localCertProvider) Renew(_ context.Context, _ string, _ time.Duration) (*tls.Certificate, error) {
 	return nil, platform.ErrNotImplemented
 }

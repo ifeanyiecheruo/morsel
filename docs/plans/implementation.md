@@ -16,11 +16,11 @@
 
 _Delivers: buildable binary, platform interface, project structure._
 
-- [ ] Initialise Go module; define top-level directory layout: `cmd/`, `internal/`, `platform/`
-- [ ] `platform/platform.go` — all interfaces and supporting types exactly as specced (`Platform`, `Bootstrapper`, `Deployer`, `BlobStore`, `SecretStore`, `CredentialProvider` with `DeployToken()` and `ValidateDeployToken()`, `DNSProvider`, `CertProvider`, `PricingProvider`, `Prices`, `Prompt`, `Plan`, `Resource`, `DeployCredentials`)
-- [ ] `platform/local/platform.go` — `LocalPlatform` struct implementing `Platform`; every method compiles but returns stubs or `ErrNotImplemented`
-- [ ] Platform selection and DI wiring in `cmd/morsel/main.go` (`--platform` flag reads profile JSON, constructs the right implementation)
-- [ ] `Makefile` with `build`, `test`, `lint`, `run-local` targets
+- [x] Initialise Go module; define top-level directory layout: `cmd/`, `internal/`, `platform/`
+- [x] `platform/platform.go` — all interfaces and supporting types exactly as specced (`Platform`, `Bootstrapper`, `Deployer`, `BlobStore`, `SecretStore`, `CredentialProvider` with `DeployToken()` and `ValidateDeployToken()`, `DNSProvider`, `CertProvider`, `PricingProvider`, `Prices`, `Prompt`, `Plan`, `Resource`, `DeployCredentials`)
+- [x] `platform/local/local.go` — `LocalPlatform` struct implementing `Platform`; every method compiles but returns stubs or `ErrNotImplemented`
+- [x] Platform selection and DI wiring in `cmd/morsel/main.go` (`--platform` flag reads profile JSON, constructs the right implementation)
+- [x] `Makefile` with `build`, `test`, `lint`, `run` targets
 
 ---
 
@@ -28,9 +28,9 @@ _Delivers: buildable binary, platform interface, project structure._
 
 _Delivers: running API binary; `curl /healthz` returns 200._
 
-- [ ] `cmd/morsel-api/main.go` — HTTP server with graceful shutdown on SIGTERM
-- [ ] Structured error middleware — all responses follow `{"error": "code", "message": "...", "details": {...}}` shape per `conventions/rest.md`
-- [ ] `GET /healthz` — returns `{"status": "ok"}`
+- [x] `cmd/morsel-api/main.go` — HTTP server with graceful shutdown on SIGTERM
+- [x] Structured error middleware — all responses follow `{"error": "code", "message": "...", "details": {...}}` shape per `conventions/rest.md`
+- [x] `GET /healthz` — returns `{"status": "ok"}`
 - [ ] SQLite connection pool with WAL mode enabled
 - [ ] Migration runner — versioned SQL files applied at startup; idempotent
 - [ ] Initial schema: `repos`, `apps`, `operations` tables

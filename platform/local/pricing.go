@@ -10,6 +10,6 @@ import (
 
 type localPricingProvider struct{}
 
-func (p *localPricingProvider) Prices(_ context.Context) (platform.Prices, error) {
+func (lpp *localPricingProvider) Prices(_ context.Context) (platform.Prices, error) {
 	return platform.Prices{FetchedAt: time.Now()}, nil
 }

@@ -9,11 +9,11 @@ type LocalPlatform struct{}
 
 func New() *LocalPlatform { return &LocalPlatform{} }
 
-func (p *LocalPlatform) Bootstrap() platform.Bootstrapper        { return &localBootstrapper{} }
-func (p *LocalPlatform) Deploy() platform.Deployer               { return &localDeployer{} }
-func (p *LocalPlatform) Blobs() platform.BlobStore               { return &localBlobStore{} }
-func (p *LocalPlatform) Secrets() platform.SecretStore           { return &localSecretStore{} }
-func (p *LocalPlatform) Credentials() platform.CredentialProvider { return &localCredentialProvider{} }
-func (p *LocalPlatform) DNS() platform.DNSProvider               { return &localDNSProvider{} }
-func (p *LocalPlatform) Certs() platform.CertProvider            { return &localCertProvider{} }
-func (p *LocalPlatform) Pricing() platform.PricingProvider       { return &localPricingProvider{} }
+func (lp *LocalPlatform) Bootstrap() platform.Bootstrapper         { return &localBootstrapper{} }
+func (lp *LocalPlatform) Deploy() platform.Deployer                { return &localDeployer{} }
+func (lp *LocalPlatform) Blobs() platform.BlobStore                { return &localBlobStore{} }
+func (lp *LocalPlatform) Secrets() platform.SecretStore            { return &localSecretStore{} }
+func (lp *LocalPlatform) Credentials() platform.CredentialProvider { return &localCredentialProvider{} }
+func (lp *LocalPlatform) DNS() platform.DNSProvider                { return &localDNSProvider{} }
+func (lp *LocalPlatform) Certs() platform.CertProvider             { return &localCertProvider{} }
+func (lp *LocalPlatform) Pricing() platform.PricingProvider        { return &localPricingProvider{} }
