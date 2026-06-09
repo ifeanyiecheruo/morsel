@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "morsel.schema.json",
+  "title": "morsel.json",
+  "description": "Declares a single Morsel app within a repository.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "dockerfile"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique app identifier within the repo. Lowercase alphanumeric and hyphens only. If omitted, the repo itself is the app.",
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$",
+      "maxLength": 30
+    },
+    "type": {
+      "type": "string",
+      "description": "App execution model.",
+      "enum": ["http", "worker", "cronjob"]
+    },
+    "dockerfile": {
+      "type": "string",
+      "description": "Path to the Dockerfile relative to the repository root. Build context is always the repo root.",
+      "minLength": 1
+    },
+    "private": {
+      "type": "boolean",
+      "description": "If true, the app is reachable only within the cluster VPC. Applies to http type only.",
+      "default": false
+    },
+    "tier": {
+      "type": "string",
+      "description": "Quota tier name. Changing to a higher tier requires operator approval. Defaults to the platform default tier.",
+      "minLength": 1
+    },
+    "idle_after": {
+      "type": "string",
+      "description": "Inactivity duration before the app hibernates. Applies to http type only. Go duration syntax: '1h', '30m', '24h'.",
+      "pattern": "^[0-9]+(s|m|h)$"
+    },
+    "health_check": {
+      "type": "object",
+      "description": "Deployment rollout health check configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "HTTP path for the readiness probe. Applies to http type only. Must start with /.",
+          "pattern": "^/",
+          "default": "/healthz"
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Maximum time to wait for a rollout before rolling back. Go duration syntax: '5m', '10m'.",
+          "pattern": "^[0-9]+(s|m|h)$",
+          "default": "5m"
+        }
+      }
+    },
+    "schedule": {
+      "type": "string",
+      "description": "Cron expression for the job schedule. Required when type is 'cronjob'. Five-field format: minute hour day-of-month month day-of-week.",
+      "pattern": "^(@(annually|yearly|monthly|weekly|daily|hourly))|((\\*|[0-9,\\-\\/]+)\\s+(\\*|[0-9,\\-\\/]+)\\s+(\\*|[0-9,\\-\\/]+)\\s+(\\*|[0-9,\\-\\/]+)\\s+(\\*|[0-9,\\-\\/]+))$"
+    },
+    "timeout": {
+      "type": "string",
+      "description": "Maximum execution time for a single job run. Required when type is 'cronjob'. Go duration syntax: '30m', '1h'.",
+      "pattern": "^[0-9]+(s|m|h)$"
+    },
+    "retries": {
+      "type": "integer",
+      "description": "Number of times to retry a failed job run. Applies to cronjob type only. Only use if the job is idempotent.",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 0
+    },
+    "persistence": {
+      "type": "object",
+      "description": "Declares platform-managed resources. Each resource is provisioned on first deploy and persists based on the permanent flag.",
+      "additionalProperties": false,
+      "properties": {
+        "database": {
+          "type": "object",
+          "description": "Provisions a dedicated Postgres database at database.morsel.internal.",
+          "additionalProperties": false,
+          "properties": {
+            "permanent": {
+              "type": "boolean",
+              "description": "If true, the database is retained when the app is deleted.",
+              "default": false
+            }
+          }
+        },
+        "storage": {
+          "type": "object",
+          "description": "Grants blob storage access at blob.morsel.internal.",
+          "additionalProperties": false,
+          "properties": {
+            "permanent": {
+              "type": "boolean",
+              "description": "If true, stored objects are retained when the app is deleted.",
+              "default": false
+            }
+          }
+        },
+        "queues": {
+          "type": "object",
+          "description": "Grants message queue access at queue.morsel.internal.",
+          "additionalProperties": false,
+          "properties": {
+            "permanent": {
+              "type": "boolean",
+              "description": "If true, queue data is retained when the app is deleted.",
+              "default": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "if": {
+    "properties": { "type": { "const": "cronjob" } }
+  },
+  "then": {
+    "required": ["type", "dockerfile", "schedule", "timeout"]
+  }
+}
