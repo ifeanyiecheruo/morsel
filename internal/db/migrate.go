@@ -1,70 +1,64 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
 	"io/fs"
-	"sort"
+	"log/slog"
+	"strings"
+
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/pressly/goose/v3"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// Migrate applies any unapplied versioned SQL migrations from internal/db/migrations/.
-// Migrations are identified by filename and applied in lexicographic order.
-// Already-applied migrations are skipped; each new migration runs in its own transaction.
-func Migrate(database *sql.DB) error {
-	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
-		version    TEXT     NOT NULL PRIMARY KEY,
-		applied_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-	)`); err != nil {
-		return fmt.Errorf("create schema_migrations: %w", err)
-	}
-
-	entries, err := fs.ReadDir(migrationsFS, "migrations")
+// Migrate applies all pending migrations. Safe to call on every startup.
+func Migrate(ctx context.Context, database *sql.DB) error {
+	provider, err := createMigrationsProvider(ctx, database)
 	if err != nil {
-		return fmt.Errorf("read migrations dir: %w", err)
+		return err
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
-	})
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		version := entry.Name()
-
-		var count int
-		if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = ?`, version).Scan(&count); err != nil {
-			return fmt.Errorf("check %s: %w", version, err)
-		}
-		if count > 0 {
-			continue
-		}
-
-		sql, err := migrationsFS.ReadFile("migrations/" + version)
-		if err != nil {
-			return fmt.Errorf("read %s: %w", version, err)
-		}
-
-		tx, err := database.Begin()
-		if err != nil {
-			return fmt.Errorf("begin %s: %w", version, err)
-		}
-		if _, err := tx.Exec(string(sql)); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("apply %s: %w", version, err)
-		}
-		if _, err := tx.Exec(`INSERT INTO schema_migrations (version) VALUES (?)`, version); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("record %s: %w", version, err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit %s: %w", version, err)
-		}
+	if _, err := provider.Up(ctx); err != nil {
+		return fmt.Errorf("migrate: %w", err)
 	}
-
 	return nil
+}
+
+// Rollback rolls back the most recently applied migration.
+func Rollback(ctx context.Context, database *sql.DB) error {
+	provider, err := createMigrationsProvider(ctx, database)
+	if err != nil {
+		return err
+	}
+	if _, err := provider.Down(ctx); err != nil {
+		return fmt.Errorf("rollback: %w", err)
+	}
+	return nil
+}
+
+func createMigrationsProvider(ctx context.Context, database *sql.DB) (*goose.Provider, error) {
+	fsys, err := fs.Sub(migrationsFS, "migrations")
+	if err != nil {
+		return nil, fmt.Errorf("migrations fs: %w", err)
+	}
+	return goose.NewProvider(goose.DialectSQLite3, database, fsys,
+		goose.WithLogger(gooseSlogLogger{logger: ctxlog.From(ctx)}),
+	)
+}
+
+// gooseSlogLogger bridges goose's Logger interface to slog.
+type gooseSlogLogger struct {
+	logger *slog.Logger
+}
+
+func (gl gooseSlogLogger) Printf(format string, args ...any) {
+	gl.logger.Info(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
+}
+
+func (gl gooseSlogLogger) Fatalf(format string, args ...any) {
+	gl.logger.Error(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
 }

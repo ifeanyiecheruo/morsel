@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"context"
 	"database/sql"
 	"path/filepath"
 	"testing"
@@ -18,33 +19,32 @@ func openTestDB(t *testing.T) *sql.DB {
 	return database
 }
 
-func TestMigrateCreatesSchemaTable(t *testing.T) {
+func TestMigrateCreatesVersionTable(t *testing.T) {
 	database := openTestDB(t)
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
 
 	var count int
-	if err := database.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
-		t.Fatalf("query schema_migrations: %v", err)
+	if err := database.QueryRow(`SELECT COUNT(*) FROM goose_db_version`).Scan(&count); err != nil {
+		t.Fatalf("query goose_db_version: %v", err)
 	}
 	if count == 0 {
-		t.Error("schema_migrations is empty after migration")
+		t.Error("goose_db_version is empty after migration")
 	}
 }
 
 func TestMigrateCreatesInitialTables(t *testing.T) {
 	database := openTestDB(t)
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
 
 	for _, table := range []string{"repos", "apps", "operations"} {
 		var name string
-		err := database.QueryRow(
+		if err := database.QueryRow(
 			`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table,
-		).Scan(&name)
-		if err != nil {
+		).Scan(&name); err != nil {
 			t.Errorf("table %q not found: %v", table, err)
 		}
 	}
@@ -52,38 +52,50 @@ func TestMigrateCreatesInitialTables(t *testing.T) {
 
 func TestMigrateIsIdempotent(t *testing.T) {
 	database := openTestDB(t)
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("first Migrate: %v", err)
 	}
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("second Migrate: %v", err)
 	}
 }
 
-func TestMigrateRecordsVersions(t *testing.T) {
+func TestRollbackRemovesTables(t *testing.T) {
 	database := openTestDB(t)
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-
-	rows, err := database.Query(`SELECT version FROM schema_migrations ORDER BY version`)
-	if err != nil {
-		t.Fatalf("query versions: %v", err)
+	if err := db.Rollback(context.Background(), database); err != nil {
+		t.Fatalf("Rollback: %v", err)
 	}
-	defer rows.Close()
 
-	var versions []string
-	for rows.Next() {
-		var version string
-		if err := rows.Scan(&version); err != nil {
-			t.Fatalf("scan: %v", err)
+	for _, table := range []string{"repos", "apps", "operations"} {
+		var name string
+		err := database.QueryRow(
+			`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table,
+		).Scan(&name)
+		if err == nil {
+			t.Errorf("table %q still exists after rollback", table)
 		}
-		versions = append(versions, version)
 	}
-	if len(versions) == 0 {
-		t.Error("no versions recorded in schema_migrations")
+}
+
+func TestMigrateAfterRollbackReapplies(t *testing.T) {
+	database := openTestDB(t)
+	if err := db.Migrate(context.Background(), database); err != nil {
+		t.Fatalf("Migrate: %v", err)
 	}
-	if versions[0] != "001_initial.sql" {
-		t.Errorf("versions[0] = %q, want 001_initial.sql", versions[0])
+	if err := db.Rollback(context.Background(), database); err != nil {
+		t.Fatalf("Rollback: %v", err)
+	}
+	if err := db.Migrate(context.Background(), database); err != nil {
+		t.Fatalf("re-Migrate: %v", err)
+	}
+
+	var name string
+	if err := database.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name='repos'`,
+	).Scan(&name); err != nil {
+		t.Errorf("repos table missing after re-migrate: %v", err)
 	}
 }

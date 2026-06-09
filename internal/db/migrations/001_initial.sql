@@ -1,6 +1,8 @@
+-- +goose Up
+
 CREATE TABLE repos (
-    slug       TEXT    NOT NULL PRIMARY KEY,
-    tier       TEXT    NOT NULL DEFAULT 'small',
+    slug       TEXT     NOT NULL PRIMARY KEY,
+    tier       TEXT     NOT NULL DEFAULT 'small',
     created_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -31,3 +33,9 @@ CREATE TABLE operations (
     created_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+-- +goose Down
+
+DROP TABLE operations;
+DROP TABLE apps;
+DROP TABLE repos;
