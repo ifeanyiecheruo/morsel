@@ -31,9 +31,9 @@ _Delivers: running API binary; `curl /healthz` returns 200._
 - [x] `cmd/morsel-api/main.go` — HTTP server with graceful shutdown on SIGTERM
 - [x] Structured error middleware — all responses follow `{"error": "code", "message": "...", "details": {...}}` shape per `conventions/rest.md`
 - [x] `GET /healthz` — returns `{"status": "ok"}`
-- [ ] SQLite connection pool with WAL mode enabled
-- [ ] Migration runner — versioned SQL files applied at startup; idempotent
-- [ ] Initial schema: `repos`, `apps`, `operations` tables
+- [x] SQLite connection pool with WAL mode enabled
+- [x] Migration runner — versioned SQL files applied at startup; idempotent
+- [x] Initial schema: `repos`, `apps`, `operations` tables
 - [x] Structured request logging (method, path, status, latency)
 
 ---

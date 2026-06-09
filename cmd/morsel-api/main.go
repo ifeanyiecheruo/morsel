@@ -12,13 +12,27 @@ import (
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api"
+	"github.com/ifeanyiecheruo/morsel/internal/db"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 )
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
 	platformName := flag.String("platform", "", "platform implementation (local|gcp)")
+	dbPath := flag.String("db", "morsel.db", "SQLite database path")
 	flag.Parse()
+
+	database, err := db.Open(*dbPath)
+	if err != nil {
+		slog.Error("database error", "err", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	if err := db.Migrate(database); err != nil {
+		slog.Error("migration error", "err", err)
+		os.Exit(1)
+	}
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {

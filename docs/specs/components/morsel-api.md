@@ -242,6 +242,46 @@ Scaling beyond this would require migrating from SQLite to Postgres and running 
 
 ---
 
+## Database Schema
+
+The Morsel API stores all state in a single SQLite file. WAL mode is enabled so reads do not block writes. The connection pool is capped to one connection — SQLite serialises writes regardless, but a pool cap prevents lock contention between goroutines.
+
+### Migrations
+
+Schema changes are applied by a migration runner at startup. Migrations are versioned SQL files named `NNN_description.sql` under `internal/db/migrations/`, applied in lexicographic order. Applied versions are recorded in a `schema_migrations` table so re-runs skip already-applied files. Each migration runs in its own transaction — a failure rolls back without touching earlier migrations.
+
+To add a schema change: create the next numbered file (e.g. `002_add_refresh_tokens.sql`) and the runner picks it up on next startup.
+
+### Tables
+
+| Table | Purpose |
+| --- | --- |
+| `schema_migrations` | Tracks which migration files have been applied |
+| `repos` | One row per repository; holds tier assignment and timestamps |
+| `apps` | One row per declared app; tracks type, status, image digests, namespace, and deletion state |
+| `operations` | Async operation log; each deploy, delete, hibernate, or wake creates a row polled by the client |
+
+Additional tables are added in later features:
+
+| Table | Added in | Purpose |
+| --- | --- | --- |
+| `refresh_tokens` | Feature 3 | Refresh token store for token rotation |
+| `platform_config` | Feature 17 | Budget ceiling and platform-wide settings |
+| `tiers` | Feature 14 | Quota tier definitions |
+| `approvals` | Feature 15 | Pending protected-field change approvals |
+| `scale_events` | Feature 16 | Hibernation/wake transitions for cost estimation |
+| `price_snapshots` | Feature 16 | Immutable per-fetch price records |
+| `exemptions` | Feature 17 | App and repo budget exemptions |
+
+### Key Column Conventions
+
+- Timestamps are stored as ISO 8601 UTC strings (`strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`), not Unix integers
+- Boolean flags are `INTEGER NOT NULL DEFAULT 0` (0/1); SQLite has no native boolean type
+- UUIDs are stored as `TEXT`; the operations `id` is a UUID assigned by the API at creation time
+- Soft deletes use `deletion_pending INTEGER` + `deleted_at DATETIME` rather than physical row removal, to preserve operation history
+
+---
+
 ## Security
 
 - JWT signing key stored in the platform secret store — the API loads it at startup and holds it in memory
