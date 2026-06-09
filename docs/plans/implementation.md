@@ -34,7 +34,7 @@ _Delivers: running API binary; `curl /healthz` returns 200._
 - [ ] SQLite connection pool with WAL mode enabled
 - [ ] Migration runner — versioned SQL files applied at startup; idempotent
 - [ ] Initial schema: `repos`, `apps`, `operations` tables
-- [ ] Structured request logging (method, path, status, latency)
+- [x] Structured request logging (method, path, status, latency)
 
 ---
 

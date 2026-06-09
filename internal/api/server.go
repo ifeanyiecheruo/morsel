@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/ifeanyiecheruo/morsel/platform"
@@ -28,5 +29,5 @@ func NewMux(plat platform.Platform) http.Handler {
 		}
 	})
 
-	return mux
+	return logRequests(slog.Default(), mux)
 }
