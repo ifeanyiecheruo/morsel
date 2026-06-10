@@ -14,5 +14,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
+
+      - run: make install-tools
 
       - run: make ci

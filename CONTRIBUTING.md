@@ -10,6 +10,7 @@
 git clone https://github.com/ifeanyiecheruo/morsel
 cd morsel
 make install-tools   # install go and git if not already installed
+make configure       # install git hooks (pre-commit, pre-push)
 make ci              # lint, build, test
 make run             # run the CLI against LocalPlatform
 ```

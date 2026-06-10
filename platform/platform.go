@@ -16,14 +16,14 @@ var ErrNotImplemented = errors.New("not implemented")
 // and all cloud/infrastructure concerns. No business logic file imports a
 // cloud SDK — only this package.
 type Platform interface {
-	Bootstrap()   Bootstrapper
-	Deploy()      Deployer
-	Blobs()       BlobStore
-	Secrets()     SecretStore
+	Bootstrap() Bootstrapper
+	Deploy() Deployer
+	Blobs() BlobStore
+	Secrets() SecretStore
 	Credentials() CredentialProvider
-	DNS()         DNSProvider
-	Certs()       CertProvider
-	Pricing()     PricingProvider
+	DNS() DNSProvider
+	Certs() CertProvider
+	Pricing() PricingProvider
 }
 
 // Bootstrapper provisions all platform resources needed to run Morsel.

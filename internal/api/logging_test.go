@@ -21,7 +21,7 @@ type captureHandler struct {
 
 func (ch *captureHandler) Enabled(_ context.Context, _ slog.Level) bool { return true }
 func (ch *captureHandler) WithAttrs(_ []slog.Attr) slog.Handler         { return ch }
-func (ch *captureHandler) WithGroup(_ string) slog.Handler               { return ch }
+func (ch *captureHandler) WithGroup(_ string) slog.Handler              { return ch }
 func (ch *captureHandler) Handle(_ context.Context, rec slog.Record) error {
 	attrs := make(map[string]any)
 	rec.Attrs(func(attr slog.Attr) bool {

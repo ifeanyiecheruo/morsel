@@ -26,12 +26,16 @@ func main() {
 	logger := slog.Default()
 	ctx := ctxlog.With(context.Background(), logger)
 
-	database, err := db.Open(*dbPath)
+	database, err := db.Open(ctx, *dbPath)
 	if err != nil {
 		logger.Error("database error", "err", err)
 		os.Exit(1)
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			logger.Error("database close error", "err", err)
+		}
+	}()
 
 	if err := db.Migrate(ctx, database); err != nil {
 		logger.Error("migration error", "err", err)
@@ -78,7 +82,9 @@ func main() {
 			continue
 		}
 
-		ln.Close()
+		if err := ln.Close(); err != nil {
+			logger.Error("listener close error", "err", err)
+		}
 		logger.Info("shutdown complete")
 		return
 	}

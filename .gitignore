@@ -4,6 +4,9 @@
 # Build output
 bin/
 
+# Local installs
+.local/
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
