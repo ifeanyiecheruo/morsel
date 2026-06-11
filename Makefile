@@ -63,8 +63,10 @@ generate-ci:
 	git diff --exit-code -- internal/db/queries/
 
 .PHONY: pre-commit
-pre-commit: generate fix ## Pre-commit git hook	
-	@git add -u
+pre-commit: ## Pre-commit git hook
+	@STAGED=$$(git diff --cached --name-only); \
+	$(MAKE) generate fix; \
+	if [ -n "$$STAGED" ]; then echo "$$STAGED" | xargs git add; fi
 
 .PHONY: pre-push
 pre-push: ci ## Pre-push git hook
