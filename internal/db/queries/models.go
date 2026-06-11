@@ -36,6 +36,17 @@ type Operation struct {
 	UpdatedAt time.Time
 }
 
+type RefreshToken struct {
+	ID        string
+	TokenHash string
+	Subject   string
+	Role      string
+	RepoSlug  sql.NullString
+	ExpiresAt time.Time
+	RevokedAt sql.NullTime
+	CreatedAt time.Time
+}
+
 type Repo struct {
 	Slug      string
 	Tier      string

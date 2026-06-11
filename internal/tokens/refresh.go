@@ -1,0 +1,30 @@
+package tokens
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
+	"time"
+)
+
+// OperatorRefreshTTL is the lifetime of an operator refresh token (90 days).
+const OperatorRefreshTTL = 90 * 24 * time.Hour
+
+// GenerateRefreshToken generates a cryptographically random 32-byte refresh token.
+// Returns the raw bytes and the base64url-encoded string suitable for transmission.
+func GenerateRefreshToken() ([]byte, string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return nil, "", fmt.Errorf("generate refresh token: %w", err)
+	}
+	return raw, base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+// HashRefreshToken returns the hex-encoded SHA-256 hash of raw.
+// Store this hash in the database — never store the raw bytes.
+func HashRefreshToken(raw []byte) string {
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}

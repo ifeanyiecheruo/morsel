@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
@@ -27,7 +28,7 @@ type AppPlatform interface {
 // "localhost/my-app") contain a slash and Go's {name} wildcard only matches
 // a single path segment. repoSlug(r) reconstructs the full slug from both
 // path values.
-func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte) http.Handler {
+func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte, queries *dbqueries.Queries) http.Handler {
 	mux := http.NewServeMux()
 
 	// public registers a route with no authentication.
@@ -56,7 +57,7 @@ func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte) http.Handl
 	// ---- Public: token exchange ------------------------------------------------
 	public("GET /healthz", handleHealthz)
 	public("POST /api/token/deploy", handleTokenDeployRoute(plat.Credentials(), signingKey))
-	public("POST /api/token/refresh", stub)
+	public("POST /api/token/refresh", handleTokenRefreshRoute(queries, signingKey))
 	public("POST /api/token/local-oidc", stub)
 
 	// ---- Repo-scoped: developer + operator -------------------------------------

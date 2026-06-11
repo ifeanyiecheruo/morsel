@@ -4,14 +4,8 @@ package tokens
 import (
 	"crypto/rand"
 	"fmt"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-)
-
-const (
-	deployTokenTTL   = 10 * time.Minute
-	operatorTokenTTL = 15 * time.Minute
 )
 
 // GenerateKey generates a random 32-byte HMAC-SHA256 signing key.

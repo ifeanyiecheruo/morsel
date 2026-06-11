@@ -8,14 +8,29 @@ import (
 	"testing"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api"
+	"github.com/ifeanyiecheruo/morsel/internal/db"
+	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/platform/local"
 )
 
 // testKey is a fixed 32-byte key used in tests — never used outside tests.
 var testKey = make([]byte, 32)
 
+func newTestMux(t *testing.T) http.Handler {
+	t.Helper()
+	database, err := db.Open(context.Background(), ":memory:")
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := db.Migrate(context.Background(), database); err != nil {
+		t.Fatalf("migrate test database: %v", err)
+	}
+	return api.NewMux(context.Background(), local.New(), testKey, dbqueries.New(database))
+}
+
 func TestHealthzReturnsOK(t *testing.T) {
-	mux := api.NewMux(context.Background(), local.New(), testKey)
+	mux := newTestMux(t)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 
@@ -35,7 +50,7 @@ func TestHealthzReturnsOK(t *testing.T) {
 }
 
 func TestUnregisteredRouteReturnsStructured404(t *testing.T) {
-	mux := api.NewMux(context.Background(), local.New(), testKey)
+	mux := newTestMux(t)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/no/such/path", nil))
 
@@ -59,7 +74,7 @@ func TestUnregisteredRouteReturnsStructured404(t *testing.T) {
 }
 
 func TestHealthzIgnoresWrongMethod(t *testing.T) {
-	mux := api.NewMux(context.Background(), local.New(), testKey)
+	mux := newTestMux(t)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/healthz", nil))
 

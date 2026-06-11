@@ -14,6 +14,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/api"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/db"
+	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 )
@@ -71,7 +72,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGHUP, os.Interrupt)
 
 	for {
-		srv := &http.Server{Handler: api.NewMux(ctx, plat, signingKey)}
+		srv := &http.Server{Handler: api.NewMux(ctx, plat, signingKey, dbqueries.New(database))}
 
 		go func() {
 			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {

@@ -65,17 +65,21 @@ func TestRollbackRemovesTables(t *testing.T) {
 	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
+	// Roll back all migrations (one per call).
 	if err := db.Rollback(context.Background(), database); err != nil {
-		t.Fatalf("Rollback: %v", err)
+		t.Fatalf("first Rollback: %v", err)
+	}
+	if err := db.Rollback(context.Background(), database); err != nil {
+		t.Fatalf("second Rollback: %v", err)
 	}
 
-	for _, table := range []string{"repos", "apps", "operations"} {
+	for _, table := range []string{"repos", "apps", "operations", "refresh_tokens"} {
 		var name string
 		err := database.QueryRow(
 			`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table,
 		).Scan(&name)
 		if err == nil {
-			t.Errorf("table %q still exists after rollback", table)
+			t.Errorf("table %q still exists after full rollback", table)
 		}
 	}
 }
