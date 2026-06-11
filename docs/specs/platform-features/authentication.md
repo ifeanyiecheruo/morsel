@@ -32,12 +32,10 @@ The access token TTL is the maximum lag before role changes take effect. Revokin
 ## Exchange Endpoints
 
 ```
-POST /api/token/deploy            → access token (10 min), no refresh token
-POST /api/token/<platform-oidc>   → access token (15 min) + refresh token (90 days)
-POST /api/token/refresh           → access token (15 min) + refresh token (90 days, rotated)
+POST /api/token/deploy   → access token (10 min), no refresh token
+POST /api/token/oidc     → access token (15 min) + refresh token (90 days)
+POST /api/token/refresh  → access token (15 min) + refresh token (90 days, rotated)
 ```
-
-The platform-specific OIDC endpoint path (e.g., `/api/token/gcp-oidc` on GCP) is determined at bootstrap. See [platform/gcp.md](../platform/gcp.md).
 
 The deployer re-exchanges on every deploy run and does not need a refresh token. The 10-minute access token covers typical deploy duration.
 
@@ -74,15 +72,11 @@ Platform-specific implementations of `DeployToken()` and `ValidateDeployToken()`
 
 ```
 Operator runs: morsel operator login
-  → CLI opens system browser → platform OAuth consent screen
-  → Operator authenticates with their platform identity
-  → Platform OAuth callback → localhost listener in CLI binary
-  → CLI holds platform identity token in memory
-
-  → POST /api/token/platform-oidc  { token: "<platform-identity-token>" }
+  → CLI collects operator credential (platform-determined: email on Local, OAuth on GCP)
+  → POST /api/token/oidc  (request body is platform-determined)
 
 Morsel API
-  → validates platform identity token
+  → Platform.ValidateOperatorToken(ctx, r) → operator subject
   → checks identity against configured operator principal(s)
   → issues:
     - Morsel access token (15 min): { sub: "operator:alice@example.com", role: "operator", exp: ... }
@@ -90,10 +84,10 @@ Morsel API
 
 CLI
   → writes profile to ~/.config/morsel/<profile>.profile.json (0600 permissions)
-  → platform identity token is discarded — not persisted
+  → platform credential is discarded — not persisted
 ```
 
-The token exchange endpoint path is platform-specific (e.g., `/api/token/gcp-oidc` on GCP). See [platform/gcp.md](../platform/gcp.md).
+The handler at `POST /api/token/oidc` contains no platform-specific logic. It delegates identity validation entirely to `Platform.ValidateOperatorToken(ctx, r)`, which reads the credential from wherever the platform expects it (request body, injected header, etc.). See [platform/local.md](../platform/local.md) and [platform/gcp.md](../platform/gcp.md) for implementation details.
 
 ---
 
@@ -116,7 +110,7 @@ Refresh tokens are rotated on every use — the old token is invalidated and a n
 
 The admin UI is protected by the platform's operator authentication gateway. The gateway handles the full OAuth flow before any request reaches the admin UI or the Morsel API. The operator authenticates with their existing platform identity — no separate password.
 
-The gateway calls the Morsel API's platform-specific token exchange endpoint on behalf of the authenticated operator to obtain a Morsel token for API calls made by the UI. See [platform/gcp.md](../platform/gcp.md) for GCP-specific details.
+The gateway calls `POST /api/token/oidc` on behalf of the authenticated operator to obtain a Morsel token for API calls made by the UI. The handler delegates identity validation to `Platform.ValidateOperatorToken(ctx, r)`, which reads the platform-specific identity assertion (e.g., an IAP-injected header on GCP). See [platform/gcp.md](../platform/gcp.md) for GCP-specific details.
 
 ---
 

@@ -2,10 +2,13 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
+	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
 type localCredentialProvider struct {
@@ -26,6 +29,27 @@ func (lc *localCredentialProvider) DeployToken(ctx context.Context) (string, err
 		"repository": "localhost/local",
 	})
 	return token.SignedString(key)
+}
+
+func (lc *localCredentialProvider) ValidateOperatorToken(ctx context.Context, r *http.Request) (string, error) {
+	var body struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Email == "" {
+		return "", platform.ErrPrincipalNotAuthorized
+	}
+
+	principals, err := lc.secretMgr.OperatorPrincipals(ctx)
+	if err != nil {
+		return "", fmt.Errorf("validate operator token: %w", err)
+	}
+
+	for _, p := range principals {
+		if p == body.Email {
+			return body.Email, nil
+		}
+	}
+	return "", platform.ErrPrincipalNotAuthorized
 }
 
 // ValidateDeployToken validates a local deploy JWT and returns the repo slug.

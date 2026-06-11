@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"net/http"
 	"time"
 )
 
@@ -14,6 +15,11 @@ var ErrNotImplemented = errors.New("not implemented")
 
 // ErrSecretNotFound is returned by SecretStore.Get when the named secret does not exist.
 var ErrSecretNotFound = errors.New("secret not found")
+
+// ErrPrincipalNotAuthorized is returned by CredentialProvider.ValidateOperatorToken
+// when the identity is not an authorised operator — unknown principal, malformed
+// credential, or revoked access. Callers map this to 401; other errors map to 500.
+var ErrPrincipalNotAuthorized = errors.New("principal not authorized")
 
 // Platform is the single dependency boundary between Morsel business logic
 // and all cloud/infrastructure concerns. No business logic file imports a
@@ -60,7 +66,9 @@ type BlobStore interface {
 	Usage(ctx context.Context, namespace string) (int64, error)
 }
 
-// SecretStore is the platform secret read/write interface.
+// SecretStore is the low-level platform secret read/write interface.
+// Do not use SecretStore directly in business logic; use secrets.Manager
+// for strongly-typed access.
 type SecretStore interface {
 	Get(ctx context.Context, name string) ([]byte, error)
 	Set(ctx context.Context, name string, value []byte) error
@@ -81,6 +89,15 @@ type CredentialProvider interface {
 	// ValidateDeployToken validates a deploy identity token and returns the repo slug.
 	// Called server-side by the POST /api/token/deploy handler.
 	ValidateDeployToken(ctx context.Context, token string) (slug string, err error)
+
+	// ValidateOperatorToken validates the operator identity from the incoming request
+	// and returns the operator subject (e.g. "alice@example.com").
+	// Called server-side by POST /api/token/oidc; the raw request is passed so each
+	// implementation reads its credential from wherever it expects — request body
+	// (LocalPlatform) or platform-injected header (GCPPlatform).
+	// Returns ErrPrincipalNotAuthorized for any auth failure; other errors are
+	// infrastructure failures.
+	ValidateOperatorToken(ctx context.Context, r *http.Request) (subject string, err error)
 }
 
 // DNSProvider manages DNS records for app subdomains.

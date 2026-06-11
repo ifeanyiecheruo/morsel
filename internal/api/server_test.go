@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api"
@@ -18,6 +19,11 @@ var testKey = make([]byte, 32)
 
 func newTestMux(t *testing.T) http.Handler {
 	t.Helper()
+	return newTestMuxWithPlatform(t, local.New())
+}
+
+func newTestMuxWithPlatform(t *testing.T, plat api.AppPlatform) http.Handler {
+	t.Helper()
 	database, err := db.Open(context.Background(), ":memory:")
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
@@ -26,7 +32,7 @@ func newTestMux(t *testing.T) http.Handler {
 	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("migrate test database: %v", err)
 	}
-	return api.NewMux(context.Background(), local.New(), testKey, dbqueries.New(database))
+	return api.NewMux(context.Background(), plat, testKey, dbqueries.New(database))
 }
 
 func TestHealthzReturnsOK(t *testing.T) {
@@ -80,5 +86,62 @@ func TestHealthzIgnoresWrongMethod(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404 (method mismatch falls to catch-all)", rec.Code)
+	}
+}
+
+func TestTokenOIDCIssuesBothTokens(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("USERPROFILE", tmp)
+	t.Setenv("HOME", tmp)
+	plat := local.New()
+	principals, _ := json.Marshal([]string{"alice@example.com"})
+	if err := plat.Secrets().Set(context.Background(), "operator-principals", principals); err != nil {
+		t.Fatalf("seed principals: %v", err)
+	}
+
+	mux := newTestMuxWithPlatform(t, plat)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/token/oidc",
+		strings.NewReader(`{"email":"alice@example.com"}`)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int    `json:"expires_in"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.AccessToken == "" {
+		t.Error("access_token is empty")
+	}
+	if body.RefreshToken == "" {
+		t.Error("refresh_token is empty")
+	}
+	if body.ExpiresIn != 900 {
+		t.Errorf("expires_in = %d, want 900", body.ExpiresIn)
+	}
+}
+
+func TestTokenOIDCRejectsUnknownPrincipal(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("USERPROFILE", tmp)
+	t.Setenv("HOME", tmp)
+	plat := local.New()
+	principals, _ := json.Marshal([]string{"alice@example.com"})
+	if err := plat.Secrets().Set(context.Background(), "operator-principals", principals); err != nil {
+		t.Fatalf("seed principals: %v", err)
+	}
+
+	mux := newTestMuxWithPlatform(t, plat)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/token/oidc",
+		strings.NewReader(`{"email":"eve@example.com"}`)))
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }

@@ -147,6 +147,13 @@ type CredentialProvider interface {
     // ValidateDeployToken validates a deploy identity token and returns the repo slug.
     // Called server-side by the POST /api/token/deploy handler.
     ValidateDeployToken(ctx context.Context, token string) (slug string, err error)
+
+    // ValidateOperatorToken validates the operator identity from the incoming request
+    // and returns the operator subject (e.g. "alice@example.com").
+    // Called server-side by the POST /api/token/oidc handler, which passes the raw
+    // request so each implementation can read from wherever it expects its credential:
+    // the request body (LocalPlatform) or a platform-injected header (GCPPlatform).
+    ValidateOperatorToken(ctx context.Context, r *http.Request) (subject string, err error)
 }
 ```
 
@@ -199,6 +206,7 @@ type PricingProvider interface {
 | `Blobs()` | Returns the `BlobStore`. Object storage — get, put, list, delete, usage. |
 | `Secrets()` | Returns the `SecretStore`. Platform secret read and write. |
 | `Credentials()` | Returns the `CredentialProvider`. Service authentication token for platform API calls. |
+| `CredentialProvider.ValidateOperatorToken()` | Validates the operator identity from an incoming `POST /api/token/oidc` request. Reads credential from wherever the platform expects it: request body (Local) or injected header (GCP). Returns the operator subject. |
 | `DNS()` | Returns the `DNSProvider`. DNS record create, delete, and existence check. |
 | `Certs()` | Returns the `CertProvider`. TLS certificate provisioning and renewal via ACME DNS-01. |
 | `Pricing()` | Returns the `PricingProvider`. Fetches current list prices from the platform pricing API. |

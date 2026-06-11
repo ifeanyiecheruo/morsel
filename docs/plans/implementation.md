@@ -49,7 +49,7 @@ _Delivers: deploy identity token exchange works; operator can `morsel operator l
 - [x] `repos` ownership enforcement — 403 if token `repo` claim doesn't match `:slug`
 - [x] SQLite schema: `refresh_tokens` table
 - [x] `POST /api/token/refresh` — validate refresh token, issue new access token + rotated refresh token
-- [ ] `POST /api/token/local-oidc` — LocalPlatform only; validate principal against local principal list, issue 15-min operator access token + 90-day refresh token
+- [ ] `POST /api/token/oidc` — call `Platform.ValidateOperatorToken(ctx, r)` → operator subject; issue 15-min operator access token + 90-day refresh token; add `ValidateOperatorToken` to `CredentialProvider` interface and implement on `LocalPlatform` (reads email from request body, checks against principal list in SecretStore)
 - [ ] `morsel operator login` CLI command — LocalPlatform path; POST to `/api/token/local-oidc`
 - [ ] Profile file write (`~/.config/morsel/<profile>.profile.json`, mode 0600)
 - [ ] CLI pre-command hook — load profile, silent refresh if access token expired, re-prompt login if refresh token expired
@@ -333,6 +333,6 @@ _Delivers: full production deployment on GCP; operator runs `morsel service boot
 - [ ] `GCPPlatform.Pricing()` — Cloud Billing Catalog API (`cloudbilling.googleapis.com`)
 - [ ] `GCPPlatform.DeployToken()` — obtain GitHub OIDC token from GitHub Actions environment (`ACTIONS_ID_TOKEN_REQUEST_URL`); fails if `GITHUB_ACTIONS` not set
 - [ ] `GCPPlatform.ValidateDeployToken()` — fetch GitHub JWKS (cached), validate JWT signature, extract `repository` claim, return `org/repo` slug; generate short-lived Artifact Registry staging push credentials via WIF and attach to token response
-- [ ] `POST /api/token/gcp-oidc` in Morsel API — validate GCP identity token (IAP-issued); issue operator token
+- [ ] `GCPPlatform.ValidateOperatorToken()` — verify `X-Goog-IAP-JWT-Assertion` header using Google's public JWKS (cached); return operator email as subject; `POST /api/token/oidc` already handles token issuance
 - [ ] Admin UI authentication via IAP — IAP injects identity header; Morsel API verifies and exchanges for Morsel token
 - [ ] Smoke test on bootstrap completion — deploy a test app, verify it is reachable, clean up

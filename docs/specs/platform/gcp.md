@@ -169,6 +169,8 @@ GitHub Actions workflows run on GitHub-hosted runners and make outbound HTTPS co
 
 The admin UI is protected by GCP IAP. IAP is provisioned at bootstrap with an OAuth client and the operator's principal list. Operators authenticate with their Google account — no separate password.
 
+When an authenticated request reaches the Morsel API, IAP injects a signed `X-Goog-IAP-JWT-Assertion` header. The `POST /api/token/oidc` handler calls `GCPPlatform.ValidateOperatorToken(ctx, r)`, which reads and verifies that header using Google's public JWKS, then returns the operator's email as the subject. The handler issues a Morsel access token and refresh token from there — no GCP-specific logic in the handler itself.
+
 IAP is the most GCP-specific concern in the platform that is not covered by the `Platform` interface. If portability to another cloud is needed, Cloudflare Access is the recommended replacement — it is cloud-agnostic and supports the same Google identity provider.
 
 ---

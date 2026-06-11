@@ -7,6 +7,7 @@ package secrets
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -20,8 +21,9 @@ import (
 var migrationsFS embed.FS
 
 const (
-	signingKeyName       = "morsel-signing-key"
-	deploySigningKeyName = "local-deploy-signing-key"
+	signingKeyName        = "morsel-signing-key"
+	deploySigningKeyName  = "local-deploy-signing-key"
+	operatorPrincipalsKey = "operator-principals"
 )
 
 // Call Migrate on startup before accessing any secret so that key renames and deletions are applied first.
@@ -70,6 +72,23 @@ func (m *Manager) DeploySigningKey(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("persist deploy signing key: %w", err)
 	}
 	return key, nil
+}
+
+// OperatorPrincipals returns the list of authorised operator emails.
+// Returns nil when the secret is absent — an empty list, not an error.
+func (m *Manager) OperatorPrincipals(ctx context.Context) ([]string, error) {
+	raw, err := m.store.Get(ctx, operatorPrincipalsKey)
+	if err != nil {
+		if errors.Is(err, platform.ErrSecretNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read operator principals: %w", err)
+	}
+	var principals []string
+	if err := json.Unmarshal(raw, &principals); err != nil {
+		return nil, fmt.Errorf("parse operator principals: %w", err)
+	}
+	return principals, nil
 }
 
 // Idempotent; safe to call on every startup.

@@ -58,7 +58,7 @@ func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte, queries *d
 	public("GET /healthz", handleHealthz)
 	public("POST /api/token/deploy", handleTokenDeployRoute(plat.Credentials(), signingKey))
 	public("POST /api/token/refresh", handleTokenRefreshRoute(queries, signingKey))
-	public("POST /api/token/local-oidc", stub)
+	public("POST /api/token/oidc", handleTokenOIDCRoute(plat.Credentials(), queries, signingKey))
 
 	// ---- Repo-scoped: developer + operator -------------------------------------
 	repoScoped("POST /api/repos/{org}/{repo}/sync", stub)

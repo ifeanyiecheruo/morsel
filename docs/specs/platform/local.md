@@ -135,6 +135,8 @@ The JWT is signed with `local-deploy-signing-key`, generated at bootstrap and st
 
 `CredentialProvider.ValidateDeployToken(token)` validates the incoming JWT signature against `local-deploy-signing-key` and returns `localhost/{dirname}` as the repo slug. The Morsel API's `POST /api/token/deploy` handler calls this method — it contains no GitHub-specific logic. See [platform-features/authentication.md — Deploy Auth Flow](../platform-features/authentication.md).
 
+`CredentialProvider.ValidateOperatorToken(ctx, r)` reads the operator's email address from the JSON request body and checks it against the `operator-principals` list in the platform SecretStore. Returns the email as the operator subject on success.
+
 `CredentialProvider.AmbientToken()` (ambient service identity, used by Morsel API itself) returns an empty string — no cloud identity is required locally.
 
 ### DNSProvider — No-op (`*.morsel.localhost`)
@@ -184,7 +186,9 @@ The first principal is added automatically at bootstrap time using the email add
 
 ### Operator Login
 
-`morsel operator login` prompts for an email address and issues a 15-minute operator access token plus a 90-day refresh token if the email is in the principals list. No password — authentication relies on local network trust (only someone who can reach the Morsel API endpoint can obtain a token).
+`morsel operator login` prompts for an email address and posts it to `POST /api/token/oidc`. The Morsel API handler calls `LocalPlatform.ValidateOperatorToken(ctx, r)`, which reads the email from the request body and checks it against the principals list. On success, it returns the email as the operator subject; the handler issues a 15-minute access token plus a 90-day refresh token.
+
+No password — authentication relies on local network trust (only someone who can reach the Morsel API endpoint can obtain a token).
 
 ```
 morsel --profile local operator login
