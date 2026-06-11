@@ -1,4 +1,4 @@
-package api
+package middleware
 
 import (
 	"log/slog"
@@ -20,17 +20,13 @@ func (sc *statusCapture) WriteHeader(status int) {
 	sc.ResponseWriter.WriteHeader(status)
 }
 
-// injectLogger returns middleware that stores logger in every request's context
-// so all downstream handlers can call ctxlog.From(req.Context()).
-func injectLogger(logger *slog.Logger, next http.Handler) http.Handler {
+func InjectLogger(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		next.ServeHTTP(resp, req.WithContext(ctxlog.With(req.Context(), logger)))
 	})
 }
 
-// logRequests reads the logger from the request context and logs method, path,
-// status, and latency after the handler returns.
-func logRequests(next http.Handler) http.Handler {
+func LogRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		capture := &statusCapture{ResponseWriter: resp, status: http.StatusOK}

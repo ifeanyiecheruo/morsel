@@ -1,4 +1,4 @@
-package api
+package routes
 
 import (
 	"crypto/rand"
@@ -14,7 +14,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
-func handleTokenOIDCRoute(creds platform.CredentialProvider, queries *dbqueries.Queries, signingKey []byte) func(http.ResponseWriter, *http.Request) error {
+func HandleTokenOIDCRoute(creds platform.CredentialProvider, queries *dbqueries.Queries, signingKey []byte) func(http.ResponseWriter, *http.Request) error {
 	return func(resp http.ResponseWriter, req *http.Request) error {
 		subject, err := creds.ValidateOperatorToken(req.Context(), req)
 		if errors.Is(err, platform.ErrPrincipalNotAuthorized) {

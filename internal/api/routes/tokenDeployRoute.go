@@ -1,4 +1,4 @@
-package api
+package routes
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
-func handleTokenDeployRoute(creds platform.CredentialProvider, signingKey []byte) func(http.ResponseWriter, *http.Request) error {
+func HandleTokenDeployRoute(creds platform.CredentialProvider, signingKey []byte) func(http.ResponseWriter, *http.Request) error {
 	return func(resp http.ResponseWriter, req *http.Request) error {
 		var body struct {
 			Token string `json:"token"`
@@ -33,7 +33,6 @@ func handleTokenDeployRoute(creds platform.CredentialProvider, signingKey []byte
 			}
 		}
 
-		// issues a developer access token scoped to slug.
 		accessToken, err := tokens.IssueToken(signingKey, tokens.CreateDeployClaims(slug))
 		if err != nil {
 			return fmt.Errorf("issue deploy token: %w", err)

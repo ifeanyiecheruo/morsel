@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ifeanyiecheruo/morsel/internal/api/middleware"
+	"github.com/ifeanyiecheruo/morsel/internal/api/routes"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/platform"
@@ -33,32 +35,32 @@ func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte, queries *d
 
 	// public registers a route with no authentication.
 	public := func(pattern string, h func(http.ResponseWriter, *http.Request) error) {
-		mux.Handle(pattern, ErrorHandlerFunc(h))
+		mux.Handle(pattern, routes.ErrorHandlerFunc(h))
 	}
 
 	// authenticated requires a valid token; any role is accepted.
 	authenticated := func(pattern string, h func(http.ResponseWriter, *http.Request) error) {
-		mux.Handle(pattern, requireAuth(signingKey, ErrorHandlerFunc(h)))
+		mux.Handle(pattern, middleware.RequireAuth(signingKey, routes.ErrorHandlerFunc(h)))
 	}
 
 	// repoScoped requires a valid token and enforces that a developer token's
 	// repo claim matches the {org}/{repo} path values. Operator tokens bypass.
 	repoScoped := func(pattern string, h func(http.ResponseWriter, *http.Request) error) {
-		mux.Handle(pattern, requireAuth(signingKey, ErrorHandlerFunc(requireRepo(h))))
+		mux.Handle(pattern, middleware.RequireAuth(signingKey, routes.ErrorHandlerFunc(middleware.RequireRepo(h))))
 	}
 
 	// operatorOnly requires a valid token with the operator role.
 	operatorOnly := func(pattern string, h func(http.ResponseWriter, *http.Request) error) {
-		mux.Handle(pattern, requireAuth(signingKey, ErrorHandlerFunc(requireOperator(h))))
+		mux.Handle(pattern, middleware.RequireAuth(signingKey, routes.ErrorHandlerFunc(middleware.RequireOperator(h))))
 	}
 
 	stub := handleNotImplemented
 
 	// ---- Public: token exchange ------------------------------------------------
 	public("GET /healthz", handleHealthz)
-	public("POST /api/token/deploy", handleTokenDeployRoute(plat.Credentials(), signingKey))
-	public("POST /api/token/refresh", handleTokenRefreshRoute(queries, signingKey))
-	public("POST /api/token/oidc", handleTokenOIDCRoute(plat.Credentials(), queries, signingKey))
+	public("POST /api/token/deploy", routes.HandleTokenDeployRoute(plat.Credentials(), signingKey))
+	public("POST /api/token/refresh", routes.HandleTokenRefreshRoute(queries, signingKey))
+	public("POST /api/token/oidc", routes.HandleTokenOIDCRoute(plat.Credentials(), queries, signingKey))
 
 	// ---- Repo-scoped: developer + operator -------------------------------------
 	repoScoped("POST /api/repos/{org}/{repo}/sync", stub)
@@ -91,7 +93,7 @@ func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte, queries *d
 
 	// ---- Catch-all: 404 --------------------------------------------------------
 	public("/", func(resp http.ResponseWriter, req *http.Request) error {
-		return &APIError{
+		return &routes.APIError{
 			HTTPStatus: http.StatusNotFound,
 			Code:       "not_found",
 			Message:    fmt.Sprintf("%s %s not found", req.Method, req.URL.Path),
@@ -99,11 +101,11 @@ func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte, queries *d
 		}
 	})
 
-	return injectLogger(ctxlog.From(ctx), logRequests(mux))
+	return middleware.InjectLogger(ctxlog.From(ctx), middleware.LogRequests(mux))
 }
 
 func handleNotImplemented(_ http.ResponseWriter, _ *http.Request) error {
-	return &APIError{
+	return &routes.APIError{
 		HTTPStatus: http.StatusNotImplemented,
 		Code:       "not_implemented",
 		Message:    "this endpoint is not yet implemented",

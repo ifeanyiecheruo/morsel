@@ -1,4 +1,4 @@
-package api
+package routes
 
 import (
 	"database/sql"
@@ -13,7 +13,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 )
 
-func handleTokenRefreshRoute(queries *dbqueries.Queries, signingKey []byte) func(http.ResponseWriter, *http.Request) error {
+func HandleTokenRefreshRoute(queries *dbqueries.Queries, signingKey []byte) func(http.ResponseWriter, *http.Request) error {
 	return func(resp http.ResponseWriter, req *http.Request) error {
 		var body struct {
 			RefreshToken string `json:"refresh_token"`

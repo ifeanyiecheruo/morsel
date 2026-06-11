@@ -1,4 +1,4 @@
-package api
+package middleware
 
 import (
 	"context"
@@ -44,7 +44,7 @@ func TestLogRequestsRecordsFields(t *testing.T) {
 	inner := http.HandlerFunc(func(resp http.ResponseWriter, _ *http.Request) {
 		resp.WriteHeader(http.StatusCreated)
 	})
-	mux := injectLogger(logger, logRequests(inner))
+	mux := InjectLogger(logger, LogRequests(inner))
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/things", nil))
@@ -79,7 +79,7 @@ func TestLogRequestsDefaultsStatusTo200(t *testing.T) {
 	inner := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		// write no explicit status — implicit 200
 	})
-	injectLogger(logger, logRequests(inner)).ServeHTTP(
+	InjectLogger(logger, LogRequests(inner)).ServeHTTP(
 		httptest.NewRecorder(),
 		httptest.NewRequest(http.MethodGet, "/healthz", nil),
 	)

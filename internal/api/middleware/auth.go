@@ -1,51 +1,51 @@
-package api
+package middleware
 
 import (
 	"context"
 	"net/http"
 	"strings"
 
+	"github.com/ifeanyiecheruo/morsel/internal/api/routes"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 )
 
 type claimsContextKey struct{}
 
-func requireAuth(signingKey []byte, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+func RequireAuth(signingKey []byte, next http.Handler) http.Handler {
+	return routes.ErrorHandlerFunc(func(resp http.ResponseWriter, req *http.Request) error {
 		tokenStr, ok := strings.CutPrefix(req.Header.Get("Authorization"), "Bearer ")
 		if !ok || tokenStr == "" {
-			writeError(resp, &APIError{
+			return &routes.APIError{
 				HTTPStatus: http.StatusUnauthorized,
 				Code:       "invalid_token",
 				Message:    "request is missing an Authorization: Bearer header",
 				Remedy:     "include a valid Morsel access token in the Authorization header",
-			})
-			return
+			}
 		}
 
 		claims, err := tokens.Verify(signingKey, tokenStr)
 		if err != nil {
-			writeError(resp, &APIError{
+			return &routes.APIError{
 				HTTPStatus: http.StatusUnauthorized,
 				Code:       "invalid_token",
 				Message:    "access token is invalid or expired",
 				Remedy:     "re-authenticate to obtain a fresh access token",
-			})
-			return
+			}
 		}
 
 		next.ServeHTTP(resp, req.WithContext(
 			context.WithValue(req.Context(), claimsContextKey{}, claims),
 		))
+		return nil
 	})
 }
 
-// Must be used inside a requireAuth-protected mux so claims are always present.
-func requireRepo(handler func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) error {
+// Must be used inside a RequireAuth-protected mux so claims are always present.
+func RequireRepo(handler func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) error {
 	return func(resp http.ResponseWriter, req *http.Request) error {
 		claims := claimsFromContext(req.Context())
 		if claims == nil {
-			return &APIError{
+			return &routes.APIError{
 				HTTPStatus: http.StatusUnauthorized,
 				Code:       "invalid_token",
 				Message:    "request is missing an Authorization: Bearer header",
@@ -53,7 +53,7 @@ func requireRepo(handler func(http.ResponseWriter, *http.Request) error) func(ht
 			}
 		}
 		if claims.Role == tokens.RoleDeveloper && claims.Repo != repoSlug(req) {
-			return &APIError{
+			return &routes.APIError{
 				HTTPStatus: http.StatusForbidden,
 				Code:       "repo_mismatch",
 				Message:    "token is not authorised for this repository",
@@ -64,12 +64,12 @@ func requireRepo(handler func(http.ResponseWriter, *http.Request) error) func(ht
 	}
 }
 
-// Must be used inside a requireAuth-protected mux so claims are always present.
-func requireOperator(handler func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) error {
+// Must be used inside a RequireAuth-protected mux so claims are always present.
+func RequireOperator(handler func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) error {
 	return func(resp http.ResponseWriter, req *http.Request) error {
 		claims := claimsFromContext(req.Context())
 		if claims == nil || claims.Role != tokens.RoleOperator {
-			return &APIError{
+			return &routes.APIError{
 				HTTPStatus: http.StatusForbidden,
 				Code:       "insufficient_role",
 				Message:    "this operation requires operator role",
