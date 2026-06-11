@@ -2,8 +2,10 @@ package secrets
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 
 	"github.com/ifeanyiecheruo/morsel/platform"
 )
@@ -163,5 +165,117 @@ func TestDeleteSecretMigrationIsNoOpWhenAbsent(t *testing.T) {
 	mig := deleteSecret("nonexistent")
 	if err := mig(context.Background(), store); err != nil {
 		t.Fatalf("migration should be a no-op but got error: %v", err)
+	}
+}
+
+// --- parseMigrationScript tests ---------------------------------------------
+
+func TestParseMigrationScriptRename(t *testing.T) {
+	migs, err := parseMigrationScript("test.secrets.txt", []byte(`rename "old-key" "new-key"`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(migs) != 1 {
+		t.Fatalf("want 1 migration, got %d", len(migs))
+	}
+	if !strings.Contains(migs[0].name, "old-key") || !strings.Contains(migs[0].name, "new-key") {
+		t.Errorf("migration name %q does not reference both keys", migs[0].name)
+	}
+}
+
+func TestParseMigrationScriptDelete(t *testing.T) {
+	migs, err := parseMigrationScript("test.secrets.txt", []byte(`delete "stale-key"`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(migs) != 1 {
+		t.Fatalf("want 1 migration, got %d", len(migs))
+	}
+	if !strings.Contains(migs[0].name, "stale-key") {
+		t.Errorf("migration name %q does not reference key", migs[0].name)
+	}
+}
+
+func TestParseMigrationScriptIgnoresCommentsAndBlanks(t *testing.T) {
+	script := `# this is a comment
+
+# another comment
+delete "x"
+`
+	migs, err := parseMigrationScript("test.secrets.txt", []byte(script))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(migs) != 1 {
+		t.Fatalf("want 1 migration, got %d", len(migs))
+	}
+}
+
+func TestParseMigrationScriptUnknownDirective(t *testing.T) {
+	_, err := parseMigrationScript("test.secrets.txt", []byte(`frobnicate "foo"`))
+	if err == nil {
+		t.Error("expected error for unknown directive")
+	}
+}
+
+func TestParseMigrationScriptRenameWrongArgCount(t *testing.T) {
+	_, err := parseMigrationScript("test.secrets.txt", []byte(`rename "only-one"`))
+	if err == nil {
+		t.Error("expected error for rename with one argument")
+	}
+}
+
+func TestParseMigrationScriptDeleteWrongArgCount(t *testing.T) {
+	_, err := parseMigrationScript("test.secrets.txt", []byte(`delete "a" "b"`))
+	if err == nil {
+		t.Error("expected error for delete with two arguments")
+	}
+}
+
+// --- loadMigrations tests ----------------------------------------------------
+
+func TestLoadMigrationsRunsInFilenameOrder(t *testing.T) {
+	fsys := fstest.MapFS{
+		"002_second.secrets.txt": {Data: []byte(`delete "b"`)},
+		"001_first.secrets.txt":  {Data: []byte(`delete "a"`)},
+	}
+	migs, err := loadMigrations(fsys)
+	if err != nil {
+		t.Fatalf("loadMigrations: %v", err)
+	}
+	if len(migs) != 2 {
+		t.Fatalf("want 2 migrations, got %d", len(migs))
+	}
+	if !strings.Contains(migs[0].name, "001") {
+		t.Errorf("first migration should come from 001_first, got %q", migs[0].name)
+	}
+	if !strings.Contains(migs[1].name, "002") {
+		t.Errorf("second migration should come from 002_second, got %q", migs[1].name)
+	}
+}
+
+func TestLoadMigrationsSkipsNonSecretFiles(t *testing.T) {
+	fsys := fstest.MapFS{
+		"001_real.secrets.txt": {Data: []byte(`delete "x"`)},
+		"README.md":            {Data: []byte(`# ignored`)},
+		"notes.txt":            {Data: []byte(`ignored`)},
+	}
+	migs, err := loadMigrations(fsys)
+	if err != nil {
+		t.Fatalf("loadMigrations: %v", err)
+	}
+	if len(migs) != 1 {
+		t.Fatalf("want 1 migration (only .secrets.txt), got %d", len(migs))
+	}
+}
+
+func TestLoadMigrationsEmptyDirReturnsNone(t *testing.T) {
+	fsys := fstest.MapFS{}
+	migs, err := loadMigrations(fsys)
+	if err != nil {
+		t.Fatalf("loadMigrations: %v", err)
+	}
+	if len(migs) != 0 {
+		t.Errorf("want 0 migrations, got %d", len(migs))
 	}
 }

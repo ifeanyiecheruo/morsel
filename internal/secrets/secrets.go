@@ -1,18 +1,23 @@
 // Package secrets manages the lifecycle of all service-level secrets.
 // It wraps a platform.SecretStore and provides typed accessors for named
-// secrets, plus a Migrate method that runs versioned migrations on startup
-// so that key renames and stale-secret cleanup happen automatically.
+// secrets, plus a Migrate method that loads and runs versioned migration
+// scripts from the embedded migrations/ folder on startup.
 package secrets
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 	"github.com/ifeanyiecheruo/morsel/platform"
 )
+
+//go:embed migrations/*.secrets.txt
+var migrationsFS embed.FS
 
 const (
 	signingKeyName       = "morsel-signing-key"
@@ -73,65 +78,24 @@ func (m *Manager) DeploySigningKey(ctx context.Context) ([]byte, error) {
 	return key, nil
 }
 
-// Migrate runs all pending secret migrations in order. Each migration is
-// idempotent, so Migrate is safe to call on every startup.
-// A failed migration is fatal — it is returned immediately without running
-// subsequent migrations, since later steps may depend on earlier ones.
+// Migrate loads all *.secrets.txt migration scripts from the embedded
+// migrations/ folder in filename order and runs each directive. It is
+// idempotent and safe to call on every startup.
 func (m *Manager) Migrate(ctx context.Context) error {
 	logger := ctxlog.From(ctx)
-	for _, mig := range migrations {
+	fsys, err := fs.Sub(migrationsFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("secrets migrations fs: %w", err)
+	}
+	migs, err := loadMigrations(fsys)
+	if err != nil {
+		return fmt.Errorf("load secret migrations: %w", err)
+	}
+	for _, mig := range migs {
 		if err := mig.run(ctx, m.store); err != nil {
 			return fmt.Errorf("secret migration %q: %w", mig.name, err)
 		}
 		logger.Debug("secret migration ok", "migration", mig.name)
 	}
 	return nil
-}
-
-// --- Migration registry -----------------------------------------------------
-
-type migration struct {
-	name string
-	run  func(ctx context.Context, store platform.SecretStore) error
-}
-
-// migrations is the ordered list of all secret lifecycle migrations.
-// Append new entries at the end; never remove or reorder existing ones.
-var migrations = []migration{
-	// Placeholder: no migrations yet.
-	// Example entries when needed:
-	//   { name: "rename-foo-v1-to-foo", run: renameSecret("foo-v1", "foo") },
-	//   { name: "delete-legacy-bar",    run: deleteSecret("bar-legacy")     },
-}
-
-// --- Migration helpers -------------------------------------------------------
-
-// renameSecret returns an idempotent migration that copies src → dst then
-// deletes src. If src is absent the migration is a no-op.
-func renameSecret(src, dst string) func(context.Context, platform.SecretStore) error {
-	return func(ctx context.Context, store platform.SecretStore) error {
-		value, err := store.Get(ctx, src)
-		if errors.Is(err, platform.ErrSecretNotFound) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if err := store.Set(ctx, dst, value); err != nil {
-			return err
-		}
-		return store.Delete(ctx, src)
-	}
-}
-
-// deleteSecret returns an idempotent migration that removes name. If name is
-// absent the migration is a no-op.
-func deleteSecret(name string) func(context.Context, platform.SecretStore) error {
-	return func(ctx context.Context, store platform.SecretStore) error {
-		err := store.Delete(ctx, name)
-		if errors.Is(err, platform.ErrSecretNotFound) {
-			return nil
-		}
-		return err
-	}
 }
