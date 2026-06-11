@@ -26,7 +26,7 @@ func (lp *LocalPlatform) Deploy() platform.Deployer        { return &localDeploy
 func (lp *LocalPlatform) Blobs() platform.BlobStore        { return &localBlobStore{} }
 func (lp *LocalPlatform) Secrets() platform.SecretStore    { return lp.store }
 func (lp *LocalPlatform) Credentials() platform.CredentialProvider {
-	return &localCredentialProvider{}
+	return &localCredentialProvider{secretMgr: lp.secretMgr}
 }
 func (lp *LocalPlatform) DNS() platform.DNSProvider         { return &localDNSProvider{} }
 func (lp *LocalPlatform) Certs() platform.CertProvider      { return &localCertProvider{} }
