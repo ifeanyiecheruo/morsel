@@ -37,7 +37,7 @@ test: ## Run all tests
 lint: ## Run linters
 	go vet ./...
 	golangci-lint run
-	@UNFORMATTED=$$(go list -f '{{.Dir}}' ./... | sed 's|\\|/|g' | xargs gofmt -l); \
+	@UNFORMATTED=$$(gofmt -l $$(go list -f '{{.Dir}}' ./... | sed 's|\\|/|g')); \
 	test -z "$$UNFORMATTED" || { echo "Files need formatting (run make fix):"; echo "$$UNFORMATTED"; exit 1; }
 
 .PHONY: fix
@@ -64,9 +64,9 @@ generate-ci:
 
 .PHONY: pre-commit
 pre-commit: ## Pre-commit git hook
-	@STAGED=$$(git diff --cached --name-only); \
-	$(MAKE) generate fix; \
-	if [ -n "$$STAGED" ]; then echo "$$STAGED" | xargs git add; fi
+	@git stash --keep-index --quiet || true; \
+	$(MAKE) generate fix && git add -u; \
+	git stash pop --quiet || true
 
 .PHONY: pre-push
 pre-push: ci ## Pre-push git hook
