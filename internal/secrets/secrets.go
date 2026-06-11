@@ -24,20 +24,16 @@ const (
 	deploySigningKeyName = "local-deploy-signing-key"
 )
 
-// Manager wraps a platform.SecretStore and provides typed accessors for each
-// service-level secret. Callers should call Migrate on startup before
-// accessing any secret so that key renames and deletions are applied first.
+// Call Migrate on startup before accessing any secret so that key renames and deletions are applied first.
 type Manager struct {
 	store platform.SecretStore
 }
 
-// New creates a Manager backed by store.
 func New(store platform.SecretStore) *Manager {
 	return &Manager{store: store}
 }
 
-// SigningKey returns the HMAC-SHA256 key used to sign and verify Morsel access
-// tokens. If the key does not exist it is generated and persisted before returning.
+// Generated and persisted on first call if absent.
 func (m *Manager) SigningKey(ctx context.Context) ([]byte, error) {
 	key, err := m.store.Get(ctx, signingKeyName)
 	if err == nil {
@@ -56,10 +52,8 @@ func (m *Manager) SigningKey(ctx context.Context) ([]byte, error) {
 	return key, nil
 }
 
-// DeploySigningKey returns the HMAC-SHA256 key used by the local platform to
-// sign and verify deploy identity tokens. If absent it is generated and
-// persisted before returning. Only used by the local platform implementation;
-// cloud platforms use Workload Identity Federation instead.
+// Generated and persisted on first call if absent.
+// Only used by the local platform; cloud platforms use Workload Identity Federation.
 func (m *Manager) DeploySigningKey(ctx context.Context) ([]byte, error) {
 	key, err := m.store.Get(ctx, deploySigningKeyName)
 	if err == nil {
@@ -78,9 +72,7 @@ func (m *Manager) DeploySigningKey(ctx context.Context) ([]byte, error) {
 	return key, nil
 }
 
-// Migrate loads all *.secrets.txt migration scripts from the embedded
-// migrations/ folder in filename order and runs each directive. It is
-// idempotent and safe to call on every startup.
+// Idempotent; safe to call on every startup.
 func (m *Manager) Migrate(ctx context.Context) error {
 	logger := ctxlog.From(ctx)
 	fsys, err := fs.Sub(migrationsFS, "migrations")

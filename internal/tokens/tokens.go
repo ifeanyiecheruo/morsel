@@ -8,7 +8,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// GenerateKey generates a random 32-byte HMAC-SHA256 signing key.
 func GenerateKey() ([]byte, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -17,12 +16,10 @@ func GenerateKey() ([]byte, error) {
 	return key, nil
 }
 
-// IssueToken signs claims with key using HS256 and returns the compact JWT string.
 func IssueToken(key []byte, claims Claims) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(key)
 }
 
-// Verify parses and validates a Morsel access token. Returns the claims on success.
 func Verify(key []byte, tokenStr string) (*Claims, error) {
 	var claims Claims
 	_, err := jwt.ParseWithClaims(tokenStr, &claims, func(t *jwt.Token) (any, error) {

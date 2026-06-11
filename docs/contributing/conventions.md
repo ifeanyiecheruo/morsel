@@ -6,18 +6,20 @@ No single-letter variable names. Use descriptive short names: `plat` over `p`, `
 
 ## Comments
 
-Comments explain *why*, not *what*. Don't restate what well-named identifiers already say. A comment is warranted when the code encodes a hidden constraint, a non-obvious invariant, or a workaround for a specific external behaviour.
+Comments explain *why* and possibly how at a high level, not *what*.
+Don't restate what well-named identifiers already imply.
+Don't place implementation details that can easily be changed in comments.
+A comment is warranted when the code encodes a hidden constraint, a non-obvious invariant, or a workaround for a specific external behaviour.
 
 ## Layout
 
-Constants first, public constants then private constants
+The order for code should be...
 
-Public functions next
+1) Public constants
+2) Private constants
+3) Public functions
+4) Public structs, each struct followed by its methods
+5) Private structs, each struct followed by its methods
+6) Private functions
 
-Public structs next. Each struct followed by its methods
-
-Private structs next. Each struct followed by its methods
-
-Private functions last
-
-Where possible referenced constants, structs, or functions come before their referers.
+Where possible referenced constants, structs, or functions come after their referers.

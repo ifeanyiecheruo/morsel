@@ -16,8 +16,6 @@ type migration struct {
 	run  func(ctx context.Context, store platform.SecretStore) error
 }
 
-// loadMigrations walks fsys in filename order, parses every *.secrets.txt file,
-// and returns the combined ordered list of migrations.
 // fs.ReadDir guarantees lexicographic order, so NNN_ prefixes determine sequence.
 func loadMigrations(fsys fs.FS) ([]migration, error) {
 	entries, err := fs.ReadDir(fsys, ".")
@@ -42,10 +40,6 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 	return all, nil
 }
 
-// parseMigrationScript parses the line-delimited migration script format and
-// returns a migration for each directive. Blank lines and lines beginning with
-// '#' are ignored.
-//
 // Supported directives:
 //
 //	rename "old-name" "new-name"
@@ -94,8 +88,7 @@ func parseMigrationScript(filename string, content []byte) ([]migration, error) 
 	return migs, nil
 }
 
-// renameSecret returns an idempotent migration that copies src → dst then
-// deletes src. If src is absent the migration is a no-op.
+// If src is absent this is a no-op.
 func renameSecret(src, dst string) func(context.Context, platform.SecretStore) error {
 	return func(ctx context.Context, store platform.SecretStore) error {
 		value, err := store.Get(ctx, src)
@@ -112,8 +105,7 @@ func renameSecret(src, dst string) func(context.Context, platform.SecretStore) e
 	}
 }
 
-// deleteSecret returns an idempotent migration that removes name. If name is
-// absent the migration is a no-op.
+// If name is absent this is a no-op.
 func deleteSecret(name string) func(context.Context, platform.SecretStore) error {
 	return func(ctx context.Context, store platform.SecretStore) error {
 		err := store.Delete(ctx, name)

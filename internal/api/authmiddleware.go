@@ -10,9 +10,6 @@ import (
 
 type claimsContextKey struct{}
 
-// requireAuth is middleware that verifies the Bearer JWT on every request and
-// attaches the parsed claims to the context. Unauthenticated requests are
-// rejected with 401 before reaching the wrapped handler.
 func requireAuth(signingKey []byte, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		tokenStr, ok := strings.CutPrefix(req.Header.Get("Authorization"), "Bearer ")
@@ -43,8 +40,6 @@ func requireAuth(signingKey []byte, next http.Handler) http.Handler {
 	})
 }
 
-// requireRepo wraps a handler and enforces that the token's repo claim matches
-// the {org}/{repo} path values. Operator tokens bypass the check.
 // Must be used inside a requireAuth-protected mux so claims are always present.
 func requireRepo(handler func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) error {
 	return func(resp http.ResponseWriter, req *http.Request) error {
@@ -69,7 +64,6 @@ func requireRepo(handler func(http.ResponseWriter, *http.Request) error) func(ht
 	}
 }
 
-// requireOperator wraps a handler and enforces operator role.
 // Must be used inside a requireAuth-protected mux so claims are always present.
 func requireOperator(handler func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) error {
 	return func(resp http.ResponseWriter, req *http.Request) error {
@@ -86,14 +80,11 @@ func requireOperator(handler func(http.ResponseWriter, *http.Request) error) fun
 	}
 }
 
-// claimsFromContext returns the verified claims attached to the request context,
-// or nil if the request was not authenticated.
 func claimsFromContext(ctx context.Context) *tokens.Claims {
 	v, _ := ctx.Value(claimsContextKey{}).(*tokens.Claims)
 	return v
 }
 
-// repoSlug reconstructs the repo slug from the {org} and {repo} path values.
 // Route patterns use two segments because slugs like "org/my-repo" contain a slash.
 func repoSlug(r *http.Request) string {
 	return r.PathValue("org") + "/" + r.PathValue("repo")

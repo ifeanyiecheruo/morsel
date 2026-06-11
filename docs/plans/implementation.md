@@ -47,8 +47,8 @@ _Delivers: deploy identity token exchange works; operator can `morsel operator l
 - [x] `LocalPlatform.ValidateDeployToken()` — validate JWT signature against `local-deploy-signing-key`, extract `repository` claim, return `localhost/{dirname}` slug
 - [x] Auth middleware — verify JWT signature, parse role + repo claims, attach to request context
 - [x] `repos` ownership enforcement — 403 if token `repo` claim doesn't match `:slug`
-- [ ] SQLite schema: `refresh_tokens` table
-- [ ] `POST /api/token/refresh` — validate refresh token, issue new access token + rotated refresh token
+- [x] SQLite schema: `refresh_tokens` table
+- [x] `POST /api/token/refresh` — validate refresh token, issue new access token + rotated refresh token
 - [ ] `POST /api/token/local-oidc` — LocalPlatform only; validate principal against local principal list, issue 15-min operator access token + 90-day refresh token
 - [ ] `morsel operator login` CLI command — LocalPlatform path; POST to `/api/token/local-oidc`
 - [ ] Profile file write (`~/.config/morsel/<profile>.profile.json`, mode 0600)
