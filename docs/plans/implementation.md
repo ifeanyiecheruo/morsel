@@ -42,11 +42,11 @@ _Delivers: running API binary; `curl /healthz` returns 200._
 
 _Delivers: deploy identity token exchange works; operator can `morsel operator login` on LocalPlatform._
 
-- [ ] JWT signing key: load from `SecretStore` at startup; generate and persist on first run if absent
-- [ ] `POST /api/token/deploy` — call `Platform.ValidateDeployToken(token)` → repo slug; issue 10-min developer access token; no platform-specific logic in the handler
-- [ ] `LocalPlatform.ValidateDeployToken()` — validate JWT signature against `local-deploy-signing-key`, extract `repository` claim, return `localhost/{dirname}` slug
-- [ ] Auth middleware — verify JWT signature, parse role + repo claims, attach to request context
-- [ ] `repos` ownership enforcement — 403 if token `repo` claim doesn't match `:slug`
+- [x] JWT signing key: load from `SecretStore` at startup; generate and persist on first run if absent
+- [x] `POST /api/token/deploy` — call `Platform.ValidateDeployToken(token)` → repo slug; issue 10-min developer access token; no platform-specific logic in the handler
+- [x] `LocalPlatform.ValidateDeployToken()` — validate JWT signature against `local-deploy-signing-key`, extract `repository` claim, return `localhost/{dirname}` slug
+- [x] Auth middleware — verify JWT signature, parse role + repo claims, attach to request context
+- [x] `repos` ownership enforcement — 403 if token `repo` claim doesn't match `:slug`
 - [ ] SQLite schema: `refresh_tokens` table
 - [ ] `POST /api/token/refresh` — validate refresh token, issue new access token + rotated refresh token
 - [ ] `POST /api/token/local-oidc` — LocalPlatform only; validate principal against local principal list, issue 15-min operator access token + 90-day refresh token

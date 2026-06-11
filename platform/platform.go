@@ -12,6 +12,9 @@ import (
 // that have not yet been built.
 var ErrNotImplemented = errors.New("not implemented")
 
+// ErrSecretNotFound is returned by SecretStore.Get when the named secret does not exist.
+var ErrSecretNotFound = errors.New("secret not found")
+
 // Platform is the single dependency boundary between Morsel business logic
 // and all cloud/infrastructure concerns. No business logic file imports a
 // cloud SDK — only this package.

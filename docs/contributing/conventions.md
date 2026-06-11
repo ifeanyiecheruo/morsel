@@ -8,14 +8,16 @@ No single-letter variable names. Use descriptive short names: `plat` over `p`, `
 
 Comments explain *why*, not *what*. Don't restate what well-named identifiers already say. A comment is warranted when the code encodes a hidden constraint, a non-obvious invariant, or a workaround for a specific external behaviour.
 
-## Error handling
+## Layout
 
-No error handling for scenarios that cannot happen inside the module. No defensive fallbacks, no feature flags, no backwards-compatibility shims. Validate at system boundaries (user input, external APIs) and trust internal code.
+Constants first, public constants then private constants
 
-## Platform abstraction
+Public functions next
 
-All platform-specific logic belongs in a `Platform` implementation (`platform/local/`, `platform/gcp/`), never in a handler or business logic function. Handlers receive a `platform.Platform` and call its interfaces. They never import cloud SDKs or make decisions based on which platform is active.
+Public structs next. Each struct followed by its methods
 
-## Error shape
+Private structs next. Each struct followed by its methods
 
-All API errors follow the structured shape defined in [docs/specs/conventions/rest.md](../specs/conventions/rest.md): `{"error": {"code", "message", "remedy", "context"}}`. Return `*api.APIError` from handlers; the `ErrorHandlerFunc` middleware serialises it.
+Private functions last
+
+Where possible referenced constants, structs, or functions come before their referers.

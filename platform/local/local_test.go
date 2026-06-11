@@ -22,20 +22,39 @@ func TestAmbientTokenReturnsEmpty(t *testing.T) {
 	}
 }
 
-func TestDeployTokenNotImplemented(t *testing.T) {
-	plat := local.New()
-	_, err := plat.Credentials().DeployToken(ctx)
-	if !errors.Is(err, platform.ErrNotImplemented) {
-		t.Errorf("DeployToken: err = %v, want ErrNotImplemented", err)
+func TestValidateDeployTokenRejectsInvalidToken(t *testing.T) {
+	plat := platWithTempHome(t)
+	_, err := plat.Credentials().ValidateDeployToken(ctx, "not-a-valid-token")
+	if err == nil {
+		t.Error("ValidateDeployToken: expected error for invalid token, got nil")
 	}
 }
 
-func TestValidateDeployTokenNotImplemented(t *testing.T) {
-	plat := local.New()
-	_, err := plat.Credentials().ValidateDeployToken(ctx, "some-token")
-	if !errors.Is(err, platform.ErrNotImplemented) {
-		t.Errorf("ValidateDeployToken: err = %v, want ErrNotImplemented", err)
+func TestDeployTokenRoundTrip(t *testing.T) {
+	plat := platWithTempHome(t)
+
+	// No manual key seeding needed — the manager generates on first use.
+	token, err := plat.Credentials().DeployToken(ctx)
+	if err != nil {
+		t.Fatalf("DeployToken: %v", err)
 	}
+	slug, err := plat.Credentials().ValidateDeployToken(ctx, token)
+	if err != nil {
+		t.Fatalf("ValidateDeployToken: %v", err)
+	}
+	if slug == "" {
+		t.Error("ValidateDeployToken: returned empty slug")
+	}
+}
+
+// platWithTempHome creates a LocalPlatform whose secrets store points at a
+// temporary directory so tests never touch ~/.morsel/local/secrets.json.
+func platWithTempHome(t *testing.T) *local.LocalPlatform {
+	t.Helper()
+	tmp := t.TempDir()
+	t.Setenv("USERPROFILE", tmp) // Windows
+	t.Setenv("HOME", tmp)        // Linux / macOS
+	return local.New()
 }
 
 func TestDNSCreateRecordIsNoop(t *testing.T) {

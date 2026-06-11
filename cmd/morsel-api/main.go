@@ -15,6 +15,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/db"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
+	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 )
 
 func main() {
@@ -42,6 +43,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	plat, err := platforms.Create(*platformName)
+	if err != nil {
+		logger.Error("platform error", "err", err)
+		os.Exit(1)
+	}
+
+	secretMgr := secrets.New(plat.Secrets())
+	if err := secretMgr.Migrate(ctx); err != nil {
+		logger.Error("secret migration error", "err", err)
+		os.Exit(1)
+	}
+	signingKey, err := secretMgr.SigningKey(ctx)
+	if err != nil {
+		logger.Error("signing key error", "err", err)
+		os.Exit(1)
+	}
+
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		logger.Error("listen error", "err", err)
@@ -53,13 +71,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGHUP, os.Interrupt)
 
 	for {
-		plat, err := platforms.Create(*platformName)
-		if err != nil {
-			logger.Error("platform error", "err", err)
-			os.Exit(1)
-		}
-
-		srv := &http.Server{Handler: api.NewMux(plat)}
+		srv := &http.Server{Handler: api.NewMux(ctx, plat, signingKey)}
 
 		go func() {
 			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {

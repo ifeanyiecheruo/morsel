@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,8 +11,11 @@ import (
 	"github.com/ifeanyiecheruo/morsel/platform/local"
 )
 
+// testKey is a fixed 32-byte key used in tests — never used outside tests.
+var testKey = make([]byte, 32)
+
 func TestHealthzReturnsOK(t *testing.T) {
-	mux := api.NewMux(local.New())
+	mux := api.NewMux(context.Background(), local.New(), testKey)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 
@@ -31,7 +35,7 @@ func TestHealthzReturnsOK(t *testing.T) {
 }
 
 func TestUnregisteredRouteReturnsStructured404(t *testing.T) {
-	mux := api.NewMux(local.New())
+	mux := api.NewMux(context.Background(), local.New(), testKey)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/no/such/path", nil))
 
@@ -55,7 +59,7 @@ func TestUnregisteredRouteReturnsStructured404(t *testing.T) {
 }
 
 func TestHealthzIgnoresWrongMethod(t *testing.T) {
-	mux := api.NewMux(local.New())
+	mux := api.NewMux(context.Background(), local.New(), testKey)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/healthz", nil))
 
