@@ -1,6 +1,8 @@
 # Morsel
 
-Morsel is a self-hosted platform-as-a-service for non-production applications run on Kubernetes.
+Cosy kitchen, tiny apps, buffet prices.
+
+Morsel is a self-hosted, low cost, platform-as-a-service, for non-production applications run on Kubernetes.
 
 It gives developers a Heroku-style experience: push code, get a running HTTPS app. It gives operators a low-maintenance system they can run part-time without cloud or Kubernetes expertise.
 
