@@ -1,5 +1,11 @@
 .DEFAULT_GOAL := help
 
+ifeq ($(OS),Windows_NT)
+EXE := .exe
+else
+EXE :=
+endif
+
 # ---- Local Go ecosystem --------------------------------------------------------
 # REPO_ROOT uses pwd -W (real Windows path C:/...) for Go env vars that need
 # Windows-style paths. LOCAL_SHELL uses cygpath -u to get the MSYS-style path
@@ -26,8 +32,8 @@ help: ## List available targets
 
 .PHONY: build
 build: ## Compile bin/morsel and bin/morsel-api
-	go build -o bin/morsel ./cmd/morsel
-	go build -o bin/morsel-api ./cmd/morsel-api
+	go build -o bin/morsel$(EXE) ./cmd/morsel
+	go build -o bin/morsel-api$(EXE) ./cmd/morsel-api
 
 .PHONY: test
 test: ## Run all tests
