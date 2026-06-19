@@ -18,7 +18,7 @@
 | [F01](001-feature-repository-foundation.md) | Repository Foundation | ✅ done | — |
 | [F02](002-feature-api-skeleton.md) | Morsel API: HTTP Server Skeleton | ✅ done | F01 |
 | [F03](003-feature-authentication.md) | Authentication | 🔄 in progress | F02 |
-| [F03a](003a-feature-cli-scaffold.md) | CLI Scaffold | ⬜ not started | F01 |
+| [F03a](003a-feature-cli-scaffold.md) | CLI Scaffold | ✅ done | F01 |
 | [F04](004-feature-lint-and-schema-validation.md) | App Lint and Schema Validation | ⬜ not started | F03a |
 | [F05](005-feature-app-lifecycle-api.md) | App Lifecycle: API Layer | ⬜ not started | F03 |
 | [F06](006-feature-kubernetes-manifest-apply.md) | Kubernetes Manifest Apply | ⬜ not started | F05 |

@@ -16,10 +16,10 @@ See `docs/plans/implementation/lets-make-it-flat-snazzy-whale.md` in the claude 
 
 ## Tasks
 
-- [ ] `internal/cli` package foundation — `cli` struct; `Execute()` entry point; `buildRoot()` wiring all four command groups; `--profile` persistent flag (default `"default"`); `loadProfilePreRun` on root (loads profile, silently tolerates absence); `requireProfile()` helper
-- [ ] `Profile` struct — GCPPlatform and LocalPlatform fields matching the profile JSON schema in [`components/cli.md`](../../specs/components/cli.md); `readProfile()`, `writeProfile()`, `deleteProfile()` helpers; `profilePath()` utility (`~/.config/morsel/<name>.profile.json`)
-- [ ] `service` command group — `morsel service bootstrap --platform <gcp|local> [--kubeconfig <path>]` (`--platform` required), `morsel service status`, `morsel service delete --confirm` (guard: fails without flag), `morsel service upgrade retry`; all run implementations are stubs
-- [ ] `operator` command group — `morsel operator login`, `logout`, `principal add --principal/remove --principal/list`, `tier list/create/edit/set-default/delete` (shared `tierFlags` struct + `registerTierFlags()` for quota flags), `app exempt add --repo --app/remove --repo --app`, `repo exempt add <org/repo>/remove <org/repo>`; all run implementations are stubs
-- [ ] `app` command group — `morsel app deploy`; stub
-- [ ] `lint` command — `morsel lint`, `--staged`, `--fix` flags; stub
-- [ ] Wire `cmd/morsel/main.go` — call `cli.Execute()`; remove the existing `flag`-based stub
+- [x] `internal/cli` package foundation — `cli` struct; `Execute()` entry point; `buildRoot()` wiring all four command groups; `--profile` persistent flag (default `"default"`); `loadProfilePreRun` on root (loads profile, silently tolerates absence); `requireProfile()` helper
+- [x] `Profile` struct — GCPPlatform and LocalPlatform fields matching the profile JSON schema in [`components/cli.md`](../../specs/components/cli.md); `readProfile()` and `profilePath()` helpers (`~/.config/morsel/<name>.profile.json`); `writeProfile()`/`deleteProfile()` deferred to F03 where they are first called
+- [x] `service` command group — `morsel service bootstrap --platform <gcp|local> [--kubeconfig <path>]` (`--platform` required), `morsel service status`, `morsel service delete --confirm` (guard: fails without flag), `morsel service upgrade retry`; all run implementations are stubs
+- [x] `operator` command group — `morsel operator login`, `logout`, `principal add --principal/remove --principal/list`, `tier list/create/edit/set-default/delete` (shared `tierFlags` struct + `registerTierFlags()` for quota flags), `app exempt add --repo --app/remove --repo --app`, `repo exempt add <org/repo>/remove <org/repo>`; all run implementations are stubs
+- [x] `app` command group — `morsel app deploy`; stub
+- [x] `lint` command — `morsel lint`, `--staged`, `--fix` flags; stub
+- [x] Wire `cmd/morsel/main.go` — call `cli.Execute()`; removed the old `flag`-based stub

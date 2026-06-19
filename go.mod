@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/pressly/goose/v3 v3.27.1
+	github.com/spf13/cobra v1.10.2
 	modernc.org/sqlite v1.52.0
 )
 
@@ -203,7 +204,6 @@ require (
 	github.com/sourcegraph/go-diff v0.8.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
