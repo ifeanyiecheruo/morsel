@@ -2,9 +2,9 @@
 
 _Delivers: `morsel lint` works; developers catch schema errors before pushing._
 
-**Direct dependencies:** [F01](001-feature-repository-foundation.md)
+**Direct dependencies:** [F03a](003a-feature-cli-scaffold.md)
 
-> Can be developed in parallel with F02 and F03 — requires only the CLI infrastructure, not the API server.
+> Can be developed in parallel with F03 — requires the CLI scaffold (F03a) but not the API server.
 
 ## Tasks
 

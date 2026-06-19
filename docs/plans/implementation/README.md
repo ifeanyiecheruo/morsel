@@ -18,7 +18,8 @@
 | [F01](001-feature-repository-foundation.md) | Repository Foundation | ✅ done | — |
 | [F02](002-feature-api-skeleton.md) | Morsel API: HTTP Server Skeleton | ✅ done | F01 |
 | [F03](003-feature-authentication.md) | Authentication | 🔄 in progress | F02 |
-| [F04](004-feature-lint-and-schema-validation.md) | App Lint and Schema Validation | ⬜ not started | F01 |
+| [F03a](003a-feature-cli-scaffold.md) | CLI Scaffold | ⬜ not started | F01 |
+| [F04](004-feature-lint-and-schema-validation.md) | App Lint and Schema Validation | ⬜ not started | F03a |
 | [F05](005-feature-app-lifecycle-api.md) | App Lifecycle: API Layer | ⬜ not started | F03 |
 | [F06](006-feature-kubernetes-manifest-apply.md) | Kubernetes Manifest Apply | ⬜ not started | F05 |
 | [F07](007-feature-bootstrap-local-platform.md) | Bootstrap: LocalPlatform | ⬜ not started | F02, F03 |
@@ -44,8 +45,8 @@
 | Phase | Features that can run in parallel | Prerequisite |
 |-------|-----------------------------------|--------------|
 | 0 | F01 | — |
-| 1 | **F02**, **F04** | F01 |
-| 2 | F03 | F02 |
+| 1 | **F02**, **F03a** | F01 |
+| 2 | **F03**, **F04** | F03 needs F02; F04 needs F03a |
 | 3 | **F05**, **F07** | F03 (both need F03; F07 also needs F02) |
 | 4 | **F06**, **F14** | F05; F06 also needed for F14 so do F06 first |
 | 5 | **F08**, **F09**, **F10**, **F11** | F06+F07 (F08 also needs F03+F05) |
@@ -61,7 +62,8 @@
 ```mermaid
 graph TD
     F01[F01: Repository Foundation] --> F02[F02: API Skeleton]
-    F01 --> F04[F04: Lint & Validation]
+    F01 --> F03a[F03a: CLI Scaffold]
+    F03a --> F04[F04: Lint & Validation]
 
     F02 --> F03[F03: Authentication]
     F02 --> F07[F07: Bootstrap LocalPlatform]
