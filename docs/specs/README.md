@@ -120,7 +120,7 @@ Documents are heavily cross-referenced. Use them to jump between levels of detai
 - In a component doc and want to understand the feature? Look for "Platform Feature Support" sections.
 - In a feature doc and want implementation details? Look for "Component Contributions" sections.
 - Confused by a convention? Check if it's explained in one of the convention documents.
-- Need the REST API shape? Check `components/morsel-api.md`.
+- Need the REST API shape? Check [components/morsel-api.md](components/morsel-api.md).
 
 ---
 

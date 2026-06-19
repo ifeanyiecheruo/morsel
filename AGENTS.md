@@ -2,7 +2,7 @@
 
 ## Coding conventions
 
-Follow guidelines in CONTRIBUTING.md
+Follow guidelines in [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ### Commit messages
 
@@ -10,9 +10,9 @@ Write a short sentence or two that tells the story of why the change exists — 
 
 ## Architecture
 
-Follow specs in docs/specs/README.md
-Architcture diagram is in docs/specs/architecture.md
+Follow specs in [docs/specs/README.md](docs/specs/README.md)
+Architecture diagram is in [docs/specs/architecture.md](docs/specs/architecture.md)
 
 ## Implementation Plan
 
-Implementation plan and implementation progress are in docs/plans/implementation.md
+Implementation plan and implementation progress are in [docs/plans/implementation/README.md](docs/plans/implementation/README.md).

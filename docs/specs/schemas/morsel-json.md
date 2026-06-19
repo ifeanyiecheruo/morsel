@@ -129,7 +129,7 @@ Non-production jobs often have external side effects — retry only if your job 
 
 Declares platform-managed resources for this app. Each resource is optional and independent. Resources are provisioned on the first deploy that declares them and persist according to the `permanent` flag.
 
-See [conventions/resource-model.md](resource-model.md) and [platform-features/persistence.md](../platform-features/persistence.md).
+See [conventions/resource-model.md](../conventions/resource-model.md) and [platform-features/persistence.md](../platform-features/persistence.md).
 
 **`persistence.database`** — Provisions a dedicated Postgres database accessible at `database.morsel.internal` via a PGBouncer sidecar. Connection string never changes: `postgres://morsel:morsel@database.morsel.internal:5432/morsel`.
 
@@ -137,7 +137,7 @@ See [conventions/resource-model.md](resource-model.md) and [platform-features/pe
 
 **`persistence.queues`** — Grants queue access via `queue.morsel.internal`. Queue names are scoped to the calling app automatically.
 
-**`persistence.*.permanent`** — If `true`, the resource is retained when the app is deleted (with a 30-day grace period before actual deletion). If `false` (default), the resource is deleted with the app. See [conventions/permanence.md](permanence.md).
+**`persistence.*.permanent`** — If `true`, the resource is retained when the app is deleted (with a 30-day grace period before actual deletion). If `false` (default), the resource is deleted with the app. See [conventions/permanence.md](../conventions/permanence.md).
 
 Adding any persistence resource beyond the repo's current approved quota creates a pending approval. The resource is not provisioned until approved.
 
