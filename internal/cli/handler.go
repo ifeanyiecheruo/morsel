@@ -21,10 +21,7 @@ type Handler interface {
 	// No-auth commands
 	ServiceBootstrap(ctx context.Context, platformName, kubeconfig string) error
 
-	// TODO: move to a model where we take an api url, username, and password.
-	// This will require some changes to the API but will remove some platform-specific logic from the CLI
-	// layer and allow for more flexible credential management (e.g. support multiple operator accounts per platform).
-	OperatorLogin(ctx context.Context, apiURL, credential string) (*Profile, error)
+	OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, error)
 	Lint(ctx context.Context, staged, fix bool) error
 
 	// Auth-required commands — prof is pre-validated by the cli layer

@@ -14,7 +14,7 @@ func TestValidateOperatorTokenAcceptsKnownPrincipal(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	subject, err := plat.Credentials().ValidateOperatorToken(context.Background(), "alice@example.com")
+	subject, err := plat.Credentials().ValidateOperatorToken(context.Background(), "alice@example.com", "")
 	if err != nil {
 		t.Fatalf("ValidateOperatorToken: unexpected error: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestValidateOperatorTokenRejectsUnknownPrincipal(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "eve@example.com")
+	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "eve@example.com", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
@@ -36,17 +36,17 @@ func TestValidateOperatorTokenRejectsUnknownPrincipal(t *testing.T) {
 func TestValidateOperatorTokenRejectsEmptyPrincipalsList(t *testing.T) {
 	plat := platWithTempHome(t)
 
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "alice@example.com")
+	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "alice@example.com", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
 }
 
-func TestValidateOperatorTokenRejectsEmptyCredential(t *testing.T) {
+func TestValidateOperatorTokenRejectsEmptyUsername(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "")
+	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}

@@ -91,18 +91,9 @@ func (m *Manager) OperatorPrincipals(ctx context.Context) ([]string, error) {
 	return principals, nil
 }
 
-// TODO: We need a good pattern for getting, setting secrets instead of special verbs like seed
-// SeedOperatorPrincipal writes [principal] as the operator principals list if
-// the list is currently absent. Idempotent once any principals exist.
-func (m *Manager) SeedOperatorPrincipal(ctx context.Context, principal string) error {
-	existing, err := m.OperatorPrincipals(ctx)
-	if err != nil {
-		return err
-	}
-	if len(existing) > 0 {
-		return nil
-	}
-	raw, err := json.Marshal([]string{principal})
+// SetOperatorPrincipals replaces the operator principals list.
+func (m *Manager) SetOperatorPrincipals(ctx context.Context, principals []string) error {
+	raw, err := json.Marshal(principals)
 	if err != nil {
 		return fmt.Errorf("marshal operator principals: %w", err)
 	}

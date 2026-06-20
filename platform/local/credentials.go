@@ -30,8 +30,8 @@ func (lc *localCredentialProvider) DeployToken(ctx context.Context) (string, err
 	return token.SignedString(key)
 }
 
-func (lc *localCredentialProvider) ValidateOperatorToken(ctx context.Context, credential string) (string, error) {
-	if credential == "" {
+func (lc *localCredentialProvider) ValidateOperatorToken(ctx context.Context, username, _ string) (string, error) {
+	if username == "" {
 		return "", platform.ErrPrincipalNotAuthorized
 	}
 
@@ -41,11 +41,11 @@ func (lc *localCredentialProvider) ValidateOperatorToken(ctx context.Context, cr
 	}
 
 	log := ctxlog.From(ctx)
-	log.Info("validating operator credential", "credential", credential, "principal_count", len(principals), "principals", principals)
+	log.Info("validating operator credential", "username", username, "principal_count", len(principals))
 
 	for _, p := range principals {
-		if p == credential {
-			return credential, nil
+		if p == username {
+			return username, nil
 		}
 	}
 	return "", platform.ErrPrincipalNotAuthorized

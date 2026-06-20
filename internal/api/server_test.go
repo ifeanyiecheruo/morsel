@@ -108,7 +108,7 @@ func TestTokenOIDCIssuesBothTokens(t *testing.T) {
 
 	mux := newTestMuxWithPlatform(t, plat)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"credential":"alice@example.com"}`))
+	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"username":"alice@example.com","password":""}`))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body)
@@ -144,7 +144,7 @@ func TestTokenOIDCRejectsUnknownPrincipal(t *testing.T) {
 
 	mux := newTestMuxWithPlatform(t, plat)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"credential":"eve@example.com"}`))
+	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"username":"eve@example.com","password":""}`))
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)

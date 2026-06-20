@@ -14,7 +14,7 @@ import (
 type mockCliHandler struct {
 	onLoadProfile             func(name string, ensureValid bool) (*Profile, error)
 	onServiceBootstrap        func(platformName, kubeconfig string) error
-	onOperatorLogin           func(apiURL, credential string) (*Profile, error)
+	onOperatorLogin           func(apiURL, username, password string) (*Profile, error)
 	onLint                    func(staged, fix bool) error
 	onServiceStatus           func(prof *Profile) error
 	onServiceDelete           func(prof *Profile) error
@@ -49,9 +49,9 @@ func (h *mockCliHandler) ServiceBootstrap(_ context.Context, platformName, kubec
 	return nil
 }
 
-func (h *mockCliHandler) OperatorLogin(_ context.Context, apiURL, credential string) (*Profile, error) {
+func (h *mockCliHandler) OperatorLogin(_ context.Context, apiURL, username, password string) (*Profile, error) {
 	if h.onOperatorLogin != nil {
-		return h.onOperatorLogin(apiURL, credential)
+		return h.onOperatorLogin(apiURL, username, password)
 	}
 	return &Profile{}, nil
 }
@@ -196,12 +196,12 @@ func TestOperatorLoginUsesProfileAPIURL(t *testing.T) {
 	var gotURL string
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(fakeProfile),
-		onOperatorLogin: func(apiURL, _ string) (*Profile, error) {
+		onOperatorLogin: func(apiURL, _, _ string) (*Profile, error) {
 			gotURL = apiURL
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--credential", "a@b.com"}); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != fakeProfile.APIURL {
@@ -214,12 +214,12 @@ func TestOperatorLoginUsesAPIURLFlag(t *testing.T) {
 	const want = "http://localhost:9090"
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(&Profile{Platform: "local", APIURL: "http://localhost:8080"}),
-		onOperatorLogin: func(apiURL, _ string) (*Profile, error) {
+		onOperatorLogin: func(apiURL, _, _ string) (*Profile, error) {
 			gotURL = apiURL
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--credential", "a@b.com"}); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--username", "a@b.com", "--password", "x"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != want {
@@ -227,27 +227,27 @@ func TestOperatorLoginUsesAPIURLFlag(t *testing.T) {
 	}
 }
 
-func TestOperatorLoginPassesCredentialToHandler(t *testing.T) {
-	var gotCredential string
+func TestOperatorLoginPassesUsernameToHandler(t *testing.T) {
+	var gotUsername string
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(fakeProfile),
-		onOperatorLogin: func(_, credential string) (*Profile, error) {
-			gotCredential = credential
+		onOperatorLogin: func(_, username, _ string) (*Profile, error) {
+			gotUsername = username
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--credential", "alice@example.com"}); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--username", "alice@example.com", "--password", "x"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if gotCredential != "alice@example.com" {
-		t.Errorf("credential: want %q, got %q", "alice@example.com", gotCredential)
+	if gotUsername != "alice@example.com" {
+		t.Errorf("username: want %q, got %q", "alice@example.com", gotUsername)
 	}
 }
 
 func TestOperatorLoginFailsWithoutAPIURLWhenNoProfile(t *testing.T) {
 	// onLoadProfile is nil → LoadProfile returns (nil, nil) → c.profile is nil, no --api-url → error.
 	mock := &mockCliHandler{}
-	err := run(context.Background(), mock, []string{"operator", "login", "--credential", "a@b.com"})
+	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"})
 	if err == nil {
 		t.Fatal("expected error when no profile and no --api-url, got nil")
 	}
@@ -258,12 +258,12 @@ func TestOperatorLoginSucceedsWithAPIURLAndNoProfile(t *testing.T) {
 	const want = "http://remote:8080"
 	mock := &mockCliHandler{
 		// no onLoadProfile → c.profile stays nil
-		onOperatorLogin: func(apiURL, _ string) (*Profile, error) {
+		onOperatorLogin: func(apiURL, _, _ string) (*Profile, error) {
 			gotURL = apiURL
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--credential", "a@b.com"}); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--username", "a@b.com", "--password", "x"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != want {

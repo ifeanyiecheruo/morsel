@@ -17,6 +17,7 @@ import (
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
+	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
 func main() {
@@ -56,10 +57,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: refactor to avoid this local-platform-specific seeding logic.
-	if *platformName == "local" {
-		if err := secretMgr.SeedOperatorPrincipal(ctx, "operator@example.com"); err != nil {
-			logger.Error("seed operator principal error", "err", err)
+	if seeder, ok := plat.(platform.Seeder); ok {
+		if err := seeder.SeedDefaults(ctx); err != nil {
+			logger.Error("seed defaults error", "err", err)
 			os.Exit(1)
 		}
 	}

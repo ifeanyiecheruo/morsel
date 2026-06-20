@@ -15,7 +15,7 @@ import (
 )
 
 func (c *cli) operatorLoginCmd() *cobra.Command {
-	var apiURL, credential string
+	var apiURL, username, password string
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Authenticate to the Morsel instance",
@@ -27,21 +27,33 @@ func (c *cli) operatorLoginCmd() *cobra.Command {
 				apiURL = c.profile.APIURL
 			}
 
-			if credential == "" {
-				if _, err := fmt.Fprint(cmd.OutOrStdout(), "Credential: "); err != nil {
+			reader := bufio.NewReader(cmd.InOrStdin())
+			if !cmd.Flags().Changed("username") {
+				if _, err := fmt.Fprint(cmd.OutOrStdout(), "Username: "); err != nil {
 					return fmt.Errorf("write prompt: %w", err)
 				}
-				line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+				line, err := reader.ReadString('\n')
 				if err != nil {
-					return fmt.Errorf("read credential: %w", err)
+					return fmt.Errorf("read username: %w", err)
 				}
-				credential = strings.TrimRight(line, "\r\n")
+				username = strings.TrimRight(line, "\r\n")
 			}
-			if credential == "" {
-				return fmt.Errorf("credential is required")
+			if username == "" {
+				return fmt.Errorf("username is required")
 			}
 
-			prof, err := c.handler.OperatorLogin(cmd.Context(), apiURL, credential)
+			if !cmd.Flags().Changed("password") {
+				if _, err := fmt.Fprint(cmd.OutOrStdout(), "Password: "); err != nil {
+					return fmt.Errorf("write prompt: %w", err)
+				}
+				line, err := reader.ReadString('\n')
+				if err != nil {
+					return fmt.Errorf("read password: %w", err)
+				}
+				password = strings.TrimRight(line, "\r\n")
+			}
+
+			prof, err := c.handler.OperatorLogin(cmd.Context(), apiURL, username, password)
 			if err != nil {
 				return err
 			}
@@ -64,22 +76,23 @@ func (c *cli) operatorLoginCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&apiURL, "api-url", "", "Morsel API URL override (default: from profile)")
-	cmd.Flags().StringVar(&credential, "credential", "", "operator credential (skips interactive prompt)")
+	cmd.Flags().StringVar(&username, "username", "", "operator username (skips interactive prompt)")
+	cmd.Flags().StringVar(&password, "password", "", "operator password (skips interactive prompt)")
 	return cmd
 }
 
-func (h *cliHandler) OperatorLogin(ctx context.Context, apiURL, credential string) (*Profile, error) {
+func (h *cliHandler) OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, error) {
 	client, err := apiclient.New(apiURL, "")
 	if err != nil {
 		return nil, fmt.Errorf("build api client: %w", err)
 	}
-	resp, err := client.Inner().TokenOIDC(ctx, &oas.TokenOIDCReq{Credential: credential})
+	resp, err := client.Inner().TokenOIDC(ctx, &oas.TokenOIDCReq{Username: username, Password: password})
 	if err != nil {
 		return nil, fmt.Errorf("authenticate: %w", err)
 	}
 	pair, ok := resp.(*oas.TokenPairResponse)
 	if !ok {
-		return nil, fmt.Errorf("login rejected: credential not authorized")
+		return nil, fmt.Errorf("login rejected: credentials not authorized")
 	}
 	now := time.Now()
 	return &Profile{

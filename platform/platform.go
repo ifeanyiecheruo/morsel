@@ -20,6 +20,13 @@ var ErrSecretNotFound = errors.New("secret not found")
 // credential, or revoked access. Callers map this to 401; other errors map to 500.
 var ErrPrincipalNotAuthorized = errors.New("principal not authorized")
 
+// Seeder is an optional interface implemented by platforms that need to
+// install default configuration on first startup. main calls SeedDefaults
+// once, after Migrate, when the platform satisfies this interface.
+type Seeder interface {
+	SeedDefaults(ctx context.Context) error
+}
+
 // Platform is the single dependency boundary between Morsel business logic
 // and all cloud/infrastructure concerns. No business logic file imports a
 // cloud SDK — only this package.
@@ -89,13 +96,13 @@ type CredentialProvider interface {
 	// Called server-side by the POST /api/token/deploy handler.
 	ValidateDeployToken(ctx context.Context, token string) (slug string, err error)
 
-	// ValidateOperatorToken validates the operator identity credential and returns
-	// the operator subject (e.g. "alice@example.com"). Called server-side by
-	// POST /api/token/oidc. The credential meaning is platform-specific: on
-	// LocalPlatform it is the operator email address; on GCPPlatform it is a
-	// Workload Identity token. Returns ErrPrincipalNotAuthorized for any auth
-	// failure; other errors are infrastructure failures.
-	ValidateOperatorToken(ctx context.Context, credential string) (subject string, err error)
+	// ValidateOperatorToken validates an operator login and returns the subject
+	// (e.g. "alice@example.com"). Called server-side by POST /api/token/oidc.
+	// username is the operator identity; password is the platform credential
+	// (e.g. an OIDC token on GCP, or empty on LocalPlatform which authenticates
+	// by identity alone). Returns ErrPrincipalNotAuthorized for any auth failure;
+	// other errors are infrastructure failures.
+	ValidateOperatorToken(ctx context.Context, username, password string) (subject string, err error)
 }
 
 // DNSProvider manages DNS records for app subdomains.

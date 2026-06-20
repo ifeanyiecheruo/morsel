@@ -93,6 +93,41 @@ func TestPricesFetchedAtIsSet(t *testing.T) {
 	}
 }
 
+func TestSeedDefaultsWritesWhenAbsent(t *testing.T) {
+	plat := platWithTempHome(t)
+	if err := plat.SeedDefaults(ctx); err != nil {
+		t.Fatalf("SeedDefaults: %v", err)
+	}
+	subject, err := plat.Credentials().ValidateOperatorToken(ctx, "operator@example.com", "")
+	if err != nil {
+		t.Fatalf("ValidateOperatorToken after SeedDefaults: %v", err)
+	}
+	if subject != "operator@example.com" {
+		t.Errorf("subject = %q, want operator@example.com", subject)
+	}
+}
+
+func TestSeedDefaultsIsNoOpWhenAlreadySet(t *testing.T) {
+	plat := platWithTempHome(t)
+	seedPrincipals(t, plat, "custom@example.com")
+
+	if err := plat.SeedDefaults(ctx); err != nil {
+		t.Fatalf("SeedDefaults: %v", err)
+	}
+	// The pre-existing principal must still authenticate.
+	subject, err := plat.Credentials().ValidateOperatorToken(ctx, "custom@example.com", "")
+	if err != nil {
+		t.Fatalf("ValidateOperatorToken: %v", err)
+	}
+	if subject != "custom@example.com" {
+		t.Errorf("subject = %q, want custom@example.com", subject)
+	}
+	// The default principal must NOT have been injected.
+	if _, err := plat.Credentials().ValidateOperatorToken(ctx, "operator@example.com", ""); !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
+		t.Errorf("expected ErrPrincipalNotAuthorized for default principal after SeedDefaults no-op, got %v", err)
+	}
+}
+
 func TestBootstrapProvisionNotImplemented(t *testing.T) {
 	plat := local.New()
 	if err := plat.Bootstrap().Provision(ctx, nil); !errors.Is(err, platform.ErrNotImplemented) {

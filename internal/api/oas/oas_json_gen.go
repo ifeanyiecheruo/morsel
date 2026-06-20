@@ -5753,13 +5753,18 @@ func (s *TokenOIDCReq) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *TokenOIDCReq) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("credential")
-		e.Str(s.Credential)
+		e.FieldStart("username")
+		e.Str(s.Username)
+	}
+	{
+		e.FieldStart("password")
+		e.Str(s.Password)
 	}
 }
 
-var jsonFieldsNameOfTokenOIDCReq = [1]string{
-	0: "credential",
+var jsonFieldsNameOfTokenOIDCReq = [2]string{
+	0: "username",
+	1: "password",
 }
 
 // Decode decodes TokenOIDCReq from json.
@@ -5771,17 +5776,29 @@ func (s *TokenOIDCReq) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "credential":
+		case "username":
 			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
 				v, err := d.Str()
-				s.Credential = string(v)
+				s.Username = string(v)
 				if err != nil {
 					return err
 				}
 				return nil
 			}(); err != nil {
-				return errors.Wrap(err, "decode field \"credential\"")
+				return errors.Wrap(err, "decode field \"username\"")
+			}
+		case "password":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Str()
+				s.Password = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"password\"")
 			}
 		default:
 			return d.Skip()
@@ -5793,7 +5810,7 @@ func (s *TokenOIDCReq) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000001,
+		0b00000011,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.

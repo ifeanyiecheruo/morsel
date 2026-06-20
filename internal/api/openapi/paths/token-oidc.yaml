@@ -9,10 +9,13 @@ post:
       application/json:
         schema:
           type: object
-          required: [credential]
+          required: [username, password]
           properties:
-            credential:
-              description: Operator credential from the platform identity provider.
+            username:
+              description: Operator identity (e.g. email address or service account).
+              type: string
+            password:
+              description: Platform credential for the operator identity (e.g. OIDC token).
               type: string
   responses:
     '200':

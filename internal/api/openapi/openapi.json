@@ -7776,13 +7776,18 @@
             "application/json": {
               "schema": {
                 "properties": {
-                  "credential": {
-                    "description": "Operator credential from the platform identity provider.",
+                  "password": {
+                    "description": "Platform credential for the operator identity (e.g. OIDC token).",
+                    "type": "string"
+                  },
+                  "username": {
+                    "description": "Operator identity (e.g. email address or service account).",
                     "type": "string"
                   }
                 },
                 "required": [
-                  "credential"
+                  "username",
+                  "password"
                 ],
                 "type": "object"
               }

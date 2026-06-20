@@ -2157,18 +2157,30 @@ type TokenDeployUnauthorized ErrorResponse
 func (*TokenDeployUnauthorized) tokenDeployRes() {}
 
 type TokenOIDCReq struct {
-	// Operator credential from the platform identity provider.
-	Credential string `json:"credential"`
+	// Operator identity (e.g. email address or service account).
+	Username string `json:"username"`
+	// Platform credential for the operator identity (e.g. OIDC token).
+	Password string `json:"password"`
 }
 
-// GetCredential returns the value of Credential.
-func (s *TokenOIDCReq) GetCredential() string {
-	return s.Credential
+// GetUsername returns the value of Username.
+func (s *TokenOIDCReq) GetUsername() string {
+	return s.Username
 }
 
-// SetCredential sets the value of Credential.
-func (s *TokenOIDCReq) SetCredential(val string) {
-	s.Credential = val
+// GetPassword returns the value of Password.
+func (s *TokenOIDCReq) GetPassword() string {
+	return s.Password
+}
+
+// SetUsername sets the value of Username.
+func (s *TokenOIDCReq) SetUsername(val string) {
+	s.Username = val
+}
+
+// SetPassword sets the value of Password.
+func (s *TokenOIDCReq) SetPassword(val string) {
+	s.Password = val
 }
 
 // A short-lived access token paired with a rotatable refresh token.

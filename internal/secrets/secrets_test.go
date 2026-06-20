@@ -109,11 +109,11 @@ func TestSigningKeyAndDeploySigningKeyAreDistinct(t *testing.T) {
 	}
 }
 
-func TestSeedOperatorPrincipalWritesWhenAbsent(t *testing.T) {
+func TestSetOperatorPrincipalsStoresPrincipals(t *testing.T) {
 	mgr := New(newMemStore())
 	ctx := context.Background()
-	if err := mgr.SeedOperatorPrincipal(ctx, "operator@example.com"); err != nil {
-		t.Fatalf("SeedOperatorPrincipal: %v", err)
+	if err := mgr.SetOperatorPrincipals(ctx, []string{"operator@example.com"}); err != nil {
+		t.Fatalf("SetOperatorPrincipals: %v", err)
 	}
 	principals, err := mgr.OperatorPrincipals(ctx)
 	if err != nil {
@@ -124,23 +124,21 @@ func TestSeedOperatorPrincipalWritesWhenAbsent(t *testing.T) {
 	}
 }
 
-func TestSeedOperatorPrincipalIsNoOpWhenAlreadySet(t *testing.T) {
+func TestSetOperatorPrincipalsOverwrites(t *testing.T) {
 	mgr := New(newMemStore())
 	ctx := context.Background()
-	// Pre-populate with a custom principal.
-	if err := mgr.SeedOperatorPrincipal(ctx, "first@example.com"); err != nil {
-		t.Fatalf("first seed: %v", err)
+	if err := mgr.SetOperatorPrincipals(ctx, []string{"first@example.com"}); err != nil {
+		t.Fatalf("first set: %v", err)
 	}
-	// A second seed call with a different value must not overwrite.
-	if err := mgr.SeedOperatorPrincipal(ctx, "second@example.com"); err != nil {
-		t.Fatalf("second seed: %v", err)
+	if err := mgr.SetOperatorPrincipals(ctx, []string{"second@example.com"}); err != nil {
+		t.Fatalf("second set: %v", err)
 	}
 	principals, err := mgr.OperatorPrincipals(ctx)
 	if err != nil {
 		t.Fatalf("OperatorPrincipals: %v", err)
 	}
-	if len(principals) != 1 || principals[0] != "first@example.com" {
-		t.Errorf("principals = %v, want [first@example.com]", principals)
+	if len(principals) != 1 || principals[0] != "second@example.com" {
+		t.Errorf("principals = %v, want [second@example.com]", principals)
 	}
 }
 

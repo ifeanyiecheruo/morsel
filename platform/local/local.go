@@ -3,6 +3,8 @@
 package local
 
 import (
+	"context"
+
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 	"github.com/ifeanyiecheruo/morsel/platform"
 )
@@ -31,3 +33,18 @@ func (lp *LocalPlatform) Credentials() platform.CredentialProvider {
 func (lp *LocalPlatform) DNS() platform.DNSProvider         { return &localDNSProvider{} }
 func (lp *LocalPlatform) Certs() platform.CertProvider      { return &localCertProvider{} }
 func (lp *LocalPlatform) Pricing() platform.PricingProvider { return &localPricingProvider{} }
+
+// SeedDefaults installs the default operator principal if none have been
+// configured yet. Called once on server startup via platform.Seeder.
+func (lp *LocalPlatform) SeedDefaults(ctx context.Context) error {
+	existing, err := lp.secretMgr.OperatorPrincipals(ctx)
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		return nil
+	}
+	return lp.secretMgr.SetOperatorPrincipals(ctx, []string{"operator@example.com"})
+}
+
+var _ platform.Seeder = (*LocalPlatform)(nil)
