@@ -16,16 +16,6 @@ func TestCreateLocalByName(t *testing.T) {
 	}
 }
 
-func TestCreateEmptyDefaultsToLocal(t *testing.T) {
-	plat, err := platforms.Create("")
-	if err != nil {
-		t.Fatalf("Create(\"\"): unexpected error: %v", err)
-	}
-	if plat == nil {
-		t.Error("Create(\"\"): returned nil platform")
-	}
-}
-
 func TestCreateUnknownReturnsError(t *testing.T) {
 	plat, err := platforms.Create("aws")
 	if err == nil {

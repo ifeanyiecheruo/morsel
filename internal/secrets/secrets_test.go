@@ -109,6 +109,41 @@ func TestSigningKeyAndDeploySigningKeyAreDistinct(t *testing.T) {
 	}
 }
 
+func TestSeedOperatorPrincipalWritesWhenAbsent(t *testing.T) {
+	mgr := New(newMemStore())
+	ctx := context.Background()
+	if err := mgr.SeedOperatorPrincipal(ctx, "operator@example.com"); err != nil {
+		t.Fatalf("SeedOperatorPrincipal: %v", err)
+	}
+	principals, err := mgr.OperatorPrincipals(ctx)
+	if err != nil {
+		t.Fatalf("OperatorPrincipals: %v", err)
+	}
+	if len(principals) != 1 || principals[0] != "operator@example.com" {
+		t.Errorf("principals = %v, want [operator@example.com]", principals)
+	}
+}
+
+func TestSeedOperatorPrincipalIsNoOpWhenAlreadySet(t *testing.T) {
+	mgr := New(newMemStore())
+	ctx := context.Background()
+	// Pre-populate with a custom principal.
+	if err := mgr.SeedOperatorPrincipal(ctx, "first@example.com"); err != nil {
+		t.Fatalf("first seed: %v", err)
+	}
+	// A second seed call with a different value must not overwrite.
+	if err := mgr.SeedOperatorPrincipal(ctx, "second@example.com"); err != nil {
+		t.Fatalf("second seed: %v", err)
+	}
+	principals, err := mgr.OperatorPrincipals(ctx)
+	if err != nil {
+		t.Fatalf("OperatorPrincipals: %v", err)
+	}
+	if len(principals) != 1 || principals[0] != "first@example.com" {
+		t.Errorf("principals = %v, want [first@example.com]", principals)
+	}
+}
+
 func TestMigrateIsNoOpWithEmptyList(t *testing.T) {
 	mgr := New(newMemStore())
 	if err := mgr.Migrate(context.Background()); err != nil {

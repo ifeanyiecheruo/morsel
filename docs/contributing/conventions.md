@@ -27,3 +27,12 @@ Where possible referenced constants, structs, or functions come after their refe
 ## Initialization
 
 Never use `init()`. It runs invisibly, cannot return errors, cannot be tested in isolation, and makes startup order implicit and hard to reason about. Instead, use an explicit constructor function (e.g. `Create()`) that the caller invokes. Panics on startup failure belong in the outermost entry point (`main` or equivalent), not scattered through package-level side effects.
+
+## Context
+
+Only use context.Background() in main.go and tests, never use it anywhere else in the codebase. Thread the context down to where it is needed
+
+## Logging
+
+Always get a logger from the contex, never log with the default logger or a privately created logger.
+Do not directly print, always write to the context logger

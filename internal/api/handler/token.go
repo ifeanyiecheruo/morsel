@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 	"github.com/ifeanyiecheruo/morsel/platform"
@@ -43,8 +44,11 @@ func (h *Handler) TokenDeploy(ctx context.Context, req *oas.TokenDeployReq) (oas
 }
 
 func (h *Handler) TokenOIDC(ctx context.Context, req *oas.TokenOIDCReq) (oas.TokenOIDCRes, error) {
+	log := ctxlog.From(ctx)
+	log.Info("operator login attempt", "credential", req.Credential)
 	subject, err := h.plat.Credentials().ValidateOperatorToken(ctx, req.Credential)
 	if errors.Is(err, platform.ErrPrincipalNotAuthorized) {
+		log.Warn("operator login rejected", "credential", req.Credential, "reason", err)
 		return &oas.ErrorResponse{Error: oas.ErrorDetail{
 			Code:    "invalid_token",
 			Message: "operator identity could not be verified",
@@ -52,6 +56,7 @@ func (h *Handler) TokenOIDC(ctx context.Context, req *oas.TokenOIDCReq) (oas.Tok
 		}}, nil
 	}
 	if err != nil {
+		log.Error("operator login error", "credential", req.Credential, "err", err)
 		return nil, fmt.Errorf("validate operator token: %w", err)
 	}
 

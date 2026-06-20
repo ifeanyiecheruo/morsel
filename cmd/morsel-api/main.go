@@ -21,7 +21,7 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
-	platformName := flag.String("platform", "", "platform implementation (local|gcp)")
+	platformName := flag.String("platform", "local", "platform implementation (local|gcp)")
 	dbPath := flag.String("db", "morsel.db", "SQLite database path")
 	flag.Parse()
 
@@ -55,6 +55,15 @@ func main() {
 		logger.Error("secret migration error", "err", err)
 		os.Exit(1)
 	}
+
+	// TODO: refactor to avoid this local-platform-specific seeding logic.
+	if *platformName == "local" {
+		if err := secretMgr.SeedOperatorPrincipal(ctx, "operator@example.com"); err != nil {
+			logger.Error("seed operator principal error", "err", err)
+			os.Exit(1)
+		}
+	}
+
 	signingKey, err := secretMgr.SigningKey(ctx)
 	if err != nil {
 		logger.Error("signing key error", "err", err)

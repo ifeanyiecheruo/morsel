@@ -14,7 +14,7 @@ import (
 // An empty name defaults to "local".
 func Create(name string) (platform.Platform, error) {
 	switch name {
-	case "local", "":
+	case "local":
 		return local.New(), nil
 	default:
 		return nil, fmt.Errorf("unknown platform %q (supported: local)", name)

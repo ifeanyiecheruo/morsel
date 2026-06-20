@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 	"github.com/ifeanyiecheruo/morsel/platform"
 )
@@ -38,6 +39,9 @@ func (lc *localCredentialProvider) ValidateOperatorToken(ctx context.Context, cr
 	if err != nil {
 		return "", fmt.Errorf("validate operator token: %w", err)
 	}
+
+	log := ctxlog.From(ctx)
+	log.Info("validating operator credential", "credential", credential, "principal_count", len(principals), "principals", principals)
 
 	for _, p := range principals {
 		if p == credential {

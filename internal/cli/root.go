@@ -45,8 +45,8 @@ func (c *cli) buildRoot() *cobra.Command {
 	return cmd
 }
 
-func (c *cli) loadProfilePreRun(_ *cobra.Command, _ []string) error {
-	prof, err := c.handler.LoadProfile(c.profileName, false)
+func (c *cli) loadProfilePreRun(cmd *cobra.Command, _ []string) error {
+	prof, err := c.handler.LoadProfile(cmd.Context(), c.profileName, true)
 	if err == nil {
 		c.profile = prof
 	}
