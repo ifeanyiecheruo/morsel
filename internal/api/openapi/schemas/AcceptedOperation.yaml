@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: Returned by mutating endpoints that run asynchronously. Use operation_id to poll for completion.
+type: object
+required: [operation_id]
+properties:
+  operation_id:
+    description: ID of the queued operation. Pass to the operations endpoint to track progress.
+    type: string
+  applied:
+    description: Changes applied immediately without requiring approval.
+    type: object
+    nullable: true
+    additionalProperties: true
+  pending_approval:
+    description: Changes queued and awaiting operator approval before taking effect.
+    type: object
+    nullable: true
+    additionalProperties: true
+  ignored:
+    description: Changes that were no-ops because they matched the current state.
+    type: object
+    nullable: true
+    additionalProperties: true

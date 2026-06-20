@@ -39,13 +39,13 @@ func (h *Handler) TokenDeploy(ctx context.Context, req *oas.TokenDeployReq) (oas
 		return nil, fmt.Errorf("issue deploy token: %w", err)
 	}
 
-	return &oas.TokenResponse{AccessToken: accessToken, ExpiresIn: 600}, nil
+	return &oas.TokenDeployOK{AccessToken: accessToken, ExpiresIn: 600}, nil
 }
 
 func (h *Handler) TokenOIDC(ctx context.Context, req *oas.TokenOIDCReq) (oas.TokenOIDCRes, error) {
 	subject, err := h.plat.Credentials().ValidateOperatorToken(ctx, req.Credential)
 	if errors.Is(err, platform.ErrPrincipalNotAuthorized) {
-		return &oas.TokenOIDCUnauthorized{Error: oas.ErrorDetail{
+		return &oas.ErrorResponse{Error: oas.ErrorDetail{
 			Code:    "invalid_token",
 			Message: "operator identity could not be verified",
 			Remedy:  "ensure your principal is in the operator list and re-authenticate",

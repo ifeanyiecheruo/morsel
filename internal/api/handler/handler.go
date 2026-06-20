@@ -171,7 +171,7 @@ func (h *Handler) DeleteRepo(ctx context.Context, params oas.DeleteRepoParams) (
 	return nil, errNotImplemented
 }
 
-func (h *Handler) SyncRepo(ctx context.Context, _ *oas.SyncRequest, params oas.SyncRepoParams) (oas.SyncRepoRes, error) {
+func (h *Handler) SyncRepo(ctx context.Context, _ *oas.SyncRepoReq, params oas.SyncRepoParams) (oas.SyncRepoRes, error) {
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
@@ -271,7 +271,7 @@ func (h *Handler) UpdateOperatorConfig(ctx context.Context, _ *oas.PlatformConfi
 	return nil, errNotImplemented
 }
 
-func (h *Handler) UpdateRepoTier(ctx context.Context, _ *oas.UpdateRepoTierRequest, _ oas.UpdateRepoTierParams) (oas.UpdateRepoTierRes, error) {
+func (h *Handler) UpdateRepoTier(ctx context.Context, _ *oas.UpdateRepoTierReq, _ oas.UpdateRepoTierParams) (oas.UpdateRepoTierRes, error) {
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
@@ -292,7 +292,7 @@ func (h *Handler) GetOperatorApproval(ctx context.Context, _ oas.GetOperatorAppr
 	return nil, errNotImplemented
 }
 
-func (h *Handler) BatchActionApprovals(ctx context.Context, _ *oas.BatchApprovalRequest) (oas.BatchActionApprovalsRes, error) {
+func (h *Handler) BatchActionApprovals(ctx context.Context, _ *oas.BatchActionApprovalsReq) (oas.BatchActionApprovalsRes, error) {
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
@@ -311,6 +311,35 @@ func (h *Handler) GetOperatorStatus(ctx context.Context) (oas.GetOperatorStatusR
 		return nil, err
 	}
 	return nil, errNotImplemented
+}
+
+// NewError converts any handler error into the ogen convenient-error envelope.
+// Called by the ogen-generated server when a handler returns an error rather
+// than a typed response value.
+func (h *Handler) NewError(_ context.Context, err error) *oas.ErrorInternalServerStatusCode {
+	var ae *apiError
+	if errors.As(err, &ae) {
+		return &oas.ErrorInternalServerStatusCode{
+			StatusCode: ae.httpStatus,
+			Response: oas.ErrorResponse{
+				Error: oas.ErrorDetail{
+					Code:    ae.code,
+					Message: ae.message,
+					Remedy:  ae.remedy,
+				},
+			},
+		}
+	}
+	return &oas.ErrorInternalServerStatusCode{
+		StatusCode: http.StatusInternalServerError,
+		Response: oas.ErrorResponse{
+			Error: oas.ErrorDetail{
+				Code:    "internal_error",
+				Message: "an unexpected error occurred",
+				Remedy:  "contact your platform operator if the issue persists",
+			},
+		},
+	}
 }
 
 // compile-time interface check.

@@ -46,13 +46,8 @@ func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte, queries *d
 		panic("morsel api: failed to construct ogen server: " + err.Error())
 	}
 
-	wk, err := wellknown.New("/.well-known")
-	if err != nil {
-		panic("morsel api: failed to bundle OpenAPI spec: " + err.Error())
-	}
-
 	mux := http.NewServeMux()
-	mux.Handle("/.well-known/", wk)
+	mux.Handle("/.well-known/", wellknown.New("/.well-known"))
 	mux.Handle("/", srv)
 
 	return middleware.InjectLogger(ctxlog.From(ctx), middleware.LogRequests(mux))

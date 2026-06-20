@@ -31,163 +31,186 @@ func trimTrailingSlashes(u *url.URL) {
 type Invoker interface {
 	// BatchActionApprovals invokes batchActionApprovals operation.
 	//
-	// Approve or reject multiple approvals.
+	// Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected
+	// changes are discarded. IDs not found or already resolved appear in the ignored list.
 	//
 	// POST /api/operator/approvals/batch
-	BatchActionApprovals(ctx context.Context, request *BatchApprovalRequest) (BatchActionApprovalsRes, error)
+	BatchActionApprovals(ctx context.Context, request *BatchActionApprovalsReq) (BatchActionApprovalsRes, error)
 	// DeleteApp invokes deleteApp operation.
 	//
-	// Delete an app; starts persistence grace period.
+	// Marks the app for deletion and begins a grace period before its persistent storage is removed. Poll
+	// the returned operation to track progress.
 	//
 	// DELETE /api/repos/{org}/{repo}/apps/{name}
 	DeleteApp(ctx context.Context, params DeleteAppParams) (DeleteAppRes, error)
 	// DeleteRepo invokes deleteRepo operation.
 	//
-	// Delete all apps in a repo.
+	// Queues deletion of every app in the repo. Returns immediately; poll the returned operation to track
+	// progress. The repo record is removed once all apps are gone.
 	//
 	// DELETE /api/repos/{org}/{repo}
 	DeleteRepo(ctx context.Context, params DeleteRepoParams) (DeleteRepoRes, error)
 	// GetApp invokes getApp operation.
 	//
-	// Get app detail.
+	// Returns the app's current configuration, status, and deployment timestamps.
 	//
 	// GET /api/repos/{org}/{repo}/apps/{name}
 	GetApp(ctx context.Context, params GetAppParams) (GetAppRes, error)
 	// GetAppHistory invokes getAppHistory operation.
 	//
-	// Get deploy history for an app.
+	// Returns past operations for the app in reverse chronological order, including deploys, deletes, and
+	// hibernation events.
 	//
 	// GET /api/repos/{org}/{repo}/apps/{name}/history
 	GetAppHistory(ctx context.Context, params GetAppHistoryParams) (GetAppHistoryRes, error)
 	// GetAppStatus invokes getAppStatus operation.
 	//
-	// Get current runtime state of an app.
+	// Returns the Kubernetes-level status of the app including replica counts. Use this to determine
+	// whether the app is healthy or still starting up.
 	//
 	// GET /api/repos/{org}/{repo}/apps/{name}/status
 	GetAppStatus(ctx context.Context, params GetAppStatusParams) (GetAppStatusRes, error)
 	// GetAppUtilisation invokes getAppUtilisation operation.
 	//
-	// Get current resource usage and cost estimate for an app.
+	// Returns recent CPU and memory usage averaged over the last collection window, and a projected
+	// monthly cost at the current usage rate.
 	//
 	// GET /api/repos/{org}/{repo}/apps/{name}/utilisation
 	GetAppUtilisation(ctx context.Context, params GetAppUtilisationParams) (GetAppUtilisationRes, error)
 	// GetHealthz invokes getHealthz operation.
 	//
-	// Health check.
+	// Returns 200 when the API server is up and able to handle requests. Does not check downstream
+	// dependencies.
 	//
 	// GET /healthz
 	GetHealthz(ctx context.Context) (*GetHealthzOK, error)
 	// GetOperation invokes getOperation operation.
 	//
-	// Poll an async operation.
+	// Fetch the current state of a long-running operation. Retry until status is "complete" or "failed".
+	// The Retry-After header on the originating 202 response suggests a polling interval.
 	//
 	// GET /api/repos/{org}/{repo}/apps/{name}/operations/{id}
 	GetOperation(ctx context.Context, params GetOperationParams) (GetOperationRes, error)
 	// GetOperatorApproval invokes getOperatorApproval operation.
 	//
-	// Get single approval detail.
+	// Returns the full detail of a single approval request, including the current and requested field
+	// values.
 	//
 	// GET /api/operator/approvals/{id}
 	GetOperatorApproval(ctx context.Context, params GetOperatorApprovalParams) (GetOperatorApprovalRes, error)
 	// GetOperatorConfig invokes getOperatorConfig operation.
 	//
-	// Read platform config.
+	// Returns the current mutable platform-wide settings, including budget limits.
 	//
 	// GET /api/operator/config
 	GetOperatorConfig(ctx context.Context) (GetOperatorConfigRes, error)
 	// GetOperatorCost invokes getOperatorCost operation.
 	//
-	// Platform-wide cost estimate.
+	// Returns the projected monthly spend across the entire platform, broken down by repo. Figures are
+	// estimates based on current resource usage and tier pricing.
 	//
 	// GET /api/operator/cost
 	GetOperatorCost(ctx context.Context) (GetOperatorCostRes, error)
 	// GetOperatorStatus invokes getOperatorStatus operation.
 	//
-	// Platform health summary.
+	// Returns a high-level health snapshot of the platform, including whether critical components are
+	// operational and how many apps are currently running.
 	//
 	// GET /api/operator/status
 	GetOperatorStatus(ctx context.Context) (GetOperatorStatusRes, error)
 	// GetRepo invokes getRepo operation.
 	//
-	// Get repo detail including tier and quota.
+	// Returns the repo's tier, app count, and registration timestamp.
 	//
 	// GET /api/repos/{org}/{repo}
 	GetRepo(ctx context.Context, params GetRepoParams) (GetRepoRes, error)
 	// HibernateApp invokes hibernateApp operation.
 	//
-	// Force hibernate an app.
+	// Scales the app to zero replicas immediately, freeing its compute resources. The app resumes
+	// automatically on the next inbound request, or can be woken explicitly via the wake endpoint.
 	//
 	// POST /api/repos/{org}/{repo}/apps/{name}/hibernate
 	HibernateApp(ctx context.Context, params HibernateAppParams) (HibernateAppRes, error)
 	// ListApps invokes listApps operation.
 	//
-	// List apps in a repo.
+	// Returns every app currently deployed in the repo, including their status and image.
 	//
 	// GET /api/repos/{org}/{repo}/apps
 	ListApps(ctx context.Context, params ListAppsParams) (ListAppsRes, error)
 	// ListOperatorApprovals invokes listOperatorApprovals operation.
 	//
-	// List all pending approvals.
+	// Returns every approval request across all repos that is waiting for operator action.
 	//
 	// GET /api/operator/approvals
 	ListOperatorApprovals(ctx context.Context) (ListOperatorApprovalsRes, error)
 	// ListRepoApprovals invokes listRepoApprovals operation.
 	//
-	// List pending approvals for a repo.
+	// Returns approval requests raised by changes to this repo that are awaiting operator action before
+	// they take effect.
 	//
 	// GET /api/repos/{org}/{repo}/approvals
 	ListRepoApprovals(ctx context.Context, params ListRepoApprovalsParams) (ListRepoApprovalsRes, error)
 	// ListRepos invokes listRepos operation.
 	//
-	// List repos.
+	// Returns repos the caller has access to. Developers see only their own repo; operators see all repos
+	// by default.
 	//
 	// GET /api/repos
 	ListRepos(ctx context.Context, params ListReposParams) (ListReposRes, error)
 	// SyncRepo invokes syncRepo operation.
 	//
-	// Declarative app list reconciliation; detects deleted apps.
+	// Reconciles the cluster against the supplied app list. Apps present in the cluster but absent from
+	// the list are queued for deletion. Equivalent to calling upsert for each listed app and delete for
+	// each omitted one, in a single atomic request.
 	//
 	// POST /api/repos/{org}/{repo}/sync
-	SyncRepo(ctx context.Context, request *SyncRequest, params SyncRepoParams) (SyncRepoRes, error)
+	SyncRepo(ctx context.Context, request *SyncRepoReq, params SyncRepoParams) (SyncRepoRes, error)
 	// TokenDeploy invokes tokenDeploy operation.
 	//
-	// Exchange a deploy identity token for a developer access token.
+	// For use in CI/CD pipelines. Present a short-lived identity token issued by your CI platform (e.g. a
+	// GitHub Actions OIDC token). Returns a scoped access token valid for the duration of the deploy.
 	//
 	// POST /api/token/deploy
 	TokenDeploy(ctx context.Context, request *TokenDeployReq) (TokenDeployRes, error)
 	// TokenOIDC invokes tokenOIDC operation.
 	//
-	// Exchange a platform identity credential for an operator access token and refresh token.
+	// For interactive operator sessions. Exchanges a platform credential for an access/refresh token pair.
+	// Use the refresh endpoint to stay authenticated without re-presenting credentials.
 	//
 	// POST /api/token/oidc
 	TokenOIDC(ctx context.Context, request *TokenOIDCReq) (TokenOIDCRes, error)
 	// TokenRefresh invokes tokenRefresh operation.
 	//
-	// Exchange a refresh token for a new access token and rotated refresh token.
+	// Rotates both tokens. The supplied refresh token is immediately invalidated; use the new pair going
+	// forward.
 	//
 	// POST /api/token/refresh
 	TokenRefresh(ctx context.Context, request *TokenRefreshReq) (TokenRefreshRes, error)
 	// UpdateOperatorConfig invokes updateOperatorConfig operation.
 	//
-	// Update mutable platform config.
+	// Applies the supplied fields over the current config. Omitted fields are left unchanged.
 	//
 	// PATCH /api/operator/config
 	UpdateOperatorConfig(ctx context.Context, request *PlatformConfig) (UpdateOperatorConfigRes, error)
 	// UpdateRepoTier invokes updateRepoTier operation.
 	//
-	// Promote or demote repo tier.
+	// Changes the resource tier for a repo, which controls its compute limits and cost ceiling. Promotion
+	// to a higher tier may require additional approval depending on platform policy.
 	//
 	// PATCH /api/operator/repos/{org}/{repo}
-	UpdateRepoTier(ctx context.Context, request *UpdateRepoTierRequest, params UpdateRepoTierParams) (UpdateRepoTierRes, error)
+	UpdateRepoTier(ctx context.Context, request *UpdateRepoTierReq, params UpdateRepoTierParams) (UpdateRepoTierRes, error)
 	// UpsertApp invokes upsertApp operation.
 	//
-	// Upsert an app; runs staging handshake and applies Kubernetes manifest.
+	// Creates or updates an app. Runs a staging handshake to validate the image before applying the
+	// manifest. Some changes may require operator approval and will appear in the pending_approval field
+	// of the response.
 	//
 	// POST /api/repos/{org}/{repo}/apps
 	UpsertApp(ctx context.Context, request *AppSpec, params UpsertAppParams) (UpsertAppRes, error)
 	// WakeApp invokes wakeApp operation.
 	//
-	// Force wake a hibernated app.
+	// Scales the app back up from zero replicas. Use this to pre-warm the app before expected traffic
+	// rather than waiting for the first request to trigger wake-on-demand.
 	//
 	// POST /api/repos/{org}/{repo}/apps/{name}/wake
 	WakeApp(ctx context.Context, params WakeAppParams) (WakeAppRes, error)
@@ -236,15 +259,16 @@ func (c *Client) requestURL(ctx context.Context) *url.URL {
 
 // BatchActionApprovals invokes batchActionApprovals operation.
 //
-// Approve or reject multiple approvals.
+// Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected
+// changes are discarded. IDs not found or already resolved appear in the ignored list.
 //
 // POST /api/operator/approvals/batch
-func (c *Client) BatchActionApprovals(ctx context.Context, request *BatchApprovalRequest) (BatchActionApprovalsRes, error) {
+func (c *Client) BatchActionApprovals(ctx context.Context, request *BatchActionApprovalsReq) (BatchActionApprovalsRes, error) {
 	res, err := c.sendBatchActionApprovals(ctx, request)
 	return res, err
 }
 
-func (c *Client) sendBatchActionApprovals(ctx context.Context, request *BatchApprovalRequest) (res BatchActionApprovalsRes, err error) {
+func (c *Client) sendBatchActionApprovals(ctx context.Context, request *BatchActionApprovalsReq) (res BatchActionApprovalsRes, err error) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("batchActionApprovals"),
 		semconv.HTTPRequestMethodKey.String("POST"),
@@ -352,7 +376,8 @@ func (c *Client) sendBatchActionApprovals(ctx context.Context, request *BatchApp
 
 // DeleteApp invokes deleteApp operation.
 //
-// Delete an app; starts persistence grace period.
+// Marks the app for deletion and begins a grace period before its persistent storage is removed. Poll
+// the returned operation to track progress.
 //
 // DELETE /api/repos/{org}/{repo}/apps/{name}
 func (c *Client) DeleteApp(ctx context.Context, params DeleteAppParams) (DeleteAppRes, error) {
@@ -521,7 +546,8 @@ func (c *Client) sendDeleteApp(ctx context.Context, params DeleteAppParams) (res
 
 // DeleteRepo invokes deleteRepo operation.
 //
-// Delete all apps in a repo.
+// Queues deletion of every app in the repo. Returns immediately; poll the returned operation to track
+// progress. The repo record is removed once all apps are gone.
 //
 // DELETE /api/repos/{org}/{repo}
 func (c *Client) DeleteRepo(ctx context.Context, params DeleteRepoParams) (DeleteRepoRes, error) {
@@ -671,7 +697,7 @@ func (c *Client) sendDeleteRepo(ctx context.Context, params DeleteRepoParams) (r
 
 // GetApp invokes getApp operation.
 //
-// Get app detail.
+// Returns the app's current configuration, status, and deployment timestamps.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}
 func (c *Client) GetApp(ctx context.Context, params GetAppParams) (GetAppRes, error) {
@@ -840,7 +866,8 @@ func (c *Client) sendGetApp(ctx context.Context, params GetAppParams) (res GetAp
 
 // GetAppHistory invokes getAppHistory operation.
 //
-// Get deploy history for an app.
+// Returns past operations for the app in reverse chronological order, including deploys, deletes, and
+// hibernation events.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}/history
 func (c *Client) GetAppHistory(ctx context.Context, params GetAppHistoryParams) (GetAppHistoryRes, error) {
@@ -1010,7 +1037,8 @@ func (c *Client) sendGetAppHistory(ctx context.Context, params GetAppHistoryPara
 
 // GetAppStatus invokes getAppStatus operation.
 //
-// Get current runtime state of an app.
+// Returns the Kubernetes-level status of the app including replica counts. Use this to determine
+// whether the app is healthy or still starting up.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}/status
 func (c *Client) GetAppStatus(ctx context.Context, params GetAppStatusParams) (GetAppStatusRes, error) {
@@ -1180,7 +1208,8 @@ func (c *Client) sendGetAppStatus(ctx context.Context, params GetAppStatusParams
 
 // GetAppUtilisation invokes getAppUtilisation operation.
 //
-// Get current resource usage and cost estimate for an app.
+// Returns recent CPU and memory usage averaged over the last collection window, and a projected
+// monthly cost at the current usage rate.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}/utilisation
 func (c *Client) GetAppUtilisation(ctx context.Context, params GetAppUtilisationParams) (GetAppUtilisationRes, error) {
@@ -1350,7 +1379,8 @@ func (c *Client) sendGetAppUtilisation(ctx context.Context, params GetAppUtilisa
 
 // GetHealthz invokes getHealthz operation.
 //
-// Health check.
+// Returns 200 when the API server is up and able to handle requests. Does not check downstream
+// dependencies.
 //
 // GET /healthz
 func (c *Client) GetHealthz(ctx context.Context) (*GetHealthzOK, error) {
@@ -1430,7 +1460,8 @@ func (c *Client) sendGetHealthz(ctx context.Context) (res *GetHealthzOK, err err
 
 // GetOperation invokes getOperation operation.
 //
-// Poll an async operation.
+// Fetch the current state of a long-running operation. Retry until status is "complete" or "failed".
+// The Retry-After header on the originating 202 response suggests a polling interval.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}/operations/{id}
 func (c *Client) GetOperation(ctx context.Context, params GetOperationParams) (GetOperationRes, error) {
@@ -1618,7 +1649,8 @@ func (c *Client) sendGetOperation(ctx context.Context, params GetOperationParams
 
 // GetOperatorApproval invokes getOperatorApproval operation.
 //
-// Get single approval detail.
+// Returns the full detail of a single approval request, including the current and requested field
+// values.
 //
 // GET /api/operator/approvals/{id}
 func (c *Client) GetOperatorApproval(ctx context.Context, params GetOperatorApprovalParams) (GetOperatorApprovalRes, error) {
@@ -1749,7 +1781,7 @@ func (c *Client) sendGetOperatorApproval(ctx context.Context, params GetOperator
 
 // GetOperatorConfig invokes getOperatorConfig operation.
 //
-// Read platform config.
+// Returns the current mutable platform-wide settings, including budget limits.
 //
 // GET /api/operator/config
 func (c *Client) GetOperatorConfig(ctx context.Context) (GetOperatorConfigRes, error) {
@@ -1862,7 +1894,8 @@ func (c *Client) sendGetOperatorConfig(ctx context.Context) (res GetOperatorConf
 
 // GetOperatorCost invokes getOperatorCost operation.
 //
-// Platform-wide cost estimate.
+// Returns the projected monthly spend across the entire platform, broken down by repo. Figures are
+// estimates based on current resource usage and tier pricing.
 //
 // GET /api/operator/cost
 func (c *Client) GetOperatorCost(ctx context.Context) (GetOperatorCostRes, error) {
@@ -1975,7 +2008,8 @@ func (c *Client) sendGetOperatorCost(ctx context.Context) (res GetOperatorCostRe
 
 // GetOperatorStatus invokes getOperatorStatus operation.
 //
-// Platform health summary.
+// Returns a high-level health snapshot of the platform, including whether critical components are
+// operational and how many apps are currently running.
 //
 // GET /api/operator/status
 func (c *Client) GetOperatorStatus(ctx context.Context) (GetOperatorStatusRes, error) {
@@ -2088,7 +2122,7 @@ func (c *Client) sendGetOperatorStatus(ctx context.Context) (res GetOperatorStat
 
 // GetRepo invokes getRepo operation.
 //
-// Get repo detail including tier and quota.
+// Returns the repo's tier, app count, and registration timestamp.
 //
 // GET /api/repos/{org}/{repo}
 func (c *Client) GetRepo(ctx context.Context, params GetRepoParams) (GetRepoRes, error) {
@@ -2238,7 +2272,8 @@ func (c *Client) sendGetRepo(ctx context.Context, params GetRepoParams) (res Get
 
 // HibernateApp invokes hibernateApp operation.
 //
-// Force hibernate an app.
+// Scales the app to zero replicas immediately, freeing its compute resources. The app resumes
+// automatically on the next inbound request, or can be woken explicitly via the wake endpoint.
 //
 // POST /api/repos/{org}/{repo}/apps/{name}/hibernate
 func (c *Client) HibernateApp(ctx context.Context, params HibernateAppParams) (HibernateAppRes, error) {
@@ -2408,7 +2443,7 @@ func (c *Client) sendHibernateApp(ctx context.Context, params HibernateAppParams
 
 // ListApps invokes listApps operation.
 //
-// List apps in a repo.
+// Returns every app currently deployed in the repo, including their status and image.
 //
 // GET /api/repos/{org}/{repo}/apps
 func (c *Client) ListApps(ctx context.Context, params ListAppsParams) (ListAppsRes, error) {
@@ -2559,7 +2594,7 @@ func (c *Client) sendListApps(ctx context.Context, params ListAppsParams) (res L
 
 // ListOperatorApprovals invokes listOperatorApprovals operation.
 //
-// List all pending approvals.
+// Returns every approval request across all repos that is waiting for operator action.
 //
 // GET /api/operator/approvals
 func (c *Client) ListOperatorApprovals(ctx context.Context) (ListOperatorApprovalsRes, error) {
@@ -2672,7 +2707,8 @@ func (c *Client) sendListOperatorApprovals(ctx context.Context) (res ListOperato
 
 // ListRepoApprovals invokes listRepoApprovals operation.
 //
-// List pending approvals for a repo.
+// Returns approval requests raised by changes to this repo that are awaiting operator action before
+// they take effect.
 //
 // GET /api/repos/{org}/{repo}/approvals
 func (c *Client) ListRepoApprovals(ctx context.Context, params ListRepoApprovalsParams) (ListRepoApprovalsRes, error) {
@@ -2823,7 +2859,8 @@ func (c *Client) sendListRepoApprovals(ctx context.Context, params ListRepoAppro
 
 // ListRepos invokes listRepos operation.
 //
-// List repos.
+// Returns repos the caller has access to. Developers see only their own repo; operators see all repos
+// by default.
 //
 // GET /api/repos
 func (c *Client) ListRepos(ctx context.Context, params ListReposParams) (ListReposRes, error) {
@@ -2957,15 +2994,17 @@ func (c *Client) sendListRepos(ctx context.Context, params ListReposParams) (res
 
 // SyncRepo invokes syncRepo operation.
 //
-// Declarative app list reconciliation; detects deleted apps.
+// Reconciles the cluster against the supplied app list. Apps present in the cluster but absent from
+// the list are queued for deletion. Equivalent to calling upsert for each listed app and delete for
+// each omitted one, in a single atomic request.
 //
 // POST /api/repos/{org}/{repo}/sync
-func (c *Client) SyncRepo(ctx context.Context, request *SyncRequest, params SyncRepoParams) (SyncRepoRes, error) {
+func (c *Client) SyncRepo(ctx context.Context, request *SyncRepoReq, params SyncRepoParams) (SyncRepoRes, error) {
 	res, err := c.sendSyncRepo(ctx, request, params)
 	return res, err
 }
 
-func (c *Client) sendSyncRepo(ctx context.Context, request *SyncRequest, params SyncRepoParams) (res SyncRepoRes, err error) {
+func (c *Client) sendSyncRepo(ctx context.Context, request *SyncRepoReq, params SyncRepoParams) (res SyncRepoRes, err error) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("syncRepo"),
 		semconv.HTTPRequestMethodKey.String("POST"),
@@ -3111,7 +3150,8 @@ func (c *Client) sendSyncRepo(ctx context.Context, request *SyncRequest, params 
 
 // TokenDeploy invokes tokenDeploy operation.
 //
-// Exchange a deploy identity token for a developer access token.
+// For use in CI/CD pipelines. Present a short-lived identity token issued by your CI platform (e.g. a
+// GitHub Actions OIDC token). Returns a scoped access token valid for the duration of the deploy.
 //
 // POST /api/token/deploy
 func (c *Client) TokenDeploy(ctx context.Context, request *TokenDeployReq) (TokenDeployRes, error) {
@@ -3194,7 +3234,8 @@ func (c *Client) sendTokenDeploy(ctx context.Context, request *TokenDeployReq) (
 
 // TokenOIDC invokes tokenOIDC operation.
 //
-// Exchange a platform identity credential for an operator access token and refresh token.
+// For interactive operator sessions. Exchanges a platform credential for an access/refresh token pair.
+// Use the refresh endpoint to stay authenticated without re-presenting credentials.
 //
 // POST /api/token/oidc
 func (c *Client) TokenOIDC(ctx context.Context, request *TokenOIDCReq) (TokenOIDCRes, error) {
@@ -3277,7 +3318,8 @@ func (c *Client) sendTokenOIDC(ctx context.Context, request *TokenOIDCReq) (res 
 
 // TokenRefresh invokes tokenRefresh operation.
 //
-// Exchange a refresh token for a new access token and rotated refresh token.
+// Rotates both tokens. The supplied refresh token is immediately invalidated; use the new pair going
+// forward.
 //
 // POST /api/token/refresh
 func (c *Client) TokenRefresh(ctx context.Context, request *TokenRefreshReq) (TokenRefreshRes, error) {
@@ -3360,7 +3402,7 @@ func (c *Client) sendTokenRefresh(ctx context.Context, request *TokenRefreshReq)
 
 // UpdateOperatorConfig invokes updateOperatorConfig operation.
 //
-// Update mutable platform config.
+// Applies the supplied fields over the current config. Omitted fields are left unchanged.
 //
 // PATCH /api/operator/config
 func (c *Client) UpdateOperatorConfig(ctx context.Context, request *PlatformConfig) (UpdateOperatorConfigRes, error) {
@@ -3476,15 +3518,16 @@ func (c *Client) sendUpdateOperatorConfig(ctx context.Context, request *Platform
 
 // UpdateRepoTier invokes updateRepoTier operation.
 //
-// Promote or demote repo tier.
+// Changes the resource tier for a repo, which controls its compute limits and cost ceiling. Promotion
+// to a higher tier may require additional approval depending on platform policy.
 //
 // PATCH /api/operator/repos/{org}/{repo}
-func (c *Client) UpdateRepoTier(ctx context.Context, request *UpdateRepoTierRequest, params UpdateRepoTierParams) (UpdateRepoTierRes, error) {
+func (c *Client) UpdateRepoTier(ctx context.Context, request *UpdateRepoTierReq, params UpdateRepoTierParams) (UpdateRepoTierRes, error) {
 	res, err := c.sendUpdateRepoTier(ctx, request, params)
 	return res, err
 }
 
-func (c *Client) sendUpdateRepoTier(ctx context.Context, request *UpdateRepoTierRequest, params UpdateRepoTierParams) (res UpdateRepoTierRes, err error) {
+func (c *Client) sendUpdateRepoTier(ctx context.Context, request *UpdateRepoTierReq, params UpdateRepoTierParams) (res UpdateRepoTierRes, err error) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("updateRepoTier"),
 		semconv.HTTPRequestMethodKey.String("PATCH"),
@@ -3629,7 +3672,9 @@ func (c *Client) sendUpdateRepoTier(ctx context.Context, request *UpdateRepoTier
 
 // UpsertApp invokes upsertApp operation.
 //
-// Upsert an app; runs staging handshake and applies Kubernetes manifest.
+// Creates or updates an app. Runs a staging handshake to validate the image before applying the
+// manifest. Some changes may require operator approval and will appear in the pending_approval field
+// of the response.
 //
 // POST /api/repos/{org}/{repo}/apps
 func (c *Client) UpsertApp(ctx context.Context, request *AppSpec, params UpsertAppParams) (UpsertAppRes, error) {
@@ -3783,7 +3828,8 @@ func (c *Client) sendUpsertApp(ctx context.Context, request *AppSpec, params Ups
 
 // WakeApp invokes wakeApp operation.
 //
-// Force wake a hibernated app.
+// Scales the app back up from zero replicas. Use this to pre-warm the app before expected traffic
+// rather than waiting for the first request to trigger wake-on-demand.
 //
 // POST /api/repos/{org}/{repo}/apps/{name}/wake
 func (c *Client) WakeApp(ctx context.Context, params WakeAppParams) (WakeAppRes, error) {

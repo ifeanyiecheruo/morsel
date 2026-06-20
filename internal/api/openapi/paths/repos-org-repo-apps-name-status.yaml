@@ -1,0 +1,39 @@
+parameters:
+  - $ref: '../parameters.yaml#/OrgParam'
+  - $ref: '../parameters.yaml#/RepoParam'
+  - $ref: '../parameters.yaml#/AppNameParam'
+get:
+  operationId: getAppStatus
+  summary: Get current runtime state of an app
+  description: Returns the Kubernetes-level status of the app including replica counts. Use this to determine whether the app is healthy or still starting up.
+  tags: [apps]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status:
+                description: 'Lifecycle phase (e.g. running, hibernated, deploying).'
+                type: string
+              replicas:
+                description: Total number of desired replicas.
+                type: integer
+              ready_replicas:
+                description: Number of replicas that are healthy and serving traffic.
+                type: integer
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

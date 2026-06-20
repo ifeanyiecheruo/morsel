@@ -4,24 +4,17 @@ import (
 	"encoding/json"
 	"net/http"
 
-	openapispec "github.com/ifeanyiecheruo/morsel/api/openapi"
+	openapispec "github.com/ifeanyiecheruo/morsel/internal/api/openapi"
 )
 
 // handlers serves the three /.well-known/ discovery documents.
 type handlers struct {
-	spec []byte
-	mux  http.Handler
+	mux http.Handler
 }
 
-// New bundles the embedded OpenAPI spec and registers routes under basePath
-// (e.g. "/.well-known").
-func New(basePath string) (http.Handler, error) {
-	spec, err := BundleSpec(openapispec.FS, "openapi.yaml")
-	if err != nil {
-		return nil, err
-	}
-
-	h := &handlers{spec: spec}
+// New registers routes under basePath (e.g. "/.well-known").
+func New(basePath string) http.Handler {
+	h := &handlers{}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+basePath+"/openapi", h.handleOpenAPI)
@@ -29,7 +22,7 @@ func New(basePath string) (http.Handler, error) {
 	mux.HandleFunc("GET "+basePath+"/ai-plugin.json", h.handleAIPlugin)
 	h.mux = mux
 
-	return h, nil
+	return h
 }
 
 func (h *handlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +31,7 @@ func (h *handlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) handleOpenAPI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/openapi+json")
-	_, _ = w.Write(h.spec)
+	_, _ = w.Write(openapispec.SpecJSON)
 }
 
 func (h *handlers) handleCatalog(w http.ResponseWriter, r *http.Request) {

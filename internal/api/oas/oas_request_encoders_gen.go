@@ -11,7 +11,7 @@ import (
 )
 
 func encodeBatchActionApprovalsRequest(
-	req *BatchApprovalRequest,
+	req *BatchActionApprovalsReq,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"
@@ -25,7 +25,7 @@ func encodeBatchActionApprovalsRequest(
 }
 
 func encodeSyncRepoRequest(
-	req *SyncRequest,
+	req *SyncRepoReq,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"
@@ -95,7 +95,7 @@ func encodeUpdateOperatorConfigRequest(
 }
 
 func encodeUpdateRepoTierRequest(
-	req *UpdateRepoTierRequest,
+	req *UpdateRepoTierReq,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

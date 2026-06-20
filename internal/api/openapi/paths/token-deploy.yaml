@@ -1,0 +1,39 @@
+post:
+  operationId: tokenDeploy
+  summary: Exchange a deploy identity token for a developer access token
+  description: For use in CI/CD pipelines. Present a short-lived identity token issued by your CI platform (e.g. a GitHub Actions OIDC token). Returns a scoped access token valid for the duration of the deploy.
+  tags: [token]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [token]
+          properties:
+            token:
+              description: Short-lived identity token issued by the CI/CD platform.
+              type: string
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [access_token, expires_in]
+            properties:
+              access_token:
+                description: 'Bearer token. Pass as "Authorization: Bearer <token>".'
+                type: string
+              expires_in:
+                description: Seconds until this token expires.
+                type: integer
+    '400':
+      $ref: '../responses.yaml#/ErrorBadRequest'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

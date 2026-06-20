@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: A short-lived access token paired with a rotatable refresh token.
+type: object
+required: [access_token, refresh_token, expires_in]
+properties:
+  access_token:
+    description: Bearer token to include in the Authorization header.
+    type: string
+  refresh_token:
+    description: Long-lived token used to obtain a new access token without re-authenticating.
+    type: string
+  expires_in:
+    description: Seconds until the access token expires.
+    type: integer

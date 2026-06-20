@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: Envelope returned for all error responses.
+type: object
+required: [error]
+properties:
+  error:
+    description: Details of the error.
+    $ref: './ErrorDetail.yaml'

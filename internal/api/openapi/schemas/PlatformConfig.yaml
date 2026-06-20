@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: Mutable platform-wide configuration managed by the operator.
+type: object
+properties:
+  budget_ceiling_monthly:
+    description: Maximum total monthly spend allowed across all repos, in USD.
+    type: number
+    format: double
+  soft_limit_pct:
+    description: Fraction of the budget ceiling at which a warning is triggered (0.0–1.0).
+    type: number
+    format: double

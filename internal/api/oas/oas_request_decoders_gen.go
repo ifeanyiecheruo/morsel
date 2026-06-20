@@ -15,7 +15,7 @@ import (
 )
 
 func (s *Server) decodeBatchActionApprovalsRequest(r *http.Request) (
-	req *BatchApprovalRequest,
+	req *BatchActionApprovalsReq,
 	rawBody []byte,
 	close func() error,
 	rerr error,
@@ -62,7 +62,7 @@ func (s *Server) decodeBatchActionApprovalsRequest(r *http.Request) (
 		rawBody = append(rawBody, buf...)
 		d := jx.DecodeBytes(buf)
 
-		var request BatchApprovalRequest
+		var request BatchActionApprovalsReq
 		if err := func() error {
 			if err := request.Decode(d); err != nil {
 				return err
@@ -94,7 +94,7 @@ func (s *Server) decodeBatchActionApprovalsRequest(r *http.Request) (
 }
 
 func (s *Server) decodeSyncRepoRequest(r *http.Request) (
-	req *SyncRequest,
+	req *SyncRepoReq,
 	rawBody []byte,
 	close func() error,
 	rerr error,
@@ -141,7 +141,7 @@ func (s *Server) decodeSyncRepoRequest(r *http.Request) (
 		rawBody = append(rawBody, buf...)
 		d := jx.DecodeBytes(buf)
 
-		var request SyncRequest
+		var request SyncRepoReq
 		if err := func() error {
 			if err := request.Decode(d); err != nil {
 				return err
@@ -465,7 +465,7 @@ func (s *Server) decodeUpdateOperatorConfigRequest(r *http.Request) (
 }
 
 func (s *Server) decodeUpdateRepoTierRequest(r *http.Request) (
-	req *UpdateRepoTierRequest,
+	req *UpdateRepoTierReq,
 	rawBody []byte,
 	close func() error,
 	rerr error,
@@ -512,7 +512,7 @@ func (s *Server) decodeUpdateRepoTierRequest(r *http.Request) (
 		rawBody = append(rawBody, buf...)
 		d := jx.DecodeBytes(buf)
 
-		var request UpdateRepoTierRequest
+		var request UpdateRepoTierReq
 		if err := func() error {
 			if err := request.Decode(d); err != nil {
 				return err

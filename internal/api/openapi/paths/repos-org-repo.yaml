@@ -1,0 +1,61 @@
+parameters:
+  - $ref: '../parameters.yaml#/OrgParam'
+  - $ref: '../parameters.yaml#/RepoParam'
+get:
+  operationId: getRepo
+  summary: Get repo detail including tier and quota
+  description: Returns the repo's tier, app count, and registration timestamp.
+  tags: [repos]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Repo.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'
+delete:
+  operationId: deleteRepo
+  summary: Delete all apps in a repo
+  description: Queues deletion of every app in the repo. Returns immediately; poll the returned operation to track progress. The repo record is removed once all apps are gone.
+  tags: [repos]
+  security:
+    - bearerAuth: []
+  responses:
+    '202':
+      description: Accepted
+      headers:
+        Location:
+          required: true
+          schema:
+            type: string
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AcceptedOperation.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '409':
+      $ref: '../responses.yaml#/ErrorConflict'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

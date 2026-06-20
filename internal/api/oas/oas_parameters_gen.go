@@ -16,8 +16,11 @@ import (
 
 // DeleteAppParams is parameters of deleteApp operation.
 type DeleteAppParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
+	// The app name within the repo.
 	Name string
 }
 
@@ -187,7 +190,9 @@ func decodeDeleteAppParams(args [3]string, argsEscaped bool, r *http.Request) (p
 
 // DeleteRepoParams is parameters of deleteRepo operation.
 type DeleteRepoParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
 }
 
@@ -305,8 +310,11 @@ func decodeDeleteRepoParams(args [2]string, argsEscaped bool, r *http.Request) (
 
 // GetAppParams is parameters of getApp operation.
 type GetAppParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
+	// The app name within the repo.
 	Name string
 }
 
@@ -476,8 +484,11 @@ func decodeGetAppParams(args [3]string, argsEscaped bool, r *http.Request) (para
 
 // GetAppHistoryParams is parameters of getAppHistory operation.
 type GetAppHistoryParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
+	// The app name within the repo.
 	Name string
 }
 
@@ -647,8 +658,11 @@ func decodeGetAppHistoryParams(args [3]string, argsEscaped bool, r *http.Request
 
 // GetAppStatusParams is parameters of getAppStatus operation.
 type GetAppStatusParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
+	// The app name within the repo.
 	Name string
 }
 
@@ -818,8 +832,11 @@ func decodeGetAppStatusParams(args [3]string, argsEscaped bool, r *http.Request)
 
 // GetAppUtilisationParams is parameters of getAppUtilisation operation.
 type GetAppUtilisationParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
+	// The app name within the repo.
 	Name string
 }
 
@@ -989,10 +1006,14 @@ func decodeGetAppUtilisationParams(args [3]string, argsEscaped bool, r *http.Req
 
 // GetOperationParams is parameters of getOperation operation.
 type GetOperationParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
+	// The app name within the repo.
 	Name string
-	ID   string
+	// The operation ID returned by a prior async request.
+	ID string
 }
 
 func unpackGetOperationParams(packed middleware.Parameters) (params GetOperationParams) {
@@ -1213,6 +1234,7 @@ func decodeGetOperationParams(args [4]string, argsEscaped bool, r *http.Request)
 
 // GetOperatorApprovalParams is parameters of getOperatorApproval operation.
 type GetOperatorApprovalParams struct {
+	// The approval request ID.
 	ID string
 }
 
@@ -1278,7 +1300,9 @@ func decodeGetOperatorApprovalParams(args [1]string, argsEscaped bool, r *http.R
 
 // GetRepoParams is parameters of getRepo operation.
 type GetRepoParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
 }
 
@@ -1396,8 +1420,11 @@ func decodeGetRepoParams(args [2]string, argsEscaped bool, r *http.Request) (par
 
 // HibernateAppParams is parameters of hibernateApp operation.
 type HibernateAppParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
+	// The app name within the repo.
 	Name string
 }
 
@@ -1567,7 +1594,9 @@ func decodeHibernateAppParams(args [3]string, argsEscaped bool, r *http.Request)
 
 // ListAppsParams is parameters of listApps operation.
 type ListAppsParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
 }
 
@@ -1685,7 +1714,9 @@ func decodeListAppsParams(args [2]string, argsEscaped bool, r *http.Request) (pa
 
 // ListRepoApprovalsParams is parameters of listRepoApprovals operation.
 type ListRepoApprovalsParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
 }
 
@@ -1803,6 +1834,7 @@ func decodeListRepoApprovalsParams(args [2]string, argsEscaped bool, r *http.Req
 
 // ListReposParams is parameters of listRepos operation.
 type ListReposParams struct {
+	// When true, returns all repos across all organisations. Requires operator privileges.
 	All OptBool `json:",omitempty,omitzero"`
 }
 
@@ -1867,7 +1899,9 @@ func decodeListReposParams(args [0]string, argsEscaped bool, r *http.Request) (p
 
 // SyncRepoParams is parameters of syncRepo operation.
 type SyncRepoParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
 }
 
@@ -1985,7 +2019,9 @@ func decodeSyncRepoParams(args [2]string, argsEscaped bool, r *http.Request) (pa
 
 // UpdateRepoTierParams is parameters of updateRepoTier operation.
 type UpdateRepoTierParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
 }
 
@@ -2103,7 +2139,9 @@ func decodeUpdateRepoTierParams(args [2]string, argsEscaped bool, r *http.Reques
 
 // UpsertAppParams is parameters of upsertApp operation.
 type UpsertAppParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
 }
 
@@ -2221,8 +2259,11 @@ func decodeUpsertAppParams(args [2]string, argsEscaped bool, r *http.Request) (p
 
 // WakeAppParams is parameters of wakeApp operation.
 type WakeAppParams struct {
-	Org  string
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
 	Repo string
+	// The app name within the repo.
 	Name string
 }
 

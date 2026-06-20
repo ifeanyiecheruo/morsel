@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=https://www.schemastore.org/openapi-3.X.json
+openapi: "3.0.3"
+
+info:
+  title: Morsel API
+  description: Control plane API for the Morsel self-hosted PaaS platform.
+  version: "0.1"
+
+servers:
+  - url: /
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorDetail:
+      $ref: './schemas/ErrorDetail.yaml'
+    ErrorResponse:
+      $ref: './schemas/ErrorResponse.yaml'
+    TokenPairResponse:
+      $ref: './schemas/TokenPairResponse.yaml'
+    Operation:
+      $ref: './schemas/Operation.yaml'
+    AcceptedOperation:
+      $ref: './schemas/AcceptedOperation.yaml'
+    AppSpec:
+      $ref: './schemas/AppSpec.yaml'
+    App:
+      $ref: './schemas/App.yaml'
+    Repo:
+      $ref: './schemas/Repo.yaml'
+    Approval:
+      $ref: './schemas/Approval.yaml'
+    PlatformConfig:
+      $ref: './schemas/PlatformConfig.yaml'
+
+  parameters:
+    OrgParam:
+      $ref: './parameters.yaml#/OrgParam'
+    RepoParam:
+      $ref: './parameters.yaml#/RepoParam'
+    AppNameParam:
+      $ref: './parameters.yaml#/AppNameParam'
+    OperationIDParam:
+      $ref: './parameters.yaml#/OperationIDParam'
+    ApprovalIDParam:
+      $ref: './parameters.yaml#/ApprovalIDParam'
+
+  responses:
+    ErrorBadRequest:
+      $ref: './responses.yaml#/ErrorBadRequest'
+    ErrorUnauthorized:
+      $ref: './responses.yaml#/ErrorUnauthorized'
+    ErrorForbidden:
+      $ref: './responses.yaml#/ErrorForbidden'
+    ErrorNotFound:
+      $ref: './responses.yaml#/ErrorNotFound'
+    ErrorConflict:
+      $ref: './responses.yaml#/ErrorConflict'
+    ErrorUnprocessable:
+      $ref: './responses.yaml#/ErrorUnprocessable'
+    ErrorServiceUnavailable:
+      $ref: './responses.yaml#/ErrorServiceUnavailable'
+    ErrorInternalServer:
+      $ref: './responses.yaml#/ErrorInternalServer'
+
+paths:
+
+  /healthz:
+    $ref: './paths/healthz.yaml'
+
+  /api/token/deploy:
+    $ref: './paths/token-deploy.yaml'
+
+  /api/token/oidc:
+    $ref: './paths/token-oidc.yaml'
+
+  /api/token/refresh:
+    $ref: './paths/token-refresh.yaml'
+
+  /api/repos:
+    $ref: './paths/repos.yaml'
+
+  '/api/repos/{org}/{repo}':
+    $ref: './paths/repos-org-repo.yaml'
+
+  '/api/repos/{org}/{repo}/sync':
+    $ref: './paths/repos-org-repo-sync.yaml'
+
+  '/api/repos/{org}/{repo}/approvals':
+    $ref: './paths/repos-org-repo-approvals.yaml'
+
+  '/api/repos/{org}/{repo}/apps':
+    $ref: './paths/repos-org-repo-apps.yaml'
+
+  '/api/repos/{org}/{repo}/apps/{name}':
+    $ref: './paths/repos-org-repo-apps-name.yaml'
+
+  '/api/repos/{org}/{repo}/apps/{name}/status':
+    $ref: './paths/repos-org-repo-apps-name-status.yaml'
+
+  '/api/repos/{org}/{repo}/apps/{name}/history':
+    $ref: './paths/repos-org-repo-apps-name-history.yaml'
+
+  '/api/repos/{org}/{repo}/apps/{name}/utilisation':
+    $ref: './paths/repos-org-repo-apps-name-utilisation.yaml'
+
+  '/api/repos/{org}/{repo}/apps/{name}/operations/{id}':
+    $ref: './paths/repos-org-repo-apps-name-operations-id.yaml'
+
+  '/api/repos/{org}/{repo}/apps/{name}/hibernate':
+    $ref: './paths/repos-org-repo-apps-name-hibernate.yaml'
+
+  '/api/repos/{org}/{repo}/apps/{name}/wake':
+    $ref: './paths/repos-org-repo-apps-name-wake.yaml'
+
+  /api/operator/config:
+    $ref: './paths/operator-config.yaml'
+
+  '/api/operator/repos/{org}/{repo}':
+    $ref: './paths/operator-repos-org-repo.yaml'
+
+  /api/operator/approvals:
+    $ref: './paths/operator-approvals.yaml'
+
+  /api/operator/approvals/batch:
+    $ref: './paths/operator-approvals-batch.yaml'
+
+  '/api/operator/approvals/{id}':
+    $ref: './paths/operator-approvals-id.yaml'
+
+  /api/operator/cost:
+    $ref: './paths/operator-cost.yaml'
+
+  /api/operator/status:
+    $ref: './paths/operator-status.yaml'

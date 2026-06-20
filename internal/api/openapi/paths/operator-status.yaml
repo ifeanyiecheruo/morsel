@@ -1,0 +1,32 @@
+get:
+  operationId: getOperatorStatus
+  summary: Platform health summary
+  description: Returns a high-level health snapshot of the platform, including whether critical components are operational and how many apps are currently running.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              healthy:
+                description: True if all critical platform components are operational.
+                type: boolean
+              pending_approvals:
+                description: Number of approval requests waiting for operator action.
+                type: integer
+              running_apps:
+                description: Total number of apps currently running across all repos.
+                type: integer
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

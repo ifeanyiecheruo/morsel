@@ -81,7 +81,77 @@ func (s AppType) Validate() error {
 	}
 }
 
-func (s *AppUtilisation) Validate() error {
+func (s *BatchActionApprovalsReq) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Action.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "action",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if s.Ids == nil {
+			return errors.New("nil is invalid value")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "ids",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s BatchActionApprovalsReqAction) Validate() error {
+	switch s {
+	case "approve":
+		return nil
+	case "reject":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s GetAppHistoryOKApplicationJSON) Validate() error {
+	alias := ([]Operation)(s)
+	if alias == nil {
+		return errors.New("nil is invalid value")
+	}
+	var failures []validate.FieldError
+	for i, elem := range alias {
+		if err := func() error {
+			if err := elem.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			failures = append(failures, validate.FieldError{
+				Name:  fmt.Sprintf("[%d]", i),
+				Error: err,
+			})
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *GetAppUtilisationOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
@@ -147,52 +217,7 @@ func (s *AppUtilisation) Validate() error {
 	return nil
 }
 
-func (s *BatchApprovalRequest) Validate() error {
-	if s == nil {
-		return validate.ErrNilPointer
-	}
-
-	var failures []validate.FieldError
-	if err := func() error {
-		if err := s.Action.Validate(); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		failures = append(failures, validate.FieldError{
-			Name:  "action",
-			Error: err,
-		})
-	}
-	if err := func() error {
-		if s.Ids == nil {
-			return errors.New("nil is invalid value")
-		}
-		return nil
-	}(); err != nil {
-		failures = append(failures, validate.FieldError{
-			Name:  "ids",
-			Error: err,
-		})
-	}
-	if len(failures) > 0 {
-		return &validate.Error{Fields: failures}
-	}
-	return nil
-}
-
-func (s BatchApprovalRequestAction) Validate() error {
-	switch s {
-	case "approve":
-		return nil
-	case "reject":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
-func (s *CostSummary) Validate() error {
+func (s *GetOperatorCostOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
@@ -247,7 +272,7 @@ func (s *CostSummary) Validate() error {
 	return nil
 }
 
-func (s *CostSummaryByRepoItem) Validate() error {
+func (s *GetOperatorCostOKByRepoItem) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
@@ -263,31 +288,6 @@ func (s *CostSummaryByRepoItem) Validate() error {
 			Name:  "estimated_monthly",
 			Error: err,
 		})
-	}
-	if len(failures) > 0 {
-		return &validate.Error{Fields: failures}
-	}
-	return nil
-}
-
-func (s GetAppHistoryOKApplicationJSON) Validate() error {
-	alias := ([]Operation)(s)
-	if alias == nil {
-		return errors.New("nil is invalid value")
-	}
-	var failures []validate.FieldError
-	for i, elem := range alias {
-		if err := func() error {
-			if err := elem.Validate(); err != nil {
-				return err
-			}
-			return nil
-		}(); err != nil {
-			failures = append(failures, validate.FieldError{
-				Name:  fmt.Sprintf("[%d]", i),
-				Error: err,
-			})
-		}
 	}
 	if len(failures) > 0 {
 		return &validate.Error{Fields: failures}
@@ -428,7 +428,7 @@ func (s *PlatformConfig) Validate() error {
 	return nil
 }
 
-func (s *SyncRequest) Validate() error {
+func (s *SyncRepoReq) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}

@@ -3,18 +3,28 @@
 package oas
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-faster/errors"
 	"github.com/go-faster/jx"
 )
 
-// Ref: #/components/schemas/AcceptedOperation
+func (s *ErrorInternalServerStatusCode) Error() string {
+	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
+}
+
+// Returned by mutating endpoints that run asynchronously. Use operation_id to poll for completion.
+// Ref: #
 type AcceptedOperation struct {
-	OperationID     string                                 `json:"operation_id"`
-	Applied         OptNilAcceptedOperationApplied         `json:"applied"`
+	// ID of the queued operation. Pass to the operations endpoint to track progress.
+	OperationID string `json:"operation_id"`
+	// Changes applied immediately without requiring approval.
+	Applied OptNilAcceptedOperationApplied `json:"applied"`
+	// Changes queued and awaiting operator approval before taking effect.
 	PendingApproval OptNilAcceptedOperationPendingApproval `json:"pending_approval"`
-	Ignored         OptNilAcceptedOperationIgnored         `json:"ignored"`
+	// Changes that were no-ops because they matched the current state.
+	Ignored OptNilAcceptedOperationIgnored `json:"ignored"`
 }
 
 // GetOperationID returns the value of OperationID.
@@ -57,6 +67,7 @@ func (s *AcceptedOperation) SetIgnored(val OptNilAcceptedOperationIgnored) {
 	s.Ignored = val
 }
 
+// Changes applied immediately without requiring approval.
 type AcceptedOperationApplied map[string]jx.Raw
 
 func (s *AcceptedOperationApplied) init() AcceptedOperationApplied {
@@ -112,6 +123,7 @@ func (*AcceptedOperationHeaders) syncRepoRes()     {}
 func (*AcceptedOperationHeaders) upsertAppRes()    {}
 func (*AcceptedOperationHeaders) wakeAppRes()      {}
 
+// Changes that were no-ops because they matched the current state.
 type AcceptedOperationIgnored map[string]jx.Raw
 
 func (s *AcceptedOperationIgnored) init() AcceptedOperationIgnored {
@@ -123,6 +135,7 @@ func (s *AcceptedOperationIgnored) init() AcceptedOperationIgnored {
 	return m
 }
 
+// Changes queued and awaiting operator approval before taking effect.
 type AcceptedOperationPendingApproval map[string]jx.Raw
 
 func (s *AcceptedOperationPendingApproval) init() AcceptedOperationPendingApproval {
@@ -134,14 +147,22 @@ func (s *AcceptedOperationPendingApproval) init() AcceptedOperationPendingApprov
 	return m
 }
 
-// Ref: #/components/schemas/App
+// A deployed app and its current observed state.
+// Ref: #
 type App struct {
-	Name      OptString   `json:"name"`
-	Type      AppType     `json:"type"`
-	Status    string      `json:"status"`
-	Image     OptString   `json:"image"`
-	Namespace OptString   `json:"namespace"`
+	// App name, unique within its repo.
+	Name OptString `json:"name"`
+	// Runtime type: http, worker, or cron.
+	Type AppType `json:"type"`
+	// Current lifecycle status (e.g. running, hibernated, deploying).
+	Status string `json:"status"`
+	// Currently deployed container image.
+	Image OptString `json:"image"`
+	// Kubernetes namespace the app runs in.
+	Namespace OptString `json:"namespace"`
+	// When the app was first deployed.
 	CreatedAt OptDateTime `json:"created_at"`
+	// When the app configuration or image was last changed.
 	UpdatedAt OptDateTime `json:"updated_at"`
 }
 
@@ -217,12 +238,17 @@ func (s *App) SetUpdatedAt(val OptDateTime) {
 
 func (*App) getAppRes() {}
 
-// Ref: #/components/schemas/AppSpec
+// Desired configuration for an app. Used when creating or updating an app.
+// Ref: #
 type AppSpec struct {
-	Name  OptString     `json:"name"`
-	Type  AppSpecType   `json:"type"`
-	Image string        `json:"image"`
-	Env   OptAppSpecEnv `json:"env"`
+	// Unique name for the app within its repo.
+	Name OptString `json:"name"`
+	// Runtime type: http for web traffic, worker for continuous jobs, cron for scheduled jobs.
+	Type AppSpecType `json:"type"`
+	// Container image to deploy, including tag (e.g. "ghcr.io/myorg/api:v1.2.3").
+	Image string `json:"image"`
+	// Environment variables injected into the container at runtime.
+	Env OptAppSpecEnv `json:"env"`
 }
 
 // GetName returns the value of Name.
@@ -265,6 +291,7 @@ func (s *AppSpec) SetEnv(val OptAppSpecEnv) {
 	s.Env = val
 }
 
+// Environment variables injected into the container at runtime.
 type AppSpecEnv map[string]string
 
 func (s *AppSpecEnv) init() AppSpecEnv {
@@ -276,6 +303,7 @@ func (s *AppSpecEnv) init() AppSpecEnv {
 	return m
 }
 
+// Runtime type: http for web traffic, worker for continuous jobs, cron for scheduled jobs.
 type AppSpecType string
 
 const (
@@ -324,45 +352,7 @@ func (s *AppSpecType) UnmarshalText(data []byte) error {
 	}
 }
 
-// Ref: #/components/schemas/AppStatus
-type AppStatus struct {
-	Status        string `json:"status"`
-	Replicas      OptInt `json:"replicas"`
-	ReadyReplicas OptInt `json:"ready_replicas"`
-}
-
-// GetStatus returns the value of Status.
-func (s *AppStatus) GetStatus() string {
-	return s.Status
-}
-
-// GetReplicas returns the value of Replicas.
-func (s *AppStatus) GetReplicas() OptInt {
-	return s.Replicas
-}
-
-// GetReadyReplicas returns the value of ReadyReplicas.
-func (s *AppStatus) GetReadyReplicas() OptInt {
-	return s.ReadyReplicas
-}
-
-// SetStatus sets the value of Status.
-func (s *AppStatus) SetStatus(val string) {
-	s.Status = val
-}
-
-// SetReplicas sets the value of Replicas.
-func (s *AppStatus) SetReplicas(val OptInt) {
-	s.Replicas = val
-}
-
-// SetReadyReplicas sets the value of ReadyReplicas.
-func (s *AppStatus) SetReadyReplicas(val OptInt) {
-	s.ReadyReplicas = val
-}
-
-func (*AppStatus) getAppStatusRes() {}
-
+// Runtime type: http, worker, or cron.
 type AppType string
 
 const (
@@ -411,55 +401,25 @@ func (s *AppType) UnmarshalText(data []byte) error {
 	}
 }
 
-// Ref: #/components/schemas/AppUtilisation
-type AppUtilisation struct {
-	CPUCores            OptFloat64 `json:"cpu_cores"`
-	MemoryGB            OptFloat64 `json:"memory_gb"`
-	CostEstimateMonthly OptFloat64 `json:"cost_estimate_monthly"`
-}
-
-// GetCPUCores returns the value of CPUCores.
-func (s *AppUtilisation) GetCPUCores() OptFloat64 {
-	return s.CPUCores
-}
-
-// GetMemoryGB returns the value of MemoryGB.
-func (s *AppUtilisation) GetMemoryGB() OptFloat64 {
-	return s.MemoryGB
-}
-
-// GetCostEstimateMonthly returns the value of CostEstimateMonthly.
-func (s *AppUtilisation) GetCostEstimateMonthly() OptFloat64 {
-	return s.CostEstimateMonthly
-}
-
-// SetCPUCores sets the value of CPUCores.
-func (s *AppUtilisation) SetCPUCores(val OptFloat64) {
-	s.CPUCores = val
-}
-
-// SetMemoryGB sets the value of MemoryGB.
-func (s *AppUtilisation) SetMemoryGB(val OptFloat64) {
-	s.MemoryGB = val
-}
-
-// SetCostEstimateMonthly sets the value of CostEstimateMonthly.
-func (s *AppUtilisation) SetCostEstimateMonthly(val OptFloat64) {
-	s.CostEstimateMonthly = val
-}
-
-func (*AppUtilisation) getAppUtilisationRes() {}
-
-// Ref: #/components/schemas/Approval
+// A pending change that requires operator approval before it can be applied.
+// Ref: #
 type Approval struct {
-	ID             string      `json:"id"`
-	Repo           string      `json:"repo"`
-	App            string      `json:"app"`
-	Field          string      `json:"field"`
-	CurrentValue   string      `json:"current_value"`
-	RequestedValue string      `json:"requested_value"`
-	CreatedAt      time.Time   `json:"created_at"`
-	ExpiresAt      OptDateTime `json:"expires_at"`
+	// Unique identifier for this approval request.
+	ID string `json:"id"`
+	// Slug of the repo the change belongs to.
+	Repo string `json:"repo"`
+	// Name of the app the change belongs to.
+	App string `json:"app"`
+	// The configuration field whose new value is awaiting approval.
+	Field string `json:"field"`
+	// The field's current value.
+	CurrentValue string `json:"current_value"`
+	// The value being requested.
+	RequestedValue string `json:"requested_value"`
+	// When the approval was requested.
+	CreatedAt time.Time `json:"created_at"`
+	// When this request expires and is automatically rejected.
+	ExpiresAt OptDateTime `json:"expires_at"`
 }
 
 // GetID returns the value of ID.
@@ -548,61 +508,108 @@ type BatchActionApprovalsForbidden ErrorResponse
 
 func (*BatchActionApprovalsForbidden) batchActionApprovalsRes() {}
 
-type BatchActionApprovalsInternalServerError ErrorResponse
+type BatchActionApprovalsOK struct {
+	// IDs of approvals that were approved and whose changes are now being applied.
+	Approved []string `json:"approved"`
+	// IDs of approvals that were rejected and whose changes were discarded.
+	Rejected []string `json:"rejected"`
+	// IDs that were not found or were already resolved.
+	Ignored []string `json:"ignored"`
+	// IDs whose approved changes are still being reconciled in the cluster.
+	Reconciling []string `json:"reconciling"`
+}
 
-func (*BatchActionApprovalsInternalServerError) batchActionApprovalsRes() {}
+// GetApproved returns the value of Approved.
+func (s *BatchActionApprovalsOK) GetApproved() []string {
+	return s.Approved
+}
 
-type BatchActionApprovalsUnauthorized ErrorResponse
+// GetRejected returns the value of Rejected.
+func (s *BatchActionApprovalsOK) GetRejected() []string {
+	return s.Rejected
+}
 
-func (*BatchActionApprovalsUnauthorized) batchActionApprovalsRes() {}
+// GetIgnored returns the value of Ignored.
+func (s *BatchActionApprovalsOK) GetIgnored() []string {
+	return s.Ignored
+}
 
-// Ref: #/components/schemas/BatchApprovalRequest
-type BatchApprovalRequest struct {
-	Action BatchApprovalRequestAction `json:"action"`
-	Ids    []string                   `json:"ids"`
+// GetReconciling returns the value of Reconciling.
+func (s *BatchActionApprovalsOK) GetReconciling() []string {
+	return s.Reconciling
+}
+
+// SetApproved sets the value of Approved.
+func (s *BatchActionApprovalsOK) SetApproved(val []string) {
+	s.Approved = val
+}
+
+// SetRejected sets the value of Rejected.
+func (s *BatchActionApprovalsOK) SetRejected(val []string) {
+	s.Rejected = val
+}
+
+// SetIgnored sets the value of Ignored.
+func (s *BatchActionApprovalsOK) SetIgnored(val []string) {
+	s.Ignored = val
+}
+
+// SetReconciling sets the value of Reconciling.
+func (s *BatchActionApprovalsOK) SetReconciling(val []string) {
+	s.Reconciling = val
+}
+
+func (*BatchActionApprovalsOK) batchActionApprovalsRes() {}
+
+type BatchActionApprovalsReq struct {
+	// Whether to approve or reject all listed approval requests.
+	Action BatchActionApprovalsReqAction `json:"action"`
+	// IDs of the approval requests to act on.
+	Ids []string `json:"ids"`
 }
 
 // GetAction returns the value of Action.
-func (s *BatchApprovalRequest) GetAction() BatchApprovalRequestAction {
+func (s *BatchActionApprovalsReq) GetAction() BatchActionApprovalsReqAction {
 	return s.Action
 }
 
 // GetIds returns the value of Ids.
-func (s *BatchApprovalRequest) GetIds() []string {
+func (s *BatchActionApprovalsReq) GetIds() []string {
 	return s.Ids
 }
 
 // SetAction sets the value of Action.
-func (s *BatchApprovalRequest) SetAction(val BatchApprovalRequestAction) {
+func (s *BatchActionApprovalsReq) SetAction(val BatchActionApprovalsReqAction) {
 	s.Action = val
 }
 
 // SetIds sets the value of Ids.
-func (s *BatchApprovalRequest) SetIds(val []string) {
+func (s *BatchActionApprovalsReq) SetIds(val []string) {
 	s.Ids = val
 }
 
-type BatchApprovalRequestAction string
+// Whether to approve or reject all listed approval requests.
+type BatchActionApprovalsReqAction string
 
 const (
-	BatchApprovalRequestActionApprove BatchApprovalRequestAction = "approve"
-	BatchApprovalRequestActionReject  BatchApprovalRequestAction = "reject"
+	BatchActionApprovalsReqActionApprove BatchActionApprovalsReqAction = "approve"
+	BatchActionApprovalsReqActionReject  BatchActionApprovalsReqAction = "reject"
 )
 
-// AllValues returns all BatchApprovalRequestAction values.
-func (BatchApprovalRequestAction) AllValues() []BatchApprovalRequestAction {
-	return []BatchApprovalRequestAction{
-		BatchApprovalRequestActionApprove,
-		BatchApprovalRequestActionReject,
+// AllValues returns all BatchActionApprovalsReqAction values.
+func (BatchActionApprovalsReqAction) AllValues() []BatchActionApprovalsReqAction {
+	return []BatchActionApprovalsReqAction{
+		BatchActionApprovalsReqActionApprove,
+		BatchActionApprovalsReqActionReject,
 	}
 }
 
 // MarshalText implements encoding.TextMarshaler.
-func (s BatchApprovalRequestAction) MarshalText() ([]byte, error) {
+func (s BatchActionApprovalsReqAction) MarshalText() ([]byte, error) {
 	switch s {
-	case BatchApprovalRequestActionApprove:
+	case BatchActionApprovalsReqActionApprove:
 		return []byte(s), nil
-	case BatchApprovalRequestActionReject:
+	case BatchActionApprovalsReqActionReject:
 		return []byte(s), nil
 	default:
 		return nil, errors.Errorf("invalid value: %q", s)
@@ -610,68 +617,22 @@ func (s BatchApprovalRequestAction) MarshalText() ([]byte, error) {
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
-func (s *BatchApprovalRequestAction) UnmarshalText(data []byte) error {
-	switch BatchApprovalRequestAction(data) {
-	case BatchApprovalRequestActionApprove:
-		*s = BatchApprovalRequestActionApprove
+func (s *BatchActionApprovalsReqAction) UnmarshalText(data []byte) error {
+	switch BatchActionApprovalsReqAction(data) {
+	case BatchActionApprovalsReqActionApprove:
+		*s = BatchActionApprovalsReqActionApprove
 		return nil
-	case BatchApprovalRequestActionReject:
-		*s = BatchApprovalRequestActionReject
+	case BatchActionApprovalsReqActionReject:
+		*s = BatchActionApprovalsReqActionReject
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)
 	}
 }
 
-// Ref: #/components/schemas/BatchApprovalResult
-type BatchApprovalResult struct {
-	Approved    []string `json:"approved"`
-	Rejected    []string `json:"rejected"`
-	Ignored     []string `json:"ignored"`
-	Reconciling []string `json:"reconciling"`
-}
+type BatchActionApprovalsUnauthorized ErrorResponse
 
-// GetApproved returns the value of Approved.
-func (s *BatchApprovalResult) GetApproved() []string {
-	return s.Approved
-}
-
-// GetRejected returns the value of Rejected.
-func (s *BatchApprovalResult) GetRejected() []string {
-	return s.Rejected
-}
-
-// GetIgnored returns the value of Ignored.
-func (s *BatchApprovalResult) GetIgnored() []string {
-	return s.Ignored
-}
-
-// GetReconciling returns the value of Reconciling.
-func (s *BatchApprovalResult) GetReconciling() []string {
-	return s.Reconciling
-}
-
-// SetApproved sets the value of Approved.
-func (s *BatchApprovalResult) SetApproved(val []string) {
-	s.Approved = val
-}
-
-// SetRejected sets the value of Rejected.
-func (s *BatchApprovalResult) SetRejected(val []string) {
-	s.Rejected = val
-}
-
-// SetIgnored sets the value of Ignored.
-func (s *BatchApprovalResult) SetIgnored(val []string) {
-	s.Ignored = val
-}
-
-// SetReconciling sets the value of Reconciling.
-func (s *BatchApprovalResult) SetReconciling(val []string) {
-	s.Reconciling = val
-}
-
-func (*BatchApprovalResult) batchActionApprovalsRes() {}
+func (*BatchActionApprovalsUnauthorized) batchActionApprovalsRes() {}
 
 type BearerAuth struct {
 	Token string
@@ -698,59 +659,6 @@ func (s *BearerAuth) SetRoles(val []string) {
 	s.Roles = val
 }
 
-// Ref: #/components/schemas/CostSummary
-type CostSummary struct {
-	EstimatedMonthly OptFloat64              `json:"estimated_monthly"`
-	ByRepo           []CostSummaryByRepoItem `json:"by_repo"`
-}
-
-// GetEstimatedMonthly returns the value of EstimatedMonthly.
-func (s *CostSummary) GetEstimatedMonthly() OptFloat64 {
-	return s.EstimatedMonthly
-}
-
-// GetByRepo returns the value of ByRepo.
-func (s *CostSummary) GetByRepo() []CostSummaryByRepoItem {
-	return s.ByRepo
-}
-
-// SetEstimatedMonthly sets the value of EstimatedMonthly.
-func (s *CostSummary) SetEstimatedMonthly(val OptFloat64) {
-	s.EstimatedMonthly = val
-}
-
-// SetByRepo sets the value of ByRepo.
-func (s *CostSummary) SetByRepo(val []CostSummaryByRepoItem) {
-	s.ByRepo = val
-}
-
-func (*CostSummary) getOperatorCostRes() {}
-
-type CostSummaryByRepoItem struct {
-	Slug             string  `json:"slug"`
-	EstimatedMonthly float64 `json:"estimated_monthly"`
-}
-
-// GetSlug returns the value of Slug.
-func (s *CostSummaryByRepoItem) GetSlug() string {
-	return s.Slug
-}
-
-// GetEstimatedMonthly returns the value of EstimatedMonthly.
-func (s *CostSummaryByRepoItem) GetEstimatedMonthly() float64 {
-	return s.EstimatedMonthly
-}
-
-// SetSlug sets the value of Slug.
-func (s *CostSummaryByRepoItem) SetSlug(val string) {
-	s.Slug = val
-}
-
-// SetEstimatedMonthly sets the value of EstimatedMonthly.
-func (s *CostSummaryByRepoItem) SetEstimatedMonthly(val float64) {
-	s.EstimatedMonthly = val
-}
-
 type DeleteAppConflict ErrorResponse
 
 func (*DeleteAppConflict) deleteAppRes() {}
@@ -758,10 +666,6 @@ func (*DeleteAppConflict) deleteAppRes() {}
 type DeleteAppForbidden ErrorResponse
 
 func (*DeleteAppForbidden) deleteAppRes() {}
-
-type DeleteAppInternalServerError ErrorResponse
-
-func (*DeleteAppInternalServerError) deleteAppRes() {}
 
 type DeleteAppNotFound ErrorResponse
 
@@ -779,10 +683,6 @@ type DeleteRepoForbidden ErrorResponse
 
 func (*DeleteRepoForbidden) deleteRepoRes() {}
 
-type DeleteRepoInternalServerError ErrorResponse
-
-func (*DeleteRepoInternalServerError) deleteRepoRes() {}
-
 type DeleteRepoNotFound ErrorResponse
 
 func (*DeleteRepoNotFound) deleteRepoRes() {}
@@ -791,11 +691,16 @@ type DeleteRepoUnauthorized ErrorResponse
 
 func (*DeleteRepoUnauthorized) deleteRepoRes() {}
 
-// Ref: #/components/schemas/ErrorDetail
+// Structured error information attached to every non-2xx response.
+// Ref: #
 type ErrorDetail struct {
-	Code    string                `json:"code"`
-	Message string                `json:"message"`
-	Remedy  string                `json:"remedy"`
+	// Machine-readable error code.
+	Code string `json:"code"`
+	// Human-readable explanation of what went wrong.
+	Message string `json:"message"`
+	// Suggested action to resolve the error.
+	Remedy string `json:"remedy"`
+	// Additional key/value pairs that give context for the error.
 	Context OptErrorDetailContext `json:"context"`
 }
 
@@ -839,6 +744,7 @@ func (s *ErrorDetail) SetContext(val OptErrorDetailContext) {
 	s.Context = val
 }
 
+// Additional key/value pairs that give context for the error.
 type ErrorDetailContext map[string]jx.Raw
 
 func (s *ErrorDetailContext) init() ErrorDetailContext {
@@ -850,8 +756,63 @@ func (s *ErrorDetailContext) init() ErrorDetailContext {
 	return m
 }
 
-// Ref: #/components/schemas/ErrorResponse
+// ErrorInternalServerStatusCode wraps ErrorResponse with StatusCode.
+type ErrorInternalServerStatusCode struct {
+	StatusCode int
+	Response   ErrorResponse
+}
+
+// GetStatusCode returns the value of StatusCode.
+func (s *ErrorInternalServerStatusCode) GetStatusCode() int {
+	return s.StatusCode
+}
+
+// GetResponse returns the value of Response.
+func (s *ErrorInternalServerStatusCode) GetResponse() ErrorResponse {
+	return s.Response
+}
+
+// SetStatusCode sets the value of StatusCode.
+func (s *ErrorInternalServerStatusCode) SetStatusCode(val int) {
+	s.StatusCode = val
+}
+
+// SetResponse sets the value of Response.
+func (s *ErrorInternalServerStatusCode) SetResponse(val ErrorResponse) {
+	s.Response = val
+}
+
+func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()  {}
+func (*ErrorInternalServerStatusCode) deleteAppRes()             {}
+func (*ErrorInternalServerStatusCode) deleteRepoRes()            {}
+func (*ErrorInternalServerStatusCode) getAppHistoryRes()         {}
+func (*ErrorInternalServerStatusCode) getAppRes()                {}
+func (*ErrorInternalServerStatusCode) getAppStatusRes()          {}
+func (*ErrorInternalServerStatusCode) getAppUtilisationRes()     {}
+func (*ErrorInternalServerStatusCode) getOperationRes()          {}
+func (*ErrorInternalServerStatusCode) getOperatorApprovalRes()   {}
+func (*ErrorInternalServerStatusCode) getOperatorConfigRes()     {}
+func (*ErrorInternalServerStatusCode) getOperatorCostRes()       {}
+func (*ErrorInternalServerStatusCode) getOperatorStatusRes()     {}
+func (*ErrorInternalServerStatusCode) getRepoRes()               {}
+func (*ErrorInternalServerStatusCode) hibernateAppRes()          {}
+func (*ErrorInternalServerStatusCode) listAppsRes()              {}
+func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes() {}
+func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()     {}
+func (*ErrorInternalServerStatusCode) listReposRes()             {}
+func (*ErrorInternalServerStatusCode) syncRepoRes()              {}
+func (*ErrorInternalServerStatusCode) tokenDeployRes()           {}
+func (*ErrorInternalServerStatusCode) tokenOIDCRes()             {}
+func (*ErrorInternalServerStatusCode) tokenRefreshRes()          {}
+func (*ErrorInternalServerStatusCode) updateOperatorConfigRes()  {}
+func (*ErrorInternalServerStatusCode) updateRepoTierRes()        {}
+func (*ErrorInternalServerStatusCode) upsertAppRes()             {}
+func (*ErrorInternalServerStatusCode) wakeAppRes()               {}
+
+// Envelope returned for all error responses.
+// Ref: #
 type ErrorResponse struct {
+	// Details of the error.
 	Error ErrorDetail `json:"error"`
 }
 
@@ -865,6 +826,9 @@ func (s *ErrorResponse) SetError(val ErrorDetail) {
 	s.Error = val
 }
 
+func (*ErrorResponse) listReposRes() {}
+func (*ErrorResponse) tokenOIDCRes() {}
+
 type GetAppForbidden ErrorResponse
 
 func (*GetAppForbidden) getAppRes() {}
@@ -872,10 +836,6 @@ func (*GetAppForbidden) getAppRes() {}
 type GetAppHistoryForbidden ErrorResponse
 
 func (*GetAppHistoryForbidden) getAppHistoryRes() {}
-
-type GetAppHistoryInternalServerError ErrorResponse
-
-func (*GetAppHistoryInternalServerError) getAppHistoryRes() {}
 
 type GetAppHistoryNotFound ErrorResponse
 
@@ -889,10 +849,6 @@ type GetAppHistoryUnauthorized ErrorResponse
 
 func (*GetAppHistoryUnauthorized) getAppHistoryRes() {}
 
-type GetAppInternalServerError ErrorResponse
-
-func (*GetAppInternalServerError) getAppRes() {}
-
 type GetAppNotFound ErrorResponse
 
 func (*GetAppNotFound) getAppRes() {}
@@ -901,13 +857,50 @@ type GetAppStatusForbidden ErrorResponse
 
 func (*GetAppStatusForbidden) getAppStatusRes() {}
 
-type GetAppStatusInternalServerError ErrorResponse
-
-func (*GetAppStatusInternalServerError) getAppStatusRes() {}
-
 type GetAppStatusNotFound ErrorResponse
 
 func (*GetAppStatusNotFound) getAppStatusRes() {}
+
+type GetAppStatusOK struct {
+	// Lifecycle phase (e.g. running, hibernated, deploying).
+	Status string `json:"status"`
+	// Total number of desired replicas.
+	Replicas OptInt `json:"replicas"`
+	// Number of replicas that are healthy and serving traffic.
+	ReadyReplicas OptInt `json:"ready_replicas"`
+}
+
+// GetStatus returns the value of Status.
+func (s *GetAppStatusOK) GetStatus() string {
+	return s.Status
+}
+
+// GetReplicas returns the value of Replicas.
+func (s *GetAppStatusOK) GetReplicas() OptInt {
+	return s.Replicas
+}
+
+// GetReadyReplicas returns the value of ReadyReplicas.
+func (s *GetAppStatusOK) GetReadyReplicas() OptInt {
+	return s.ReadyReplicas
+}
+
+// SetStatus sets the value of Status.
+func (s *GetAppStatusOK) SetStatus(val string) {
+	s.Status = val
+}
+
+// SetReplicas sets the value of Replicas.
+func (s *GetAppStatusOK) SetReplicas(val OptInt) {
+	s.Replicas = val
+}
+
+// SetReadyReplicas sets the value of ReadyReplicas.
+func (s *GetAppStatusOK) SetReadyReplicas(val OptInt) {
+	s.ReadyReplicas = val
+}
+
+func (*GetAppStatusOK) getAppStatusRes() {}
 
 type GetAppStatusUnauthorized ErrorResponse
 
@@ -921,19 +914,57 @@ type GetAppUtilisationForbidden ErrorResponse
 
 func (*GetAppUtilisationForbidden) getAppUtilisationRes() {}
 
-type GetAppUtilisationInternalServerError ErrorResponse
-
-func (*GetAppUtilisationInternalServerError) getAppUtilisationRes() {}
-
 type GetAppUtilisationNotFound ErrorResponse
 
 func (*GetAppUtilisationNotFound) getAppUtilisationRes() {}
+
+type GetAppUtilisationOK struct {
+	// Average CPU usage in cores over the last collection window.
+	CPUCores OptFloat64 `json:"cpu_cores"`
+	// Average memory usage in gigabytes.
+	MemoryGB OptFloat64 `json:"memory_gb"`
+	// Projected monthly cost in USD at the current usage rate.
+	CostEstimateMonthly OptFloat64 `json:"cost_estimate_monthly"`
+}
+
+// GetCPUCores returns the value of CPUCores.
+func (s *GetAppUtilisationOK) GetCPUCores() OptFloat64 {
+	return s.CPUCores
+}
+
+// GetMemoryGB returns the value of MemoryGB.
+func (s *GetAppUtilisationOK) GetMemoryGB() OptFloat64 {
+	return s.MemoryGB
+}
+
+// GetCostEstimateMonthly returns the value of CostEstimateMonthly.
+func (s *GetAppUtilisationOK) GetCostEstimateMonthly() OptFloat64 {
+	return s.CostEstimateMonthly
+}
+
+// SetCPUCores sets the value of CPUCores.
+func (s *GetAppUtilisationOK) SetCPUCores(val OptFloat64) {
+	s.CPUCores = val
+}
+
+// SetMemoryGB sets the value of MemoryGB.
+func (s *GetAppUtilisationOK) SetMemoryGB(val OptFloat64) {
+	s.MemoryGB = val
+}
+
+// SetCostEstimateMonthly sets the value of CostEstimateMonthly.
+func (s *GetAppUtilisationOK) SetCostEstimateMonthly(val OptFloat64) {
+	s.CostEstimateMonthly = val
+}
+
+func (*GetAppUtilisationOK) getAppUtilisationRes() {}
 
 type GetAppUtilisationUnauthorized ErrorResponse
 
 func (*GetAppUtilisationUnauthorized) getAppUtilisationRes() {}
 
 type GetHealthzOK struct {
+	// Always "ok" when the server is healthy.
 	Status string `json:"status"`
 }
 
@@ -951,10 +982,6 @@ type GetOperationForbidden ErrorResponse
 
 func (*GetOperationForbidden) getOperationRes() {}
 
-type GetOperationInternalServerError ErrorResponse
-
-func (*GetOperationInternalServerError) getOperationRes() {}
-
 type GetOperationNotFound ErrorResponse
 
 func (*GetOperationNotFound) getOperationRes() {}
@@ -966,10 +993,6 @@ func (*GetOperationUnauthorized) getOperationRes() {}
 type GetOperatorApprovalForbidden ErrorResponse
 
 func (*GetOperatorApprovalForbidden) getOperatorApprovalRes() {}
-
-type GetOperatorApprovalInternalServerError ErrorResponse
-
-func (*GetOperatorApprovalInternalServerError) getOperatorApprovalRes() {}
 
 type GetOperatorApprovalNotFound ErrorResponse
 
@@ -983,10 +1006,6 @@ type GetOperatorConfigForbidden ErrorResponse
 
 func (*GetOperatorConfigForbidden) getOperatorConfigRes() {}
 
-type GetOperatorConfigInternalServerError ErrorResponse
-
-func (*GetOperatorConfigInternalServerError) getOperatorConfigRes() {}
-
 type GetOperatorConfigUnauthorized ErrorResponse
 
 func (*GetOperatorConfigUnauthorized) getOperatorConfigRes() {}
@@ -995,9 +1014,61 @@ type GetOperatorCostForbidden ErrorResponse
 
 func (*GetOperatorCostForbidden) getOperatorCostRes() {}
 
-type GetOperatorCostInternalServerError ErrorResponse
+type GetOperatorCostOK struct {
+	// Total projected monthly spend in USD across all repos.
+	EstimatedMonthly OptFloat64 `json:"estimated_monthly"`
+	// Per-repo breakdown of the cost estimate.
+	ByRepo []GetOperatorCostOKByRepoItem `json:"by_repo"`
+}
 
-func (*GetOperatorCostInternalServerError) getOperatorCostRes() {}
+// GetEstimatedMonthly returns the value of EstimatedMonthly.
+func (s *GetOperatorCostOK) GetEstimatedMonthly() OptFloat64 {
+	return s.EstimatedMonthly
+}
+
+// GetByRepo returns the value of ByRepo.
+func (s *GetOperatorCostOK) GetByRepo() []GetOperatorCostOKByRepoItem {
+	return s.ByRepo
+}
+
+// SetEstimatedMonthly sets the value of EstimatedMonthly.
+func (s *GetOperatorCostOK) SetEstimatedMonthly(val OptFloat64) {
+	s.EstimatedMonthly = val
+}
+
+// SetByRepo sets the value of ByRepo.
+func (s *GetOperatorCostOK) SetByRepo(val []GetOperatorCostOKByRepoItem) {
+	s.ByRepo = val
+}
+
+func (*GetOperatorCostOK) getOperatorCostRes() {}
+
+type GetOperatorCostOKByRepoItem struct {
+	// Repo slug in "org/repo" format.
+	Slug string `json:"slug"`
+	// Projected monthly cost in USD for this repo.
+	EstimatedMonthly float64 `json:"estimated_monthly"`
+}
+
+// GetSlug returns the value of Slug.
+func (s *GetOperatorCostOKByRepoItem) GetSlug() string {
+	return s.Slug
+}
+
+// GetEstimatedMonthly returns the value of EstimatedMonthly.
+func (s *GetOperatorCostOKByRepoItem) GetEstimatedMonthly() float64 {
+	return s.EstimatedMonthly
+}
+
+// SetSlug sets the value of Slug.
+func (s *GetOperatorCostOKByRepoItem) SetSlug(val string) {
+	s.Slug = val
+}
+
+// SetEstimatedMonthly sets the value of EstimatedMonthly.
+func (s *GetOperatorCostOKByRepoItem) SetEstimatedMonthly(val float64) {
+	s.EstimatedMonthly = val
+}
 
 type GetOperatorCostUnauthorized ErrorResponse
 
@@ -1007,9 +1078,46 @@ type GetOperatorStatusForbidden ErrorResponse
 
 func (*GetOperatorStatusForbidden) getOperatorStatusRes() {}
 
-type GetOperatorStatusInternalServerError ErrorResponse
+type GetOperatorStatusOK struct {
+	// True if all critical platform components are operational.
+	Healthy OptBool `json:"healthy"`
+	// Number of approval requests waiting for operator action.
+	PendingApprovals OptInt `json:"pending_approvals"`
+	// Total number of apps currently running across all repos.
+	RunningApps OptInt `json:"running_apps"`
+}
 
-func (*GetOperatorStatusInternalServerError) getOperatorStatusRes() {}
+// GetHealthy returns the value of Healthy.
+func (s *GetOperatorStatusOK) GetHealthy() OptBool {
+	return s.Healthy
+}
+
+// GetPendingApprovals returns the value of PendingApprovals.
+func (s *GetOperatorStatusOK) GetPendingApprovals() OptInt {
+	return s.PendingApprovals
+}
+
+// GetRunningApps returns the value of RunningApps.
+func (s *GetOperatorStatusOK) GetRunningApps() OptInt {
+	return s.RunningApps
+}
+
+// SetHealthy sets the value of Healthy.
+func (s *GetOperatorStatusOK) SetHealthy(val OptBool) {
+	s.Healthy = val
+}
+
+// SetPendingApprovals sets the value of PendingApprovals.
+func (s *GetOperatorStatusOK) SetPendingApprovals(val OptInt) {
+	s.PendingApprovals = val
+}
+
+// SetRunningApps sets the value of RunningApps.
+func (s *GetOperatorStatusOK) SetRunningApps(val OptInt) {
+	s.RunningApps = val
+}
+
+func (*GetOperatorStatusOK) getOperatorStatusRes() {}
 
 type GetOperatorStatusUnauthorized ErrorResponse
 
@@ -1018,10 +1126,6 @@ func (*GetOperatorStatusUnauthorized) getOperatorStatusRes() {}
 type GetRepoForbidden ErrorResponse
 
 func (*GetRepoForbidden) getRepoRes() {}
-
-type GetRepoInternalServerError ErrorResponse
-
-func (*GetRepoInternalServerError) getRepoRes() {}
 
 type GetRepoNotFound ErrorResponse
 
@@ -1035,10 +1139,6 @@ type HibernateAppForbidden ErrorResponse
 
 func (*HibernateAppForbidden) hibernateAppRes() {}
 
-type HibernateAppInternalServerError ErrorResponse
-
-func (*HibernateAppInternalServerError) hibernateAppRes() {}
-
 type HibernateAppNotFound ErrorResponse
 
 func (*HibernateAppNotFound) hibernateAppRes() {}
@@ -1050,10 +1150,6 @@ func (*HibernateAppUnauthorized) hibernateAppRes() {}
 type ListAppsForbidden ErrorResponse
 
 func (*ListAppsForbidden) listAppsRes() {}
-
-type ListAppsInternalServerError ErrorResponse
-
-func (*ListAppsInternalServerError) listAppsRes() {}
 
 type ListAppsOKApplicationJSON []App
 
@@ -1067,10 +1163,6 @@ type ListOperatorApprovalsForbidden ErrorResponse
 
 func (*ListOperatorApprovalsForbidden) listOperatorApprovalsRes() {}
 
-type ListOperatorApprovalsInternalServerError ErrorResponse
-
-func (*ListOperatorApprovalsInternalServerError) listOperatorApprovalsRes() {}
-
 type ListOperatorApprovalsOKApplicationJSON []Approval
 
 func (*ListOperatorApprovalsOKApplicationJSON) listOperatorApprovalsRes() {}
@@ -1083,10 +1175,6 @@ type ListRepoApprovalsForbidden ErrorResponse
 
 func (*ListRepoApprovalsForbidden) listRepoApprovalsRes() {}
 
-type ListRepoApprovalsInternalServerError ErrorResponse
-
-func (*ListRepoApprovalsInternalServerError) listRepoApprovalsRes() {}
-
 type ListRepoApprovalsOKApplicationJSON []Approval
 
 func (*ListRepoApprovalsOKApplicationJSON) listRepoApprovalsRes() {}
@@ -1095,27 +1183,27 @@ type ListRepoApprovalsUnauthorized ErrorResponse
 
 func (*ListRepoApprovalsUnauthorized) listRepoApprovalsRes() {}
 
-type ListReposInternalServerError ErrorResponse
-
-func (*ListReposInternalServerError) listReposRes() {}
-
 type ListReposOKApplicationJSON []Repo
 
 func (*ListReposOKApplicationJSON) listReposRes() {}
 
-type ListReposUnauthorized ErrorResponse
-
-func (*ListReposUnauthorized) listReposRes() {}
-
-// Ref: #/components/schemas/Operation
+// An asynchronous operation. Poll until status is "complete" or "failed".
+// Ref: #
 type Operation struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Status      OperationStatus   `json:"status"`
-	Progress    string            `json:"progress"`
-	CreatedAt   time.Time         `json:"created_at"`
-	CompletedAt OptNilDateTime    `json:"completed_at"`
-	Error       OptNilErrorDetail `json:"error"`
+	// Unique identifier for this operation.
+	ID string `json:"id"`
+	// Kind of operation (e.g. "deploy", "delete").
+	Type string `json:"type"`
+	// Current state of the operation.
+	Status OperationStatus `json:"status"`
+	// Human-readable progress message.
+	Progress string `json:"progress"`
+	// When the operation was created.
+	CreatedAt time.Time `json:"created_at"`
+	// When the operation finished. Null while still in progress.
+	CompletedAt OptNilDateTime `json:"completed_at"`
+	// Error detail if the operation failed. Null otherwise.
+	Error OptNilErrorDetail `json:"error"`
 }
 
 // GetID returns the value of ID.
@@ -1190,6 +1278,7 @@ func (s *Operation) SetError(val OptNilErrorDetail) {
 
 func (*Operation) getOperationRes() {}
 
+// Current state of the operation.
 type OperationStatus string
 
 const (
@@ -1900,10 +1989,13 @@ func (o OptString) Or(d string) string {
 	return d
 }
 
-// Ref: #/components/schemas/PlatformConfig
+// Mutable platform-wide configuration managed by the operator.
+// Ref: #
 type PlatformConfig struct {
+	// Maximum total monthly spend allowed across all repos, in USD.
 	BudgetCeilingMonthly OptFloat64 `json:"budget_ceiling_monthly"`
-	SoftLimitPct         OptFloat64 `json:"soft_limit_pct"`
+	// Fraction of the budget ceiling at which a warning is triggered (0.0–1.0).
+	SoftLimitPct OptFloat64 `json:"soft_limit_pct"`
 }
 
 // GetBudgetCeilingMonthly returns the value of BudgetCeilingMonthly.
@@ -1929,50 +2021,16 @@ func (s *PlatformConfig) SetSoftLimitPct(val OptFloat64) {
 func (*PlatformConfig) getOperatorConfigRes()    {}
 func (*PlatformConfig) updateOperatorConfigRes() {}
 
-// Ref: #/components/schemas/PlatformStatus
-type PlatformStatus struct {
-	Healthy          OptBool `json:"healthy"`
-	PendingApprovals OptInt  `json:"pending_approvals"`
-	RunningApps      OptInt  `json:"running_apps"`
-}
-
-// GetHealthy returns the value of Healthy.
-func (s *PlatformStatus) GetHealthy() OptBool {
-	return s.Healthy
-}
-
-// GetPendingApprovals returns the value of PendingApprovals.
-func (s *PlatformStatus) GetPendingApprovals() OptInt {
-	return s.PendingApprovals
-}
-
-// GetRunningApps returns the value of RunningApps.
-func (s *PlatformStatus) GetRunningApps() OptInt {
-	return s.RunningApps
-}
-
-// SetHealthy sets the value of Healthy.
-func (s *PlatformStatus) SetHealthy(val OptBool) {
-	s.Healthy = val
-}
-
-// SetPendingApprovals sets the value of PendingApprovals.
-func (s *PlatformStatus) SetPendingApprovals(val OptInt) {
-	s.PendingApprovals = val
-}
-
-// SetRunningApps sets the value of RunningApps.
-func (s *PlatformStatus) SetRunningApps(val OptInt) {
-	s.RunningApps = val
-}
-
-func (*PlatformStatus) getOperatorStatusRes() {}
-
-// Ref: #/components/schemas/Repo
+// A repository that groups one or more apps, subject to a resource tier and quota.
+// Ref: #
 type Repo struct {
-	Slug      string      `json:"slug"`
-	Tier      string      `json:"tier"`
-	AppCount  OptInt      `json:"app_count"`
+	// Unique identifier for the repo, formatted as "org/repo".
+	Slug string `json:"slug"`
+	// Resource tier controlling compute limits and cost ceiling for apps in this repo.
+	Tier string `json:"tier"`
+	// Number of apps currently deployed in this repo.
+	AppCount OptInt `json:"app_count"`
+	// When the repo was first registered on the platform.
 	CreatedAt OptDateTime `json:"created_at"`
 }
 
@@ -2027,38 +2085,60 @@ type SyncRepoForbidden ErrorResponse
 
 func (*SyncRepoForbidden) syncRepoRes() {}
 
-type SyncRepoInternalServerError ErrorResponse
+type SyncRepoReq struct {
+	// Complete list of apps that should exist in the repo after sync. Omit an app to delete it.
+	Apps []AppSpec `json:"apps"`
+}
 
-func (*SyncRepoInternalServerError) syncRepoRes() {}
+// GetApps returns the value of Apps.
+func (s *SyncRepoReq) GetApps() []AppSpec {
+	return s.Apps
+}
+
+// SetApps sets the value of Apps.
+func (s *SyncRepoReq) SetApps(val []AppSpec) {
+	s.Apps = val
+}
 
 type SyncRepoUnauthorized ErrorResponse
 
 func (*SyncRepoUnauthorized) syncRepoRes() {}
 
-// Ref: #/components/schemas/SyncRequest
-type SyncRequest struct {
-	Apps []AppSpec `json:"apps"`
-}
-
-// GetApps returns the value of Apps.
-func (s *SyncRequest) GetApps() []AppSpec {
-	return s.Apps
-}
-
-// SetApps sets the value of Apps.
-func (s *SyncRequest) SetApps(val []AppSpec) {
-	s.Apps = val
-}
-
 type TokenDeployBadRequest ErrorResponse
 
 func (*TokenDeployBadRequest) tokenDeployRes() {}
 
-type TokenDeployInternalServerError ErrorResponse
+type TokenDeployOK struct {
+	// Bearer token. Pass as "Authorization: Bearer ".
+	AccessToken string `json:"access_token"`
+	// Seconds until this token expires.
+	ExpiresIn int `json:"expires_in"`
+}
 
-func (*TokenDeployInternalServerError) tokenDeployRes() {}
+// GetAccessToken returns the value of AccessToken.
+func (s *TokenDeployOK) GetAccessToken() string {
+	return s.AccessToken
+}
+
+// GetExpiresIn returns the value of ExpiresIn.
+func (s *TokenDeployOK) GetExpiresIn() int {
+	return s.ExpiresIn
+}
+
+// SetAccessToken sets the value of AccessToken.
+func (s *TokenDeployOK) SetAccessToken(val string) {
+	s.AccessToken = val
+}
+
+// SetExpiresIn sets the value of ExpiresIn.
+func (s *TokenDeployOK) SetExpiresIn(val int) {
+	s.ExpiresIn = val
+}
+
+func (*TokenDeployOK) tokenDeployRes() {}
 
 type TokenDeployReq struct {
+	// Short-lived identity token issued by the CI/CD platform.
 	Token string `json:"token"`
 }
 
@@ -2076,11 +2156,8 @@ type TokenDeployUnauthorized ErrorResponse
 
 func (*TokenDeployUnauthorized) tokenDeployRes() {}
 
-type TokenOIDCInternalServerError ErrorResponse
-
-func (*TokenOIDCInternalServerError) tokenOIDCRes() {}
-
 type TokenOIDCReq struct {
+	// Operator credential from the platform identity provider.
 	Credential string `json:"credential"`
 }
 
@@ -2094,15 +2171,15 @@ func (s *TokenOIDCReq) SetCredential(val string) {
 	s.Credential = val
 }
 
-type TokenOIDCUnauthorized ErrorResponse
-
-func (*TokenOIDCUnauthorized) tokenOIDCRes() {}
-
-// Ref: #/components/schemas/TokenPairResponse
+// A short-lived access token paired with a rotatable refresh token.
+// Ref: #
 type TokenPairResponse struct {
-	AccessToken  string `json:"access_token"`
+	// Bearer token to include in the Authorization header.
+	AccessToken string `json:"access_token"`
+	// Long-lived token used to obtain a new access token without re-authenticating.
 	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
+	// Seconds until the access token expires.
+	ExpiresIn int `json:"expires_in"`
 }
 
 // GetAccessToken returns the value of AccessToken.
@@ -2142,11 +2219,8 @@ type TokenRefreshBadRequest ErrorResponse
 
 func (*TokenRefreshBadRequest) tokenRefreshRes() {}
 
-type TokenRefreshInternalServerError ErrorResponse
-
-func (*TokenRefreshInternalServerError) tokenRefreshRes() {}
-
 type TokenRefreshReq struct {
+	// Refresh token from a prior authentication or refresh call.
 	RefreshToken string `json:"refresh_token"`
 }
 
@@ -2164,41 +2238,9 @@ type TokenRefreshUnauthorized ErrorResponse
 
 func (*TokenRefreshUnauthorized) tokenRefreshRes() {}
 
-// Ref: #/components/schemas/TokenResponse
-type TokenResponse struct {
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
-}
-
-// GetAccessToken returns the value of AccessToken.
-func (s *TokenResponse) GetAccessToken() string {
-	return s.AccessToken
-}
-
-// GetExpiresIn returns the value of ExpiresIn.
-func (s *TokenResponse) GetExpiresIn() int {
-	return s.ExpiresIn
-}
-
-// SetAccessToken sets the value of AccessToken.
-func (s *TokenResponse) SetAccessToken(val string) {
-	s.AccessToken = val
-}
-
-// SetExpiresIn sets the value of ExpiresIn.
-func (s *TokenResponse) SetExpiresIn(val int) {
-	s.ExpiresIn = val
-}
-
-func (*TokenResponse) tokenDeployRes() {}
-
 type UpdateOperatorConfigForbidden ErrorResponse
 
 func (*UpdateOperatorConfigForbidden) updateOperatorConfigRes() {}
-
-type UpdateOperatorConfigInternalServerError ErrorResponse
-
-func (*UpdateOperatorConfigInternalServerError) updateOperatorConfigRes() {}
 
 type UpdateOperatorConfigUnauthorized ErrorResponse
 
@@ -2212,22 +2254,18 @@ type UpdateRepoTierForbidden ErrorResponse
 
 func (*UpdateRepoTierForbidden) updateRepoTierRes() {}
 
-type UpdateRepoTierInternalServerError ErrorResponse
-
-func (*UpdateRepoTierInternalServerError) updateRepoTierRes() {}
-
-// Ref: #/components/schemas/UpdateRepoTierRequest
-type UpdateRepoTierRequest struct {
+type UpdateRepoTierReq struct {
+	// The target tier name.
 	Tier string `json:"tier"`
 }
 
 // GetTier returns the value of Tier.
-func (s *UpdateRepoTierRequest) GetTier() string {
+func (s *UpdateRepoTierReq) GetTier() string {
 	return s.Tier
 }
 
 // SetTier sets the value of Tier.
-func (s *UpdateRepoTierRequest) SetTier(val string) {
+func (s *UpdateRepoTierReq) SetTier(val string) {
 	s.Tier = val
 }
 
@@ -2243,10 +2281,6 @@ type UpsertAppForbidden ErrorResponse
 
 func (*UpsertAppForbidden) upsertAppRes() {}
 
-type UpsertAppInternalServerError ErrorResponse
-
-func (*UpsertAppInternalServerError) upsertAppRes() {}
-
 type UpsertAppUnauthorized ErrorResponse
 
 func (*UpsertAppUnauthorized) upsertAppRes() {}
@@ -2258,10 +2292,6 @@ func (*UpsertAppUnprocessableEntity) upsertAppRes() {}
 type WakeAppForbidden ErrorResponse
 
 func (*WakeAppForbidden) wakeAppRes() {}
-
-type WakeAppInternalServerError ErrorResponse
-
-func (*WakeAppInternalServerError) wakeAppRes() {}
 
 type WakeAppNotFound ErrorResponse
 

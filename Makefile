@@ -66,7 +66,7 @@ generate: ## Regenerate go code
 .PHONY: generate-ci
 generate-ci:
 	go generate ./...
-	git diff --exit-code -- internal/db/queries/
+	git diff --exit-code -- .
 
 .PHONY: pre-commit
 pre-commit: ## Pre-commit git hook

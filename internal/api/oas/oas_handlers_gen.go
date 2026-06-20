@@ -35,7 +35,8 @@ func (c *codeRecorder) Unwrap() http.ResponseWriter {
 
 // handleBatchActionApprovalsRequest handles batchActionApprovals operation.
 //
-// Approve or reject multiple approvals.
+// Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected
+// changes are discarded. IDs not found or already resolved appear in the ignored list.
 //
 // POST /api/operator/approvals/batch
 func (s *Server) handleBatchActionApprovalsRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -120,8 +121,9 @@ func (s *Server) handleBatchActionApprovalsRequest(args [0]string, argsEscaped b
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -148,8 +150,9 @@ func (s *Server) handleBatchActionApprovalsRequest(args [0]string, argsEscaped b
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -185,7 +188,7 @@ func (s *Server) handleBatchActionApprovalsRequest(args [0]string, argsEscaped b
 		}
 
 		type (
-			Request  = *BatchApprovalRequest
+			Request  = *BatchActionApprovalsReq
 			Params   = struct{}
 			Response = BatchActionApprovalsRes
 		)
@@ -206,8 +209,19 @@ func (s *Server) handleBatchActionApprovalsRequest(args [0]string, argsEscaped b
 		response, err = s.h.BatchActionApprovals(ctx, request)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -222,7 +236,8 @@ func (s *Server) handleBatchActionApprovalsRequest(args [0]string, argsEscaped b
 
 // handleDeleteAppRequest handles deleteApp operation.
 //
-// Delete an app; starts persistence grace period.
+// Marks the app for deletion and begins a grace period before its persistent storage is removed. Poll
+// the returned operation to track progress.
 //
 // DELETE /api/repos/{org}/{repo}/apps/{name}
 func (s *Server) handleDeleteAppRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -307,8 +322,9 @@ func (s *Server) handleDeleteAppRequest(args [3]string, argsEscaped bool, w http
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -335,8 +351,9 @@ func (s *Server) handleDeleteAppRequest(args [3]string, argsEscaped bool, w http
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -401,8 +418,19 @@ func (s *Server) handleDeleteAppRequest(args [3]string, argsEscaped bool, w http
 		response, err = s.h.DeleteApp(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -417,7 +445,8 @@ func (s *Server) handleDeleteAppRequest(args [3]string, argsEscaped bool, w http
 
 // handleDeleteRepoRequest handles deleteRepo operation.
 //
-// Delete all apps in a repo.
+// Queues deletion of every app in the repo. Returns immediately; poll the returned operation to track
+// progress. The repo record is removed once all apps are gone.
 //
 // DELETE /api/repos/{org}/{repo}
 func (s *Server) handleDeleteRepoRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -502,8 +531,9 @@ func (s *Server) handleDeleteRepoRequest(args [2]string, argsEscaped bool, w htt
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -530,8 +560,9 @@ func (s *Server) handleDeleteRepoRequest(args [2]string, argsEscaped bool, w htt
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -592,8 +623,19 @@ func (s *Server) handleDeleteRepoRequest(args [2]string, argsEscaped bool, w htt
 		response, err = s.h.DeleteRepo(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -608,7 +650,7 @@ func (s *Server) handleDeleteRepoRequest(args [2]string, argsEscaped bool, w htt
 
 // handleGetAppRequest handles getApp operation.
 //
-// Get app detail.
+// Returns the app's current configuration, status, and deployment timestamps.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}
 func (s *Server) handleGetAppRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -693,8 +735,9 @@ func (s *Server) handleGetAppRequest(args [3]string, argsEscaped bool, w http.Re
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -721,8 +764,9 @@ func (s *Server) handleGetAppRequest(args [3]string, argsEscaped bool, w http.Re
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -787,8 +831,19 @@ func (s *Server) handleGetAppRequest(args [3]string, argsEscaped bool, w http.Re
 		response, err = s.h.GetApp(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -803,7 +858,8 @@ func (s *Server) handleGetAppRequest(args [3]string, argsEscaped bool, w http.Re
 
 // handleGetAppHistoryRequest handles getAppHistory operation.
 //
-// Get deploy history for an app.
+// Returns past operations for the app in reverse chronological order, including deploys, deletes, and
+// hibernation events.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}/history
 func (s *Server) handleGetAppHistoryRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -888,8 +944,9 @@ func (s *Server) handleGetAppHistoryRequest(args [3]string, argsEscaped bool, w 
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -916,8 +973,9 @@ func (s *Server) handleGetAppHistoryRequest(args [3]string, argsEscaped bool, w 
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -982,8 +1040,19 @@ func (s *Server) handleGetAppHistoryRequest(args [3]string, argsEscaped bool, w 
 		response, err = s.h.GetAppHistory(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -998,7 +1067,8 @@ func (s *Server) handleGetAppHistoryRequest(args [3]string, argsEscaped bool, w 
 
 // handleGetAppStatusRequest handles getAppStatus operation.
 //
-// Get current runtime state of an app.
+// Returns the Kubernetes-level status of the app including replica counts. Use this to determine
+// whether the app is healthy or still starting up.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}/status
 func (s *Server) handleGetAppStatusRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -1083,8 +1153,9 @@ func (s *Server) handleGetAppStatusRequest(args [3]string, argsEscaped bool, w h
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -1111,8 +1182,9 @@ func (s *Server) handleGetAppStatusRequest(args [3]string, argsEscaped bool, w h
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -1177,8 +1249,19 @@ func (s *Server) handleGetAppStatusRequest(args [3]string, argsEscaped bool, w h
 		response, err = s.h.GetAppStatus(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1193,7 +1276,8 @@ func (s *Server) handleGetAppStatusRequest(args [3]string, argsEscaped bool, w h
 
 // handleGetAppUtilisationRequest handles getAppUtilisation operation.
 //
-// Get current resource usage and cost estimate for an app.
+// Returns recent CPU and memory usage averaged over the last collection window, and a projected
+// monthly cost at the current usage rate.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}/utilisation
 func (s *Server) handleGetAppUtilisationRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -1278,8 +1362,9 @@ func (s *Server) handleGetAppUtilisationRequest(args [3]string, argsEscaped bool
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -1306,8 +1391,9 @@ func (s *Server) handleGetAppUtilisationRequest(args [3]string, argsEscaped bool
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -1372,8 +1458,19 @@ func (s *Server) handleGetAppUtilisationRequest(args [3]string, argsEscaped bool
 		response, err = s.h.GetAppUtilisation(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1388,7 +1485,8 @@ func (s *Server) handleGetAppUtilisationRequest(args [3]string, argsEscaped bool
 
 // handleGetHealthzRequest handles getHealthz operation.
 //
-// Health check.
+// Returns 200 when the API server is up and able to handle requests. Does not check downstream
+// dependencies.
 //
 // GET /healthz
 func (s *Server) handleGetHealthzRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -1496,8 +1594,19 @@ func (s *Server) handleGetHealthzRequest(args [0]string, argsEscaped bool, w htt
 		response, err = s.h.GetHealthz(ctx)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1512,7 +1621,8 @@ func (s *Server) handleGetHealthzRequest(args [0]string, argsEscaped bool, w htt
 
 // handleGetOperationRequest handles getOperation operation.
 //
-// Poll an async operation.
+// Fetch the current state of a long-running operation. Retry until status is "complete" or "failed".
+// The Retry-After header on the originating 202 response suggests a polling interval.
 //
 // GET /api/repos/{org}/{repo}/apps/{name}/operations/{id}
 func (s *Server) handleGetOperationRequest(args [4]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -1597,8 +1707,9 @@ func (s *Server) handleGetOperationRequest(args [4]string, argsEscaped bool, w h
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -1625,8 +1736,9 @@ func (s *Server) handleGetOperationRequest(args [4]string, argsEscaped bool, w h
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -1695,8 +1807,19 @@ func (s *Server) handleGetOperationRequest(args [4]string, argsEscaped bool, w h
 		response, err = s.h.GetOperation(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1711,7 +1834,8 @@ func (s *Server) handleGetOperationRequest(args [4]string, argsEscaped bool, w h
 
 // handleGetOperatorApprovalRequest handles getOperatorApproval operation.
 //
-// Get single approval detail.
+// Returns the full detail of a single approval request, including the current and requested field
+// values.
 //
 // GET /api/operator/approvals/{id}
 func (s *Server) handleGetOperatorApprovalRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -1796,8 +1920,9 @@ func (s *Server) handleGetOperatorApprovalRequest(args [1]string, argsEscaped bo
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -1824,8 +1949,9 @@ func (s *Server) handleGetOperatorApprovalRequest(args [1]string, argsEscaped bo
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -1882,8 +2008,19 @@ func (s *Server) handleGetOperatorApprovalRequest(args [1]string, argsEscaped bo
 		response, err = s.h.GetOperatorApproval(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -1898,7 +2035,7 @@ func (s *Server) handleGetOperatorApprovalRequest(args [1]string, argsEscaped bo
 
 // handleGetOperatorConfigRequest handles getOperatorConfig operation.
 //
-// Read platform config.
+// Returns the current mutable platform-wide settings, including budget limits.
 //
 // GET /api/operator/config
 func (s *Server) handleGetOperatorConfigRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -1983,8 +2120,9 @@ func (s *Server) handleGetOperatorConfigRequest(args [0]string, argsEscaped bool
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -2011,8 +2149,9 @@ func (s *Server) handleGetOperatorConfigRequest(args [0]string, argsEscaped bool
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -2054,8 +2193,19 @@ func (s *Server) handleGetOperatorConfigRequest(args [0]string, argsEscaped bool
 		response, err = s.h.GetOperatorConfig(ctx)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2070,7 +2220,8 @@ func (s *Server) handleGetOperatorConfigRequest(args [0]string, argsEscaped bool
 
 // handleGetOperatorCostRequest handles getOperatorCost operation.
 //
-// Platform-wide cost estimate.
+// Returns the projected monthly spend across the entire platform, broken down by repo. Figures are
+// estimates based on current resource usage and tier pricing.
 //
 // GET /api/operator/cost
 func (s *Server) handleGetOperatorCostRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -2155,8 +2306,9 @@ func (s *Server) handleGetOperatorCostRequest(args [0]string, argsEscaped bool, 
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -2183,8 +2335,9 @@ func (s *Server) handleGetOperatorCostRequest(args [0]string, argsEscaped bool, 
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -2226,8 +2379,19 @@ func (s *Server) handleGetOperatorCostRequest(args [0]string, argsEscaped bool, 
 		response, err = s.h.GetOperatorCost(ctx)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2242,7 +2406,8 @@ func (s *Server) handleGetOperatorCostRequest(args [0]string, argsEscaped bool, 
 
 // handleGetOperatorStatusRequest handles getOperatorStatus operation.
 //
-// Platform health summary.
+// Returns a high-level health snapshot of the platform, including whether critical components are
+// operational and how many apps are currently running.
 //
 // GET /api/operator/status
 func (s *Server) handleGetOperatorStatusRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -2327,8 +2492,9 @@ func (s *Server) handleGetOperatorStatusRequest(args [0]string, argsEscaped bool
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -2355,8 +2521,9 @@ func (s *Server) handleGetOperatorStatusRequest(args [0]string, argsEscaped bool
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -2398,8 +2565,19 @@ func (s *Server) handleGetOperatorStatusRequest(args [0]string, argsEscaped bool
 		response, err = s.h.GetOperatorStatus(ctx)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2414,7 +2592,7 @@ func (s *Server) handleGetOperatorStatusRequest(args [0]string, argsEscaped bool
 
 // handleGetRepoRequest handles getRepo operation.
 //
-// Get repo detail including tier and quota.
+// Returns the repo's tier, app count, and registration timestamp.
 //
 // GET /api/repos/{org}/{repo}
 func (s *Server) handleGetRepoRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -2499,8 +2677,9 @@ func (s *Server) handleGetRepoRequest(args [2]string, argsEscaped bool, w http.R
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -2527,8 +2706,9 @@ func (s *Server) handleGetRepoRequest(args [2]string, argsEscaped bool, w http.R
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -2589,8 +2769,19 @@ func (s *Server) handleGetRepoRequest(args [2]string, argsEscaped bool, w http.R
 		response, err = s.h.GetRepo(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2605,7 +2796,8 @@ func (s *Server) handleGetRepoRequest(args [2]string, argsEscaped bool, w http.R
 
 // handleHibernateAppRequest handles hibernateApp operation.
 //
-// Force hibernate an app.
+// Scales the app to zero replicas immediately, freeing its compute resources. The app resumes
+// automatically on the next inbound request, or can be woken explicitly via the wake endpoint.
 //
 // POST /api/repos/{org}/{repo}/apps/{name}/hibernate
 func (s *Server) handleHibernateAppRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -2690,8 +2882,9 @@ func (s *Server) handleHibernateAppRequest(args [3]string, argsEscaped bool, w h
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -2718,8 +2911,9 @@ func (s *Server) handleHibernateAppRequest(args [3]string, argsEscaped bool, w h
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -2784,8 +2978,19 @@ func (s *Server) handleHibernateAppRequest(args [3]string, argsEscaped bool, w h
 		response, err = s.h.HibernateApp(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2800,7 +3005,7 @@ func (s *Server) handleHibernateAppRequest(args [3]string, argsEscaped bool, w h
 
 // handleListAppsRequest handles listApps operation.
 //
-// List apps in a repo.
+// Returns every app currently deployed in the repo, including their status and image.
 //
 // GET /api/repos/{org}/{repo}/apps
 func (s *Server) handleListAppsRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -2885,8 +3090,9 @@ func (s *Server) handleListAppsRequest(args [2]string, argsEscaped bool, w http.
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -2913,8 +3119,9 @@ func (s *Server) handleListAppsRequest(args [2]string, argsEscaped bool, w http.
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -2975,8 +3182,19 @@ func (s *Server) handleListAppsRequest(args [2]string, argsEscaped bool, w http.
 		response, err = s.h.ListApps(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -2991,7 +3209,7 @@ func (s *Server) handleListAppsRequest(args [2]string, argsEscaped bool, w http.
 
 // handleListOperatorApprovalsRequest handles listOperatorApprovals operation.
 //
-// List all pending approvals.
+// Returns every approval request across all repos that is waiting for operator action.
 //
 // GET /api/operator/approvals
 func (s *Server) handleListOperatorApprovalsRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -3076,8 +3294,9 @@ func (s *Server) handleListOperatorApprovalsRequest(args [0]string, argsEscaped 
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -3104,8 +3323,9 @@ func (s *Server) handleListOperatorApprovalsRequest(args [0]string, argsEscaped 
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -3147,8 +3367,19 @@ func (s *Server) handleListOperatorApprovalsRequest(args [0]string, argsEscaped 
 		response, err = s.h.ListOperatorApprovals(ctx)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3163,7 +3394,8 @@ func (s *Server) handleListOperatorApprovalsRequest(args [0]string, argsEscaped 
 
 // handleListRepoApprovalsRequest handles listRepoApprovals operation.
 //
-// List pending approvals for a repo.
+// Returns approval requests raised by changes to this repo that are awaiting operator action before
+// they take effect.
 //
 // GET /api/repos/{org}/{repo}/approvals
 func (s *Server) handleListRepoApprovalsRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -3248,8 +3480,9 @@ func (s *Server) handleListRepoApprovalsRequest(args [2]string, argsEscaped bool
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -3276,8 +3509,9 @@ func (s *Server) handleListRepoApprovalsRequest(args [2]string, argsEscaped bool
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -3338,8 +3572,19 @@ func (s *Server) handleListRepoApprovalsRequest(args [2]string, argsEscaped bool
 		response, err = s.h.ListRepoApprovals(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3354,7 +3599,8 @@ func (s *Server) handleListRepoApprovalsRequest(args [2]string, argsEscaped bool
 
 // handleListReposRequest handles listRepos operation.
 //
-// List repos.
+// Returns repos the caller has access to. Developers see only their own repo; operators see all repos
+// by default.
 //
 // GET /api/repos
 func (s *Server) handleListReposRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -3439,8 +3685,9 @@ func (s *Server) handleListReposRequest(args [0]string, argsEscaped bool, w http
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -3467,8 +3714,9 @@ func (s *Server) handleListReposRequest(args [0]string, argsEscaped bool, w http
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -3525,8 +3773,19 @@ func (s *Server) handleListReposRequest(args [0]string, argsEscaped bool, w http
 		response, err = s.h.ListRepos(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3541,7 +3800,9 @@ func (s *Server) handleListReposRequest(args [0]string, argsEscaped bool, w http
 
 // handleSyncRepoRequest handles syncRepo operation.
 //
-// Declarative app list reconciliation; detects deleted apps.
+// Reconciles the cluster against the supplied app list. Apps present in the cluster but absent from
+// the list are queued for deletion. Equivalent to calling upsert for each listed app and delete for
+// each omitted one, in a single atomic request.
 //
 // POST /api/repos/{org}/{repo}/sync
 func (s *Server) handleSyncRepoRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -3626,8 +3887,9 @@ func (s *Server) handleSyncRepoRequest(args [2]string, argsEscaped bool, w http.
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -3654,8 +3916,9 @@ func (s *Server) handleSyncRepoRequest(args [2]string, argsEscaped bool, w http.
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -3710,7 +3973,7 @@ func (s *Server) handleSyncRepoRequest(args [2]string, argsEscaped bool, w http.
 		}
 
 		type (
-			Request  = *SyncRequest
+			Request  = *SyncRepoReq
 			Params   = SyncRepoParams
 			Response = SyncRepoRes
 		)
@@ -3731,8 +3994,19 @@ func (s *Server) handleSyncRepoRequest(args [2]string, argsEscaped bool, w http.
 		response, err = s.h.SyncRepo(ctx, request, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3747,7 +4021,8 @@ func (s *Server) handleSyncRepoRequest(args [2]string, argsEscaped bool, w http.
 
 // handleTokenDeployRequest handles tokenDeploy operation.
 //
-// Exchange a deploy identity token for a developer access token.
+// For use in CI/CD pipelines. Present a short-lived identity token issued by your CI platform (e.g. a
+// GitHub Actions OIDC token). Returns a scoped access token valid for the duration of the deploy.
 //
 // POST /api/token/deploy
 func (s *Server) handleTokenDeployRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -3874,8 +4149,19 @@ func (s *Server) handleTokenDeployRequest(args [0]string, argsEscaped bool, w ht
 		response, err = s.h.TokenDeploy(ctx, request)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -3890,7 +4176,8 @@ func (s *Server) handleTokenDeployRequest(args [0]string, argsEscaped bool, w ht
 
 // handleTokenOIDCRequest handles tokenOIDC operation.
 //
-// Exchange a platform identity credential for an operator access token and refresh token.
+// For interactive operator sessions. Exchanges a platform credential for an access/refresh token pair.
+// Use the refresh endpoint to stay authenticated without re-presenting credentials.
 //
 // POST /api/token/oidc
 func (s *Server) handleTokenOIDCRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -4017,8 +4304,19 @@ func (s *Server) handleTokenOIDCRequest(args [0]string, argsEscaped bool, w http
 		response, err = s.h.TokenOIDC(ctx, request)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -4033,7 +4331,8 @@ func (s *Server) handleTokenOIDCRequest(args [0]string, argsEscaped bool, w http
 
 // handleTokenRefreshRequest handles tokenRefresh operation.
 //
-// Exchange a refresh token for a new access token and rotated refresh token.
+// Rotates both tokens. The supplied refresh token is immediately invalidated; use the new pair going
+// forward.
 //
 // POST /api/token/refresh
 func (s *Server) handleTokenRefreshRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -4160,8 +4459,19 @@ func (s *Server) handleTokenRefreshRequest(args [0]string, argsEscaped bool, w h
 		response, err = s.h.TokenRefresh(ctx, request)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -4176,7 +4486,7 @@ func (s *Server) handleTokenRefreshRequest(args [0]string, argsEscaped bool, w h
 
 // handleUpdateOperatorConfigRequest handles updateOperatorConfig operation.
 //
-// Update mutable platform config.
+// Applies the supplied fields over the current config. Omitted fields are left unchanged.
 //
 // PATCH /api/operator/config
 func (s *Server) handleUpdateOperatorConfigRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -4261,8 +4571,9 @@ func (s *Server) handleUpdateOperatorConfigRequest(args [0]string, argsEscaped b
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -4289,8 +4600,9 @@ func (s *Server) handleUpdateOperatorConfigRequest(args [0]string, argsEscaped b
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -4347,8 +4659,19 @@ func (s *Server) handleUpdateOperatorConfigRequest(args [0]string, argsEscaped b
 		response, err = s.h.UpdateOperatorConfig(ctx, request)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -4363,7 +4686,8 @@ func (s *Server) handleUpdateOperatorConfigRequest(args [0]string, argsEscaped b
 
 // handleUpdateRepoTierRequest handles updateRepoTier operation.
 //
-// Promote or demote repo tier.
+// Changes the resource tier for a repo, which controls its compute limits and cost ceiling. Promotion
+// to a higher tier may require additional approval depending on platform policy.
 //
 // PATCH /api/operator/repos/{org}/{repo}
 func (s *Server) handleUpdateRepoTierRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -4448,8 +4772,9 @@ func (s *Server) handleUpdateRepoTierRequest(args [2]string, argsEscaped bool, w
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -4476,8 +4801,9 @@ func (s *Server) handleUpdateRepoTierRequest(args [2]string, argsEscaped bool, w
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -4532,7 +4858,7 @@ func (s *Server) handleUpdateRepoTierRequest(args [2]string, argsEscaped bool, w
 		}
 
 		type (
-			Request  = *UpdateRepoTierRequest
+			Request  = *UpdateRepoTierReq
 			Params   = UpdateRepoTierParams
 			Response = UpdateRepoTierRes
 		)
@@ -4553,8 +4879,19 @@ func (s *Server) handleUpdateRepoTierRequest(args [2]string, argsEscaped bool, w
 		response, err = s.h.UpdateRepoTier(ctx, request, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -4569,7 +4906,9 @@ func (s *Server) handleUpdateRepoTierRequest(args [2]string, argsEscaped bool, w
 
 // handleUpsertAppRequest handles upsertApp operation.
 //
-// Upsert an app; runs staging handshake and applies Kubernetes manifest.
+// Creates or updates an app. Runs a staging handshake to validate the image before applying the
+// manifest. Some changes may require operator approval and will appear in the pending_approval field
+// of the response.
 //
 // POST /api/repos/{org}/{repo}/apps
 func (s *Server) handleUpsertAppRequest(args [2]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -4654,8 +4993,9 @@ func (s *Server) handleUpsertAppRequest(args [2]string, argsEscaped bool, w http
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -4682,8 +5022,9 @@ func (s *Server) handleUpsertAppRequest(args [2]string, argsEscaped bool, w http
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -4759,8 +5100,19 @@ func (s *Server) handleUpsertAppRequest(args [2]string, argsEscaped bool, w http
 		response, err = s.h.UpsertApp(ctx, request, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
@@ -4775,7 +5127,8 @@ func (s *Server) handleUpsertAppRequest(args [2]string, argsEscaped bool, w http
 
 // handleWakeAppRequest handles wakeApp operation.
 //
-// Force wake a hibernated app.
+// Scales the app back up from zero replicas. Use this to pre-warm the app before expected traffic
+// rather than waiting for the first request to trigger wake-on-demand.
 //
 // POST /api/repos/{org}/{repo}/apps/{name}/wake
 func (s *Server) handleWakeAppRequest(args [3]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -4860,8 +5213,9 @@ func (s *Server) handleWakeAppRequest(args [3]string, argsEscaped bool, w http.R
 					Security:         "BearerAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BearerAuth", err)
-				s.cfg.ErrorHandler(ctx, w, r, err)
+				if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+					defer recordError("Security:BearerAuth", err)
+				}
 				return
 			}
 			if ok {
@@ -4888,8 +5242,9 @@ func (s *Server) handleWakeAppRequest(args [3]string, argsEscaped bool, w http.R
 				OperationContext: opErrContext,
 				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
 			}
-			defer recordError("Security", err)
-			s.cfg.ErrorHandler(ctx, w, r, err)
+			if encodeErr := encodeErrorResponse(s.h.NewError(ctx, err), w, span); encodeErr != nil {
+				defer recordError("Security", err)
+			}
 			return
 		}
 	}
@@ -4954,8 +5309,19 @@ func (s *Server) handleWakeAppRequest(args [3]string, argsEscaped bool, w http.R
 		response, err = s.h.WakeApp(ctx, params)
 	}
 	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
+		if errRes, ok := errors.Into[*ErrorInternalServerStatusCode](err); ok {
+			if err := encodeErrorResponse(errRes, w, span); err != nil {
+				defer recordError("Internal", err)
+			}
+			return
+		}
+		if errors.Is(err, ht.ErrNotImplemented) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+		if err := encodeErrorResponse(s.h.NewError(ctx, err), w, span); err != nil {
+			defer recordError("Internal", err)
+		}
 		return
 	}
 
