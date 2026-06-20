@@ -1,0 +1,17 @@
+description: Structured error information attached to every non-2xx response.
+type: object
+required: [code, message, remedy]
+properties:
+  code:
+    description: Machine-readable error code.
+    type: string
+  message:
+    description: Human-readable explanation of what went wrong.
+    type: string
+  remedy:
+    description: Suggested action to resolve the error.
+    type: string
+  context:
+    description: Additional key/value pairs that give context for the error.
+    type: object
+    additionalProperties: true

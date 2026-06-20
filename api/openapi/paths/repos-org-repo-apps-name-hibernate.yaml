@@ -1,0 +1,34 @@
+parameters:
+  - $ref: '../parameters.yaml#/OrgParam'
+  - $ref: '../parameters.yaml#/RepoParam'
+  - $ref: '../parameters.yaml#/AppNameParam'
+post:
+  operationId: hibernateApp
+  summary: Force hibernate an app
+  description: Scales the app to zero replicas immediately, freeing its compute resources. The app resumes automatically on the next inbound request, or can be woken explicitly via the wake endpoint.
+  tags: [apps]
+  security:
+    - bearerAuth: []
+  responses:
+    '202':
+      description: Accepted
+      headers:
+        Location:
+          required: true
+          schema:
+            type: string
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AcceptedOperation.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

@@ -1,0 +1,7 @@
+description: Envelope returned for all error responses.
+type: object
+required: [error]
+properties:
+  error:
+    description: Details of the error.
+    $ref: './ErrorDetail.yaml'

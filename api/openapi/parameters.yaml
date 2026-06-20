@@ -1,0 +1,39 @@
+OrgParam:
+  name: org
+  in: path
+  description: The organisation or user that owns the repo.
+  required: true
+  schema:
+    type: string
+
+RepoParam:
+  name: repo
+  in: path
+  description: The repository name within the organisation.
+  required: true
+  schema:
+    type: string
+
+AppNameParam:
+  name: name
+  in: path
+  description: The app name within the repo.
+  required: true
+  schema:
+    type: string
+
+OperationIDParam:
+  name: id
+  in: path
+  description: The operation ID returned by a prior async request.
+  required: true
+  schema:
+    type: string
+
+ApprovalIDParam:
+  name: id
+  in: path
+  description: The approval request ID.
+  required: true
+  schema:
+    type: string

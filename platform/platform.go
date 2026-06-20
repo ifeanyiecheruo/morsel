@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
-	"net/http"
 	"time"
 )
 
@@ -90,14 +89,13 @@ type CredentialProvider interface {
 	// Called server-side by the POST /api/token/deploy handler.
 	ValidateDeployToken(ctx context.Context, token string) (slug string, err error)
 
-	// ValidateOperatorToken validates the operator identity from the incoming request
-	// and returns the operator subject (e.g. "alice@example.com").
-	// Called server-side by POST /api/token/oidc; the raw request is passed so each
-	// implementation reads its credential from wherever it expects — request body
-	// (LocalPlatform) or platform-injected header (GCPPlatform).
-	// Returns ErrPrincipalNotAuthorized for any auth failure; other errors are
-	// infrastructure failures.
-	ValidateOperatorToken(ctx context.Context, r *http.Request) (subject string, err error)
+	// ValidateOperatorToken validates the operator identity credential and returns
+	// the operator subject (e.g. "alice@example.com"). Called server-side by
+	// POST /api/token/oidc. The credential meaning is platform-specific: on
+	// LocalPlatform it is the operator email address; on GCPPlatform it is a
+	// Workload Identity token. Returns ErrPrincipalNotAuthorized for any auth
+	// failure; other errors are infrastructure failures.
+	ValidateOperatorToken(ctx context.Context, credential string) (subject string, err error)
 }
 
 // DNSProvider manages DNS records for app subdomains.

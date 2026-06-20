@@ -1,0 +1,58 @@
+post:
+  operationId: batchActionApprovals
+  summary: Approve or reject multiple approvals
+  description: Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected changes are discarded. IDs not found or already resolved appear in the ignored list.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [action, ids]
+          properties:
+            action:
+              description: Whether to approve or reject all listed approval requests.
+              type: string
+              enum: [approve, reject]
+            ids:
+              description: IDs of the approval requests to act on.
+              type: array
+              items:
+                type: string
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              approved:
+                description: IDs of approvals that were approved and whose changes are now being applied.
+                type: array
+                items:
+                  type: string
+              rejected:
+                description: IDs of approvals that were rejected and whose changes were discarded.
+                type: array
+                items:
+                  type: string
+              ignored:
+                description: IDs that were not found or were already resolved.
+                type: array
+                items:
+                  type: string
+              reconciling:
+                description: IDs whose approved changes are still being reconciled in the cluster.
+                type: array
+                items:
+                  type: string
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

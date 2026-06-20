@@ -1,0 +1,17 @@
+description: A repository that groups one or more apps, subject to a resource tier and quota.
+type: object
+required: [slug, tier]
+properties:
+  slug:
+    description: Unique identifier for the repo, formatted as "org/repo".
+    type: string
+  tier:
+    description: Resource tier controlling compute limits and cost ceiling for apps in this repo.
+    type: string
+  app_count:
+    description: Number of apps currently deployed in this repo.
+    type: integer
+  created_at:
+    description: When the repo was first registered on the platform.
+    type: string
+    format: date-time

@@ -1,0 +1,55 @@
+ErrorBadRequest:
+  description: Bad request
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/ErrorResponse.yaml'
+
+ErrorUnauthorized:
+  description: Unauthorized
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/ErrorResponse.yaml'
+
+ErrorForbidden:
+  description: Forbidden
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/ErrorResponse.yaml'
+
+ErrorNotFound:
+  description: Not found
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/ErrorResponse.yaml'
+
+ErrorConflict:
+  description: Conflict
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/ErrorResponse.yaml'
+
+ErrorUnprocessable:
+  description: Unprocessable entity
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/ErrorResponse.yaml'
+
+ErrorServiceUnavailable:
+  description: Service unavailable
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/ErrorResponse.yaml'
+
+ErrorInternalServer:
+  description: Internal server error
+  content:
+    application/json:
+      schema:
+        $ref: './schemas/ErrorResponse.yaml'

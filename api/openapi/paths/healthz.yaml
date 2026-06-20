@@ -1,0 +1,17 @@
+get:
+  operationId: getHealthz
+  summary: Health check
+  description: Returns 200 when the API server is up and able to handle requests. Does not check downstream dependencies.
+  tags: [system]
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status:
+                description: Always "ok" when the server is healthy.
+                type: string

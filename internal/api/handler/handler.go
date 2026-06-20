@@ -1,0 +1,317 @@
+// Package handler implements the ogen Handler and SecurityHandler interfaces
+// for the Morsel API server.
+package handler
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+
+	"github.com/ogen-go/ogen/ogenerrors"
+
+	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
+	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/internal/tokens"
+	"github.com/ifeanyiecheruo/morsel/platform"
+)
+
+// AppPlatform is the subset of platform.Platform that API handlers may consume.
+// Expanded as stub methods are implemented.
+type AppPlatform interface {
+	Credentials() platform.CredentialProvider
+}
+
+// Handler implements oas.Handler for all Morsel API operations.
+type Handler struct {
+	plat       AppPlatform
+	signingKey []byte
+	queries    *dbqueries.Queries
+}
+
+// New constructs a Handler.
+func New(plat AppPlatform, signingKey []byte, queries *dbqueries.Queries) *Handler {
+	return &Handler{plat: plat, signingKey: signingKey, queries: queries}
+}
+
+// apiError is the internal structured error type. It is written by WriteError
+// as the morsel JSON error shape: {"error": {"code", "message", "remedy"}}.
+type apiError struct {
+	httpStatus int
+	code       string
+	message    string
+	remedy     string
+}
+
+func (e *apiError) Error() string { return e.code + ": " + e.message }
+
+var _ error = (*apiError)(nil)
+
+// errNotImplemented is returned by stub handler methods for endpoints not yet built.
+var errNotImplemented = &apiError{
+	httpStatus: http.StatusNotImplemented,
+	code:       "not_implemented",
+	message:    "this endpoint is not yet implemented",
+	remedy:     "check back in a future release",
+}
+
+// WriteError is the error handler for ogen's WithErrorHandler option. It
+// translates any error into the morsel JSON error shape.
+func WriteError(_ context.Context, w http.ResponseWriter, _ *http.Request, err error) {
+	var ae *apiError
+	if errors.As(err, &ae) {
+		// Already a structured API error from a handler or security check.
+	} else if code := ogenerrors.ErrorCode(err); code != http.StatusInternalServerError {
+		// ogen routing/validation error (404, 405, 400, etc.) — surface it as structured.
+		ae = ogenAPIError(code)
+	} else {
+		ae = &apiError{
+			httpStatus: http.StatusInternalServerError,
+			code:       "internal_error",
+			message:    "an unexpected error occurred",
+			remedy:     "contact your platform operator if the issue persists",
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(ae.httpStatus)
+	type errorDetail struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Remedy  string `json:"remedy"`
+	}
+	_ = json.NewEncoder(w).Encode(struct {
+		Error errorDetail `json:"error"`
+	}{Error: errorDetail{Code: ae.code, Message: ae.message, Remedy: ae.remedy}})
+}
+
+// ogenAPIError converts an ogen HTTP status code into a structured apiError.
+func ogenAPIError(code int) *apiError {
+	switch code {
+	case http.StatusNotFound:
+		return &apiError{httpStatus: code, code: "not_found", message: "the requested resource was not found", remedy: "check the API documentation for valid endpoints"}
+	case http.StatusMethodNotAllowed:
+		return &apiError{httpStatus: code, code: "method_not_allowed", message: "this HTTP method is not allowed for this endpoint", remedy: "check the API documentation for allowed methods"}
+	case http.StatusBadRequest:
+		return &apiError{httpStatus: code, code: "invalid_request", message: "the request body or parameters are invalid", remedy: "check the request format against the API documentation"}
+	case http.StatusUnauthorized:
+		return &apiError{httpStatus: code, code: "invalid_token", message: "authentication is required", remedy: "include a valid Morsel access token in the Authorization header"}
+	case http.StatusForbidden:
+		return &apiError{httpStatus: code, code: "forbidden", message: "you do not have permission to access this resource", remedy: "check your token role and repository access"}
+	default:
+		return &apiError{httpStatus: code, code: "request_error", message: "the request could not be processed", remedy: "check the API documentation"}
+	}
+}
+
+// claimsKey is the context key for JWT claims injected by HandleBearerAuth.
+type claimsKey struct{}
+
+func claimsFromContext(ctx context.Context) *tokens.Claims {
+	v, _ := ctx.Value(claimsKey{}).(*tokens.Claims)
+	return v
+}
+
+func repoSlug(org, repo string) string { return org + "/" + repo }
+
+// checkRepoAccess enforces the repo claim for developer tokens; operator tokens bypass.
+func checkRepoAccess(ctx context.Context, org, repo string) error {
+	claims := claimsFromContext(ctx)
+	if claims == nil {
+		return &apiError{
+			httpStatus: http.StatusUnauthorized,
+			code:       "invalid_token",
+			message:    "request is missing an Authorization: Bearer header",
+			remedy:     "include a valid Morsel access token in the Authorization header",
+		}
+	}
+	if claims.Role == tokens.RoleDeveloper && claims.Repo != repoSlug(org, repo) {
+		return &apiError{
+			httpStatus: http.StatusForbidden,
+			code:       "repo_mismatch",
+			message:    "token is not authorised for this repository",
+			remedy:     "use a deploy token scoped to this repository",
+		}
+	}
+	return nil
+}
+
+// requireOperator enforces the operator role.
+func requireOperator(ctx context.Context) error {
+	claims := claimsFromContext(ctx)
+	if claims == nil || claims.Role != tokens.RoleOperator {
+		return &apiError{
+			httpStatus: http.StatusForbidden,
+			code:       "insufficient_role",
+			message:    "this operation requires operator role",
+			remedy:     "log in as a platform operator",
+		}
+	}
+	return nil
+}
+
+// ── Health ────────────────────────────────────────────────────────────────────
+
+func (h *Handler) GetHealthz(_ context.Context) (*oas.GetHealthzOK, error) {
+	return &oas.GetHealthzOK{Status: "ok"}, nil
+}
+
+// ── Repo-scoped stubs ─────────────────────────────────────────────────────────
+
+func (h *Handler) ListRepos(_ context.Context, _ oas.ListReposParams) (oas.ListReposRes, error) {
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetRepo(_ context.Context, _ oas.GetRepoParams) (oas.GetRepoRes, error) {
+	return nil, errNotImplemented
+}
+
+func (h *Handler) DeleteRepo(ctx context.Context, params oas.DeleteRepoParams) (oas.DeleteRepoRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) SyncRepo(ctx context.Context, _ *oas.SyncRequest, params oas.SyncRepoParams) (oas.SyncRepoRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) ListRepoApprovals(ctx context.Context, params oas.ListRepoApprovalsParams) (oas.ListRepoApprovalsRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) ListApps(ctx context.Context, params oas.ListAppsParams) (oas.ListAppsRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) UpsertApp(ctx context.Context, _ *oas.AppSpec, params oas.UpsertAppParams) (oas.UpsertAppRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetApp(ctx context.Context, params oas.GetAppParams) (oas.GetAppRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) DeleteApp(ctx context.Context, params oas.DeleteAppParams) (oas.DeleteAppRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetAppStatus(ctx context.Context, params oas.GetAppStatusParams) (oas.GetAppStatusRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetAppHistory(ctx context.Context, params oas.GetAppHistoryParams) (oas.GetAppHistoryRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetAppUtilisation(ctx context.Context, params oas.GetAppUtilisationParams) (oas.GetAppUtilisationRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetOperation(ctx context.Context, params oas.GetOperationParams) (oas.GetOperationRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) HibernateApp(ctx context.Context, params oas.HibernateAppParams) (oas.HibernateAppRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) WakeApp(ctx context.Context, params oas.WakeAppParams) (oas.WakeAppRes, error) {
+	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+// ── Operator stubs ────────────────────────────────────────────────────────────
+
+func (h *Handler) GetOperatorConfig(ctx context.Context) (oas.GetOperatorConfigRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) UpdateOperatorConfig(ctx context.Context, _ *oas.PlatformConfig) (oas.UpdateOperatorConfigRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) UpdateRepoTier(ctx context.Context, _ *oas.UpdateRepoTierRequest, _ oas.UpdateRepoTierParams) (oas.UpdateRepoTierRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) ListOperatorApprovals(ctx context.Context) (oas.ListOperatorApprovalsRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetOperatorApproval(ctx context.Context, _ oas.GetOperatorApprovalParams) (oas.GetOperatorApprovalRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) BatchActionApprovals(ctx context.Context, _ *oas.BatchApprovalRequest) (oas.BatchActionApprovalsRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetOperatorCost(ctx context.Context) (oas.GetOperatorCostRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+func (h *Handler) GetOperatorStatus(ctx context.Context) (oas.GetOperatorStatusRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errNotImplemented
+}
+
+// compile-time interface check.
+var _ oas.Handler = (*Handler)(nil)

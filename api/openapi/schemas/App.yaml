@@ -1,0 +1,28 @@
+description: A deployed app and its current observed state.
+type: object
+required: [type, status]
+properties:
+  name:
+    description: App name, unique within its repo.
+    type: string
+  type:
+    description: 'Runtime type: http, worker, or cron.'
+    type: string
+    enum: [http, worker, cron]
+  status:
+    description: 'Current lifecycle status (e.g. running, hibernated, deploying).'
+    type: string
+  image:
+    description: Currently deployed container image.
+    type: string
+  namespace:
+    description: Kubernetes namespace the app runs in.
+    type: string
+  created_at:
+    description: When the app was first deployed.
+    type: string
+    format: date-time
+  updated_at:
+    description: When the app configuration or image was last changed.
+    type: string
+    format: date-time

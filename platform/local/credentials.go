@@ -2,9 +2,7 @@ package local
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
@@ -31,11 +29,8 @@ func (lc *localCredentialProvider) DeployToken(ctx context.Context) (string, err
 	return token.SignedString(key)
 }
 
-func (lc *localCredentialProvider) ValidateOperatorToken(ctx context.Context, r *http.Request) (string, error) {
-	var body struct {
-		Email string `json:"email"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Email == "" {
+func (lc *localCredentialProvider) ValidateOperatorToken(ctx context.Context, credential string) (string, error) {
+	if credential == "" {
 		return "", platform.ErrPrincipalNotAuthorized
 	}
 
@@ -45,8 +40,8 @@ func (lc *localCredentialProvider) ValidateOperatorToken(ctx context.Context, r 
 	}
 
 	for _, p := range principals {
-		if p == body.Email {
-			return body.Email, nil
+		if p == credential {
+			return credential, nil
 		}
 	}
 	return "", platform.ErrPrincipalNotAuthorized

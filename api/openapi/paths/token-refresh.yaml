@@ -1,0 +1,29 @@
+post:
+  operationId: tokenRefresh
+  summary: Exchange a refresh token for a new access token and rotated refresh token
+  description: Rotates both tokens. The supplied refresh token is immediately invalidated; use the new pair going forward.
+  tags: [token]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [refresh_token]
+          properties:
+            refresh_token:
+              description: Refresh token from a prior authentication or refresh call.
+              type: string
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/TokenPairResponse.yaml'
+    '400':
+      $ref: '../responses.yaml#/ErrorBadRequest'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

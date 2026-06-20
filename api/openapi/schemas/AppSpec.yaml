@@ -1,0 +1,19 @@
+description: Desired configuration for an app. Used when creating or updating an app.
+type: object
+required: [type, image]
+properties:
+  name:
+    description: Unique name for the app within its repo.
+    type: string
+  type:
+    description: 'Runtime type: http for web traffic, worker for continuous jobs, cron for scheduled jobs.'
+    type: string
+    enum: [http, worker, cron]
+  image:
+    description: 'Container image to deploy, including tag (e.g. "ghcr.io/myorg/api:v1.2.3").'
+    type: string
+  env:
+    description: Environment variables injected into the container at runtime.
+    type: object
+    additionalProperties:
+      type: string

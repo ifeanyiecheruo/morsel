@@ -1,0 +1,58 @@
+parameters:
+  - $ref: '../parameters.yaml#/OrgParam'
+  - $ref: '../parameters.yaml#/RepoParam'
+  - $ref: '../parameters.yaml#/AppNameParam'
+get:
+  operationId: getApp
+  summary: Get app detail
+  description: Returns the app's current configuration, status, and deployment timestamps.
+  tags: [apps]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/App.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+delete:
+  operationId: deleteApp
+  summary: Delete an app; starts persistence grace period
+  description: Marks the app for deletion and begins a grace period before its persistent storage is removed. Poll the returned operation to track progress.
+  tags: [apps]
+  security:
+    - bearerAuth: []
+  responses:
+    '202':
+      description: Accepted
+      headers:
+        Location:
+          required: true
+          schema:
+            type: string
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/AcceptedOperation.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '409':
+      $ref: '../responses.yaml#/ErrorConflict'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

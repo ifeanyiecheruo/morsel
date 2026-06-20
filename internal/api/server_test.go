@@ -14,6 +14,13 @@ import (
 	"github.com/ifeanyiecheruo/morsel/platform/local"
 )
 
+// jsonPost returns a POST request with Content-Type: application/json.
+func jsonPost(target, body string) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
 // testKey is a fixed 32-byte key used in tests — never used outside tests.
 var testKey = make([]byte, 32)
 
@@ -43,7 +50,7 @@ func TestHealthzReturnsOK(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
-	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
 	var body map[string]string
@@ -63,7 +70,7 @@ func TestUnregisteredRouteReturnsStructured404(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
 	}
-	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
 	var body struct {
@@ -84,8 +91,8 @@ func TestHealthzIgnoresWrongMethod(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/healthz", nil))
 
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("status = %d, want 404 (method mismatch falls to catch-all)", rec.Code)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want 405", rec.Code)
 	}
 }
 
@@ -101,8 +108,7 @@ func TestTokenOIDCIssuesBothTokens(t *testing.T) {
 
 	mux := newTestMuxWithPlatform(t, plat)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/token/oidc",
-		strings.NewReader(`{"email":"alice@example.com"}`)))
+	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"credential":"alice@example.com"}`))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body)
@@ -138,8 +144,7 @@ func TestTokenOIDCRejectsUnknownPrincipal(t *testing.T) {
 
 	mux := newTestMuxWithPlatform(t, plat)
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/token/oidc",
-		strings.NewReader(`{"email":"eve@example.com"}`)))
+	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"credential":"eve@example.com"}`))
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)

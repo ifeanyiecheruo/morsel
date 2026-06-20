@@ -1,0 +1,39 @@
+get:
+  operationId: getOperatorCost
+  summary: Platform-wide cost estimate
+  description: Returns the projected monthly spend across the entire platform, broken down by repo. Figures are estimates based on current resource usage and tier pricing.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              estimated_monthly:
+                description: Total projected monthly spend in USD across all repos.
+                type: number
+                format: double
+              by_repo:
+                description: Per-repo breakdown of the cost estimate.
+                type: array
+                items:
+                  type: object
+                  required: [slug, estimated_monthly]
+                  properties:
+                    slug:
+                      description: Repo slug in "org/repo" format.
+                      type: string
+                    estimated_monthly:
+                      description: Projected monthly cost in USD for this repo.
+                      type: number
+                      format: double
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

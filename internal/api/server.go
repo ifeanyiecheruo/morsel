@@ -2,11 +2,13 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
 
+	"github.com/ifeanyiecheruo/morsel/internal/api/handler"
 	"github.com/ifeanyiecheruo/morsel/internal/api/middleware"
-	"github.com/ifeanyiecheruo/morsel/internal/api/routes"
+	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
+	"github.com/ifeanyiecheruo/morsel/internal/api/wellknown"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/platform"
@@ -24,91 +26,50 @@ type AppPlatform interface {
 	Pricing() platform.PricingProvider
 }
 
-// NewMux constructs the root HTTP mux for the Morsel API.
-//
-// Route patterns use {org}/{repo} for the repo slug because slugs (e.g.
-// "localhost/my-app") contain a slash and Go's {name} wildcard only matches
-// a single path segment. repoSlug(r) reconstructs the full slug from both
-// path values.
+// NewMux constructs the root HTTP handler for the Morsel API using the
+// ogen-generated router. Panics if the server cannot be constructed (indicates
+// a programmer error such as a nil handler).
 func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte, queries *dbqueries.Queries) http.Handler {
+	h := handler.New(plat, signingKey, queries)
+	sec := handler.NewSecurityHandler(signingKey)
+
+	srv, err := oas.NewServer(h, sec,
+		oas.WithErrorHandler(handler.WriteError),
+		oas.WithNotFound(func(w http.ResponseWriter, _ *http.Request) {
+			writeJSONError(w, http.StatusNotFound, "not_found", "the requested resource was not found", "check the API documentation for valid endpoints")
+		}),
+		oas.WithMethodNotAllowed(func(w http.ResponseWriter, _ *http.Request, _ string) {
+			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "this HTTP method is not allowed for this endpoint", "check the API documentation for allowed methods")
+		}),
+	)
+	if err != nil {
+		panic("morsel api: failed to construct ogen server: " + err.Error())
+	}
+
+	wk, err := wellknown.New("/.well-known")
+	if err != nil {
+		panic("morsel api: failed to bundle OpenAPI spec: " + err.Error())
+	}
+
 	mux := http.NewServeMux()
-
-	// public registers a route with no authentication.
-	public := func(pattern string, h func(http.ResponseWriter, *http.Request) error) {
-		mux.Handle(pattern, routes.ErrorHandlerFunc(h))
-	}
-
-	// authenticated requires a valid token; any role is accepted.
-	authenticated := func(pattern string, h func(http.ResponseWriter, *http.Request) error) {
-		mux.Handle(pattern, middleware.RequireAuth(signingKey, routes.ErrorHandlerFunc(h)))
-	}
-
-	// repoScoped requires a valid token and enforces that a developer token's
-	// repo claim matches the {org}/{repo} path values. Operator tokens bypass.
-	repoScoped := func(pattern string, h func(http.ResponseWriter, *http.Request) error) {
-		mux.Handle(pattern, middleware.RequireAuth(signingKey, routes.ErrorHandlerFunc(middleware.RequireRepo(h))))
-	}
-
-	// operatorOnly requires a valid token with the operator role.
-	operatorOnly := func(pattern string, h func(http.ResponseWriter, *http.Request) error) {
-		mux.Handle(pattern, middleware.RequireAuth(signingKey, routes.ErrorHandlerFunc(middleware.RequireOperator(h))))
-	}
-
-	stub := handleNotImplemented
-
-	// ---- Public: token exchange ------------------------------------------------
-	public("GET /healthz", handleHealthz)
-	public("POST /api/token/deploy", routes.HandleTokenDeployRoute(plat.Credentials(), signingKey))
-	public("POST /api/token/refresh", routes.HandleTokenRefreshRoute(queries, signingKey))
-	public("POST /api/token/oidc", routes.HandleTokenOIDCRoute(plat.Credentials(), queries, signingKey))
-
-	// ---- Repo-scoped: developer + operator -------------------------------------
-	repoScoped("POST /api/repos/{org}/{repo}/sync", stub)
-	repoScoped("POST /api/repos/{org}/{repo}/apps", stub)
-	repoScoped("DELETE /api/repos/{org}/{repo}/apps/{name}", stub)
-	repoScoped("DELETE /api/repos/{org}/{repo}", stub)
-	repoScoped("GET /api/repos/{org}/{repo}/apps", stub)
-	repoScoped("GET /api/repos/{org}/{repo}/apps/{name}", stub)
-	repoScoped("GET /api/repos/{org}/{repo}/apps/{name}/status", stub)
-	repoScoped("GET /api/repos/{org}/{repo}/apps/{name}/history", stub)
-	repoScoped("GET /api/repos/{org}/{repo}/apps/{name}/utilisation", stub)
-	repoScoped("GET /api/repos/{org}/{repo}/apps/{name}/operations/{id}", stub)
-	repoScoped("POST /api/repos/{org}/{repo}/apps/{name}/hibernate", stub)
-	repoScoped("POST /api/repos/{org}/{repo}/apps/{name}/wake", stub)
-	repoScoped("GET /api/repos/{org}/{repo}", stub)
-	repoScoped("GET /api/repos/{org}/{repo}/approvals", stub)
-
-	// ---- Authenticated: listing (developer sees own repo; handler filters) -------------
-	authenticated("GET /api/repos", stub)
-
-	// ---- Operator only ---------------------------------------------------------
-	operatorOnly("GET /api/operator/config", stub)
-	operatorOnly("PATCH /api/operator/config", stub)
-	operatorOnly("PATCH /api/operator/repos/{org}/{repo}", stub)
-	operatorOnly("GET /api/operator/approvals", stub)
-	operatorOnly("GET /api/operator/approvals/{id}", stub)
-	operatorOnly("POST /api/operator/approvals/batch", stub)
-	operatorOnly("GET /api/operator/cost", stub)
-	operatorOnly("GET /api/operator/status", stub)
-
-	// ---- Catch-all: 404 --------------------------------------------------------
-	public("/", func(resp http.ResponseWriter, req *http.Request) error {
-		return &routes.APIError{
-			HTTPStatus: http.StatusNotFound,
-			Code:       "not_found",
-			Message:    fmt.Sprintf("%s %s not found", req.Method, req.URL.Path),
-			Remedy:     "check the API documentation for valid endpoints",
-		}
-	})
+	mux.Handle("/.well-known/", wk)
+	mux.Handle("/", srv)
 
 	return middleware.InjectLogger(ctxlog.From(ctx), middleware.LogRequests(mux))
 }
 
-func handleNotImplemented(_ http.ResponseWriter, _ *http.Request) error {
-	return &routes.APIError{
-		HTTPStatus: http.StatusNotImplemented,
-		Code:       "not_implemented",
-		Message:    "this endpoint is not yet implemented",
-		Remedy:     "check back in a future release",
-	}
+type jsonErrorBody struct {
+	Error jsonErrorDetail `json:"error"`
+}
+
+type jsonErrorDetail struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Remedy  string `json:"remedy"`
+}
+
+func writeJSONError(w http.ResponseWriter, status int, code, message, remedy string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(jsonErrorBody{Error: jsonErrorDetail{Code: code, Message: message, Remedy: remedy}})
 }

@@ -23,3 +23,7 @@ The order for code should be...
 6) Private functions
 
 Where possible referenced constants, structs, or functions come after their referers.
+
+## Initialization
+
+Never use `init()`. It runs invisibly, cannot return errors, cannot be tested in isolation, and makes startup order implicit and hard to reason about. Instead, use an explicit constructor function (e.g. `Create()`) that the caller invokes. Panics on startup failure belong in the outermost entry point (`main` or equivalent), not scattered through package-level side effects.

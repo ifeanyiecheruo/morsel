@@ -19,8 +19,9 @@
 | [F02](002-feature-api-skeleton.md) | Morsel API: HTTP Server Skeleton | ✅ done | F01 |
 | [F03](003-feature-authentication.md) | Authentication | 🔄 in progress | F02 |
 | [F03a](003a-feature-cli-scaffold.md) | CLI Scaffold | ✅ done | F01 |
+| [F03b](003b-feature-openapi-ogen.md) | OpenAPI Spec & ogen Code Generation | ✅ done | F03 |
 | [F04](004-feature-lint-and-schema-validation.md) | App Lint and Schema Validation | ⬜ not started | F03a |
-| [F05](005-feature-app-lifecycle-api.md) | App Lifecycle: API Layer | ⬜ not started | F03 |
+| [F05](005-feature-app-lifecycle-api.md) | App Lifecycle: API Layer | ⬜ not started | F03b |
 | [F06](006-feature-kubernetes-manifest-apply.md) | Kubernetes Manifest Apply | ⬜ not started | F05 |
 | [F07](007-feature-bootstrap-local-platform.md) | Bootstrap: LocalPlatform | ⬜ not started | F02, F03 |
 | [F08](008-feature-local-platform-deploy-path.md) | LocalPlatform Deploy Path | ⬜ not started | F03, F05, F06, F07 |
@@ -47,15 +48,16 @@
 | 0 | F01 | — |
 | 1 | **F02**, **F03a** | F01 |
 | 2 | **F03**, **F04** | F03 needs F02; F04 needs F03a |
-| 3 | **F05**, **F07** | F03 (both need F03; F07 also needs F02) |
-| 4 | **F06**, **F14** | F05; F06 also needed for F14 so do F06 first |
-| 5 | **F08**, **F09**, **F10**, **F11** | F06+F07 (F08 also needs F03+F05) |
-| 6 | **F12**, **F15** | F12 needs F07+F11; F15 needs F05+F14 |
-| 7 | F13 | F06+F07+F08+F09+F12 |
-| 8 | F16 | F13 |
-| 9 | F17 | F13+F16 |
-| 10 | F18 | F03+F05+F13+F14+F15+F17 |
-| 11 | F19 | F18 (all LocalPlatform features stable) |
+| 3 | **F03b**, **F07** | F03b needs F03; F07 needs F02+F03 |
+| 4 | **F05** | F03b |
+| 5 | **F06**, **F14** | F05; F06 also needed for F14 so do F06 first |
+| 6 | **F08**, **F09**, **F10**, **F11** | F06+F07 (F08 also needs F03+F05) |
+| 7 | **F12**, **F15** | F12 needs F07+F11; F15 needs F05+F14 |
+| 8 | F13 | F06+F07+F08+F09+F12 |
+| 9 | F16 | F13 |
+| 10 | F17 | F13+F16 |
+| 11 | F18 | F03+F05+F13+F14+F15+F17 |
+| 12 | F19 | F18 (all LocalPlatform features stable) |
 
 ### Dependency graph (Mermaid)
 
@@ -68,9 +70,11 @@ graph TD
     F02 --> F03[F03: Authentication]
     F02 --> F07[F07: Bootstrap LocalPlatform]
 
-    F03 --> F05[F05: App Lifecycle API]
+    F03 --> F03b[F03b: OpenAPI & ogen]
     F03 --> F07
     F03 --> F08[F08: Deploy Path]
+
+    F03b --> F05[F05: App Lifecycle API]
 
     F05 --> F06[F06: Kubernetes Apply]
     F05 --> F08

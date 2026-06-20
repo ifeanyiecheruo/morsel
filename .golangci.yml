@@ -1,0 +1,6 @@
+version: "2"
+
+issues:
+  exclude-dirs:
+    - internal/api/oas
+    - internal/db/queries

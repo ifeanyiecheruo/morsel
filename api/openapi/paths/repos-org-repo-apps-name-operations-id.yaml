@@ -1,0 +1,27 @@
+parameters:
+  - $ref: '../parameters.yaml#/OrgParam'
+  - $ref: '../parameters.yaml#/RepoParam'
+  - $ref: '../parameters.yaml#/AppNameParam'
+  - $ref: '../parameters.yaml#/OperationIDParam'
+get:
+  operationId: getOperation
+  summary: Poll an async operation
+  description: 'Fetch the current state of a long-running operation. Retry until status is "complete" or "failed". The Retry-After header on the originating 202 response suggests a polling interval.'
+  tags: [apps]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Operation.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

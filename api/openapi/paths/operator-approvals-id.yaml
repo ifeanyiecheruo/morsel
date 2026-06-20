@@ -1,0 +1,24 @@
+parameters:
+  - $ref: '../parameters.yaml#/ApprovalIDParam'
+get:
+  operationId: getOperatorApproval
+  summary: Get single approval detail
+  description: Returns the full detail of a single approval request, including the current and requested field values.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Approval.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

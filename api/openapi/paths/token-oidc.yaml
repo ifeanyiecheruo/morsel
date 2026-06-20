@@ -1,0 +1,27 @@
+post:
+  operationId: tokenOIDC
+  summary: Exchange a platform identity credential for an operator access token and refresh token
+  description: For interactive operator sessions. Exchanges a platform credential for an access/refresh token pair. Use the refresh endpoint to stay authenticated without re-presenting credentials.
+  tags: [token]
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [credential]
+          properties:
+            credential:
+              description: Operator credential from the platform identity provider.
+              type: string
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/TokenPairResponse.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

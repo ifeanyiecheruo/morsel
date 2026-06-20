@@ -1,0 +1,36 @@
+parameters:
+  - $ref: '../parameters.yaml#/OrgParam'
+  - $ref: '../parameters.yaml#/RepoParam'
+patch:
+  operationId: updateRepoTier
+  summary: Promote or demote repo tier
+  description: Changes the resource tier for a repo, which controls its compute limits and cost ceiling. Promotion to a higher tier may require additional approval depending on platform policy.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [tier]
+          properties:
+            tier:
+              description: The target tier name.
+              type: string
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Repo.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '409':
+      $ref: '../responses.yaml#/ErrorConflict'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'

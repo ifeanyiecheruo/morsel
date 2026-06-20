@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/ifeanyiecheruo/morsel/platform"
@@ -17,8 +14,7 @@ func TestValidateOperatorTokenAcceptsKnownPrincipal(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	req := oidcRequest(`{"email":"alice@example.com"}`)
-	subject, err := plat.Credentials().ValidateOperatorToken(context.Background(), req)
+	subject, err := plat.Credentials().ValidateOperatorToken(context.Background(), "alice@example.com")
 	if err != nil {
 		t.Fatalf("ValidateOperatorToken: unexpected error: %v", err)
 	}
@@ -31,8 +27,7 @@ func TestValidateOperatorTokenRejectsUnknownPrincipal(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	req := oidcRequest(`{"email":"eve@example.com"}`)
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), req)
+	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "eve@example.com")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
@@ -41,30 +36,17 @@ func TestValidateOperatorTokenRejectsUnknownPrincipal(t *testing.T) {
 func TestValidateOperatorTokenRejectsEmptyPrincipalsList(t *testing.T) {
 	plat := platWithTempHome(t)
 
-	req := oidcRequest(`{"email":"alice@example.com"}`)
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), req)
+	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "alice@example.com")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
 }
 
-func TestValidateOperatorTokenRejectsMalformedBody(t *testing.T) {
+func TestValidateOperatorTokenRejectsEmptyCredential(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	req := oidcRequest(`not json`)
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), req)
-	if !isPrincipalNotAuthorized(err) {
-		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
-	}
-}
-
-func TestValidateOperatorTokenRejectsMissingEmail(t *testing.T) {
-	plat := platWithTempHome(t)
-	seedPrincipals(t, plat, "alice@example.com")
-
-	req := oidcRequest(`{}`)
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), req)
+	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
@@ -79,10 +61,6 @@ func seedPrincipals(t *testing.T, plat *local.LocalPlatform, emails ...string) {
 	if err := plat.Secrets().Set(context.Background(), "operator-principals", raw); err != nil {
 		t.Fatalf("seed principals: %v", err)
 	}
-}
-
-func oidcRequest(body string) *http.Request {
-	return httptest.NewRequest(http.MethodPost, "/api/token/oidc", strings.NewReader(body))
 }
 
 func isPrincipalNotAuthorized(err error) bool {
