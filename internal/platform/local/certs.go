@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"time"
 
-	"github.com/ifeanyiecheruo/morsel/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 type localCertProvider struct{}

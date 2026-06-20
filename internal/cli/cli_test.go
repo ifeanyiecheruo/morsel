@@ -15,6 +15,8 @@ type mockCliHandler struct {
 	onLoadProfile             func(name string, ensureValid bool) (*Profile, error)
 	onServiceBootstrap        func(platformName, kubeconfig string) error
 	onOperatorLogin           func(apiURL, username, password string) (*Profile, error)
+	onSaveProfile             func(name string, prof *Profile) error
+	onDeleteProfile           func(name string) error
 	onLint                    func(staged, fix bool) error
 	onServiceStatus           func(prof *Profile) error
 	onServiceDelete           func(prof *Profile) error
@@ -54,6 +56,20 @@ func (h *mockCliHandler) OperatorLogin(_ context.Context, apiURL, username, pass
 		return h.onOperatorLogin(apiURL, username, password)
 	}
 	return &Profile{}, nil
+}
+
+func (h *mockCliHandler) SaveProfile(_ context.Context, name string, prof *Profile) error {
+	if h.onSaveProfile != nil {
+		return h.onSaveProfile(name, prof)
+	}
+	return nil
+}
+
+func (h *mockCliHandler) DeleteProfile(_ context.Context, name string) error {
+	if h.onDeleteProfile != nil {
+		return h.onDeleteProfile(name)
+	}
+	return nil
 }
 
 func (h *mockCliHandler) Lint(_ context.Context, staged, fix bool) error {

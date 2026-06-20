@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ifeanyiecheruo/morsel/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 type localPricingProvider struct{}

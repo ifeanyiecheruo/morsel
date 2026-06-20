@@ -15,9 +15,9 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
-	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
 func main() {

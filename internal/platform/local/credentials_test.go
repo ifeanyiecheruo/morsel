@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ifeanyiecheruo/morsel/platform"
-	"github.com/ifeanyiecheruo/morsel/platform/local"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 )
 
 func TestValidateOperatorTokenAcceptsKnownPrincipal(t *testing.T) {

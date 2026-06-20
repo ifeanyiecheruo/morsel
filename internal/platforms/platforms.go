@@ -6,8 +6,8 @@ package platforms
 import (
 	"fmt"
 
-	"github.com/ifeanyiecheruo/morsel/platform"
-	"github.com/ifeanyiecheruo/morsel/platform/local"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 )
 
 // Create constructs the Platform implementation for the given name.

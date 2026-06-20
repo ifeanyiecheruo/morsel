@@ -22,6 +22,8 @@ type Handler interface {
 	ServiceBootstrap(ctx context.Context, platformName, kubeconfig string) error
 
 	OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, error)
+	SaveProfile(ctx context.Context, name string, prof *Profile) error
+	DeleteProfile(ctx context.Context, name string) error
 	Lint(ctx context.Context, staged, fix bool) error
 
 	// Auth-required commands — prof is pre-validated by the cli layer
@@ -59,6 +61,14 @@ func (h *cliHandler) LoadProfile(ctx context.Context, name string, ensureValid b
 		return prof, nil
 	}
 	return silentRefresh(ctx, prof, name)
+}
+
+func (h *cliHandler) SaveProfile(_ context.Context, name string, prof *Profile) error {
+	return writeProfile(name, prof)
+}
+
+func (h *cliHandler) DeleteProfile(_ context.Context, name string) error {
+	return deleteProfile(name)
 }
 
 // silentRefresh exchanges the stored refresh token for a new token pair and

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ifeanyiecheruo/morsel/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 type migration struct {

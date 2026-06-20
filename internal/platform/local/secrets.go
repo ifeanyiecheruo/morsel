@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/ifeanyiecheruo/morsel/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 // localSecretStore persists secrets as a JSON map at ~/.morsel/local/secrets.json.

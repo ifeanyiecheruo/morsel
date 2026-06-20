@@ -11,7 +11,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/api/wellknown"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
-	"github.com/ifeanyiecheruo/morsel/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 // AppPlatform is the subset of platform.Platform that API handlers are allowed

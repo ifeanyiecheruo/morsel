@@ -6,8 +6,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
-	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
 type localCredentialProvider struct {

@@ -19,7 +19,7 @@ func (c *cli) operatorLogoutCmd() *cobra.Command {
 			if err := c.handler.OperatorLogout(cmd.Context(), prof); err != nil {
 				return err
 			}
-			return deleteProfile(c.profileName)
+			return c.handler.DeleteProfile(cmd.Context(), c.profileName)
 		},
 	}
 }

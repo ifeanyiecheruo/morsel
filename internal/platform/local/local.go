@@ -5,8 +5,8 @@ package local
 import (
 	"context"
 
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
-	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
 // LocalPlatform implements platform.Platform with no cloud dependencies.

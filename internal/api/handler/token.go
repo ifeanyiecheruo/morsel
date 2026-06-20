@@ -13,8 +13,8 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
-	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
 func (h *Handler) TokenDeploy(ctx context.Context, req *oas.TokenDeployReq) (oas.TokenDeployRes, error) {

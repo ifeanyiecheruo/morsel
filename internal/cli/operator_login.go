@@ -68,7 +68,7 @@ func (c *cli) operatorLoginCmd() *cobra.Command {
 				prof.Region = c.profile.Region
 			}
 
-			if err := writeProfile(c.profileName, prof); err != nil {
+			if err := c.handler.SaveProfile(cmd.Context(), c.profileName, prof); err != nil {
 				return err
 			}
 			ctxlog.From(cmd.Context()).Info("authenticated", "api_url", apiURL)

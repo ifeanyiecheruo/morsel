@@ -3,7 +3,7 @@ package local
 import (
 	"context"
 
-	"github.com/ifeanyiecheruo/morsel/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 type localDeployer struct{}

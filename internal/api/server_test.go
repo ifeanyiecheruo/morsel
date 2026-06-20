@@ -11,7 +11,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/api"
 	"github.com/ifeanyiecheruo/morsel/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
-	"github.com/ifeanyiecheruo/morsel/platform/local"
+	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 )
 
 // jsonPost returns a POST request with Content-Type: application/json.

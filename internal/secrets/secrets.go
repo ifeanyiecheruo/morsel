@@ -13,8 +13,8 @@ import (
 	"io/fs"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
-	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
 //go:embed migrations/*.secrets.txt

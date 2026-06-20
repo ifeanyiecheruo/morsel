@@ -12,8 +12,8 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
-	"github.com/ifeanyiecheruo/morsel/platform"
 )
 
 // AppPlatform is the subset of platform.Platform that API handlers may consume.
