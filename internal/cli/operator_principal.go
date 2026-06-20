@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -23,12 +24,12 @@ func (c *cli) operatorPrincipalAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Grant admin UI access to a principal",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.OperatorPrincipalAdd(prof, principal)
+			return c.handler.OperatorPrincipalAdd(cmd.Context(), prof, principal)
 		},
 	}
 	cmd.Flags().StringVar(&principal, "principal", "", "principal identity (email)")
@@ -44,12 +45,12 @@ func (c *cli) operatorPrincipalRemoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remove",
 		Short: "Revoke admin UI access from a principal",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.OperatorPrincipalRemove(prof, principal)
+			return c.handler.OperatorPrincipalRemove(cmd.Context(), prof, principal)
 		},
 	}
 	cmd.Flags().StringVar(&principal, "principal", "", "principal identity (email)")
@@ -63,24 +64,24 @@ func (c *cli) operatorPrincipalListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all principals with admin UI access",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.OperatorPrincipalList(prof)
+			return c.handler.OperatorPrincipalList(cmd.Context(), prof)
 		},
 	}
 }
 
-func (h *cliHandler) OperatorPrincipalAdd(_ *Profile, _ string) error {
+func (h *cliHandler) OperatorPrincipalAdd(_ context.Context, _ *Profile, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) OperatorPrincipalRemove(_ *Profile, _ string) error {
+func (h *cliHandler) OperatorPrincipalRemove(_ context.Context, _ *Profile, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) OperatorPrincipalList(_ *Profile) error {
+func (h *cliHandler) OperatorPrincipalList(_ context.Context, _ *Profile) error {
 	return fmt.Errorf("not yet implemented")
 }

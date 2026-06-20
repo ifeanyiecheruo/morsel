@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -23,12 +24,12 @@ func (c *cli) operatorTierListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all configured quota tiers",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.TierList(prof)
+			return c.handler.TierList(cmd.Context(), prof)
 		},
 	}
 }
@@ -39,12 +40,12 @@ func (c *cli) operatorTierCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a new quota tier",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.TierCreate(prof, flags)
+			return c.handler.TierCreate(cmd.Context(), prof, flags)
 		},
 	}
 	registerTierFlags(cmd, &flags)
@@ -60,12 +61,12 @@ func (c *cli) operatorTierEditCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit",
 		Short: "Edit limits on an existing tier",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.TierEdit(prof, flags)
+			return c.handler.TierEdit(cmd.Context(), prof, flags)
 		},
 	}
 	registerTierFlags(cmd, &flags)
@@ -81,12 +82,12 @@ func (c *cli) operatorTierSetDefaultCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set-default",
 		Short: "Set the platform default tier for new repos",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.TierSetDefault(prof, name)
+			return c.handler.TierSetDefault(cmd.Context(), prof, name)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "tier name")
@@ -102,12 +103,12 @@ func (c *cli) operatorTierDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete a tier",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.TierDelete(prof, name)
+			return c.handler.TierDelete(cmd.Context(), prof, name)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "tier name")
@@ -117,23 +118,23 @@ func (c *cli) operatorTierDeleteCmd() *cobra.Command {
 	return cmd
 }
 
-func (h *cliHandler) TierList(_ *Profile) error {
+func (h *cliHandler) TierList(_ context.Context, _ *Profile) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) TierCreate(_ *Profile, _ TierFlags) error {
+func (h *cliHandler) TierCreate(_ context.Context, _ *Profile, _ TierFlags) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) TierEdit(_ *Profile, _ TierFlags) error {
+func (h *cliHandler) TierEdit(_ context.Context, _ *Profile, _ TierFlags) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) TierSetDefault(_ *Profile, _ string) error {
+func (h *cliHandler) TierSetDefault(_ context.Context, _ *Profile, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) TierDelete(_ *Profile, _ string) error {
+func (h *cliHandler) TierDelete(_ context.Context, _ *Profile, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }
 

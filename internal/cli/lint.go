@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -13,8 +14,8 @@ func (c *cli) lintCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "lint",
 		Short: "Validate *.morsel.json files in .morsel/",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return c.handler.Lint(staged, fix)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return c.handler.Lint(cmd.Context(), staged, fix)
 		},
 	}
 	cmd.Flags().BoolVar(&staged, "staged", false, "validate only git-staged files")
@@ -22,6 +23,6 @@ func (c *cli) lintCmd() *cobra.Command {
 	return cmd
 }
 
-func (h *cliHandler) Lint(_, _ bool) error {
+func (h *cliHandler) Lint(_ context.Context, _, _ bool) error {
 	return fmt.Errorf("not yet implemented")
 }

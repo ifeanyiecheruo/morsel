@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -42,12 +43,12 @@ func (c *cli) operatorAppExemptAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add a budget-control exemption for a specific app",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.AppExemptAdd(prof, repo, app)
+			return c.handler.AppExemptAdd(cmd.Context(), prof, repo, app)
 		},
 	}
 	cmd.Flags().StringVar(&repo, "repo", "", "repository (org/repo)")
@@ -67,12 +68,12 @@ func (c *cli) operatorAppExemptRemoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remove",
 		Short: "Remove a budget-control exemption for a specific app",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.AppExemptRemove(prof, repo, app)
+			return c.handler.AppExemptRemove(cmd.Context(), prof, repo, app)
 		},
 	}
 	cmd.Flags().StringVar(&repo, "repo", "", "repository (org/repo)")
@@ -91,12 +92,12 @@ func (c *cli) operatorRepoExemptAddCmd() *cobra.Command {
 		Use:   "add <org/repo>",
 		Short: "Add a budget-control exemption for all apps in a repo",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.RepoExemptAdd(prof, args[0])
+			return c.handler.RepoExemptAdd(cmd.Context(), prof, args[0])
 		},
 	}
 }
@@ -106,28 +107,28 @@ func (c *cli) operatorRepoExemptRemoveCmd() *cobra.Command {
 		Use:   "remove <org/repo>",
 		Short: "Remove a budget-control exemption for all apps in a repo",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.RepoExemptRemove(prof, args[0])
+			return c.handler.RepoExemptRemove(cmd.Context(), prof, args[0])
 		},
 	}
 }
 
-func (h *cliHandler) AppExemptAdd(_ *Profile, _, _ string) error {
+func (h *cliHandler) AppExemptAdd(_ context.Context, _ *Profile, _, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) AppExemptRemove(_ *Profile, _, _ string) error {
+func (h *cliHandler) AppExemptRemove(_ context.Context, _ *Profile, _, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) RepoExemptAdd(_ *Profile, _ string) error {
+func (h *cliHandler) RepoExemptAdd(_ context.Context, _ *Profile, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }
 
-func (h *cliHandler) RepoExemptRemove(_ *Profile, _ string) error {
+func (h *cliHandler) RepoExemptRemove(_ context.Context, _ *Profile, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }

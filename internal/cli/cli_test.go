@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"testing"
 )
@@ -11,6 +12,7 @@ import (
 // Hooks that are nil return zero values with no error (except OperatorLogin,
 // which returns a safe empty profile). Tests set only the hooks they care about.
 type mockCliHandler struct {
+	onLoadProfile             func(name string, ensureValid bool) (*Profile, error)
 	onServiceBootstrap        func(platformName, kubeconfig string) error
 	onOperatorLogin           func() (*Profile, error)
 	onLint                    func(staged, fix bool) error
@@ -33,140 +35,147 @@ type mockCliHandler struct {
 	onAppDeploy               func(prof *Profile) error
 }
 
-func (h *mockCliHandler) ServiceBootstrap(platformName, kubeconfig string) error {
+func (h *mockCliHandler) LoadProfile(name string, ensureValid bool) (*Profile, error) {
+	if h.onLoadProfile != nil {
+		return h.onLoadProfile(name, ensureValid)
+	}
+	return nil, nil
+}
+
+func (h *mockCliHandler) ServiceBootstrap(_ context.Context, platformName, kubeconfig string) error {
 	if h.onServiceBootstrap != nil {
 		return h.onServiceBootstrap(platformName, kubeconfig)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) OperatorLogin() (*Profile, error) {
+func (h *mockCliHandler) OperatorLogin(_ context.Context) (*Profile, error) {
 	if h.onOperatorLogin != nil {
 		return h.onOperatorLogin()
 	}
 	return &Profile{}, nil
 }
 
-func (h *mockCliHandler) Lint(staged, fix bool) error {
+func (h *mockCliHandler) Lint(_ context.Context, staged, fix bool) error {
 	if h.onLint != nil {
 		return h.onLint(staged, fix)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) ServiceStatus(prof *Profile) error {
+func (h *mockCliHandler) ServiceStatus(_ context.Context, prof *Profile) error {
 	if h.onServiceStatus != nil {
 		return h.onServiceStatus(prof)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) ServiceDelete(prof *Profile) error {
+func (h *mockCliHandler) ServiceDelete(_ context.Context, prof *Profile) error {
 	if h.onServiceDelete != nil {
 		return h.onServiceDelete(prof)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) ServiceUpgradeRetry(prof *Profile) error {
+func (h *mockCliHandler) ServiceUpgradeRetry(_ context.Context, prof *Profile) error {
 	if h.onServiceUpgradeRetry != nil {
 		return h.onServiceUpgradeRetry(prof)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) OperatorLogout(prof *Profile) error {
+func (h *mockCliHandler) OperatorLogout(_ context.Context, prof *Profile) error {
 	if h.onOperatorLogout != nil {
 		return h.onOperatorLogout(prof)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) OperatorPrincipalAdd(prof *Profile, principal string) error {
+func (h *mockCliHandler) OperatorPrincipalAdd(_ context.Context, prof *Profile, principal string) error {
 	if h.onOperatorPrincipalAdd != nil {
 		return h.onOperatorPrincipalAdd(prof, principal)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) OperatorPrincipalRemove(prof *Profile, principal string) error {
+func (h *mockCliHandler) OperatorPrincipalRemove(_ context.Context, prof *Profile, principal string) error {
 	if h.onOperatorPrincipalRemove != nil {
 		return h.onOperatorPrincipalRemove(prof, principal)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) OperatorPrincipalList(prof *Profile) error {
+func (h *mockCliHandler) OperatorPrincipalList(_ context.Context, prof *Profile) error {
 	if h.onOperatorPrincipalList != nil {
 		return h.onOperatorPrincipalList(prof)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) TierList(prof *Profile) error {
+func (h *mockCliHandler) TierList(_ context.Context, prof *Profile) error {
 	if h.onTierList != nil {
 		return h.onTierList(prof)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) TierCreate(prof *Profile, flags TierFlags) error {
+func (h *mockCliHandler) TierCreate(_ context.Context, prof *Profile, flags TierFlags) error {
 	if h.onTierCreate != nil {
 		return h.onTierCreate(prof, flags)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) TierEdit(prof *Profile, flags TierFlags) error {
+func (h *mockCliHandler) TierEdit(_ context.Context, prof *Profile, flags TierFlags) error {
 	if h.onTierEdit != nil {
 		return h.onTierEdit(prof, flags)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) TierSetDefault(prof *Profile, name string) error {
+func (h *mockCliHandler) TierSetDefault(_ context.Context, prof *Profile, name string) error {
 	if h.onTierSetDefault != nil {
 		return h.onTierSetDefault(prof, name)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) TierDelete(prof *Profile, name string) error {
+func (h *mockCliHandler) TierDelete(_ context.Context, prof *Profile, name string) error {
 	if h.onTierDelete != nil {
 		return h.onTierDelete(prof, name)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) AppExemptAdd(prof *Profile, repo, app string) error {
+func (h *mockCliHandler) AppExemptAdd(_ context.Context, prof *Profile, repo, app string) error {
 	if h.onAppExemptAdd != nil {
 		return h.onAppExemptAdd(prof, repo, app)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) AppExemptRemove(prof *Profile, repo, app string) error {
+func (h *mockCliHandler) AppExemptRemove(_ context.Context, prof *Profile, repo, app string) error {
 	if h.onAppExemptRemove != nil {
 		return h.onAppExemptRemove(prof, repo, app)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) RepoExemptAdd(prof *Profile, repo string) error {
+func (h *mockCliHandler) RepoExemptAdd(_ context.Context, prof *Profile, repo string) error {
 	if h.onRepoExemptAdd != nil {
 		return h.onRepoExemptAdd(prof, repo)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) RepoExemptRemove(prof *Profile, repo string) error {
+func (h *mockCliHandler) RepoExemptRemove(_ context.Context, prof *Profile, repo string) error {
 	if h.onRepoExemptRemove != nil {
 		return h.onRepoExemptRemove(prof, repo)
 	}
 	return nil
 }
 
-func (h *mockCliHandler) AppDeploy(prof *Profile) error {
+func (h *mockCliHandler) AppDeploy(_ context.Context, prof *Profile) error {
 	if h.onAppDeploy != nil {
 		return h.onAppDeploy(prof)
 	}
@@ -175,6 +184,11 @@ func (h *mockCliHandler) AppDeploy(prof *Profile) error {
 
 // fakeProfile is a pre-built profile for injecting into auth-required command tests.
 var fakeProfile = &Profile{Platform: "local", APIURL: "http://localhost:8080"}
+
+// withProfile returns a LoadProfile hook that always returns fakeProfile.
+func withProfile(prof *Profile) func(string, bool) (*Profile, error) {
+	return func(_ string, _ bool) (*Profile, error) { return prof, nil }
+}
 
 // --- Service bootstrap ---
 
@@ -187,7 +201,7 @@ func TestServiceBootstrapPassesFlagsToHandler(t *testing.T) {
 			return nil
 		},
 	}
-	if err := run(mock, []string{"service", "bootstrap", "--platform", "local", "--kubeconfig", "/tmp/kube"}, nil); err != nil {
+	if err := run(context.Background(), mock, []string{"service", "bootstrap", "--platform", "local", "--kubeconfig", "/tmp/kube"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotPlatform != "local" {
@@ -199,7 +213,7 @@ func TestServiceBootstrapPassesFlagsToHandler(t *testing.T) {
 }
 
 func TestServiceBootstrapRequiresPlatformFlag(t *testing.T) {
-	err := run(&mockCliHandler{}, []string{"service", "bootstrap"}, nil)
+	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap"})
 	if err == nil {
 		t.Fatal("expected error for missing --platform, got nil")
 	}
@@ -215,8 +229,9 @@ func TestAuthRequiredCommandRejectsWithoutProfile(t *testing.T) {
 			called = true
 			return nil
 		},
+		// onLoadProfile is nil → LoadProfile returns (nil, nil) → no profile set
 	}
-	err := run(mock, []string{"service", "status"}, nil)
+	err := run(context.Background(), mock, []string{"service", "status"})
 	if err == nil {
 		t.Fatal("expected auth error, got nil")
 	}
@@ -228,12 +243,13 @@ func TestAuthRequiredCommandRejectsWithoutProfile(t *testing.T) {
 func TestAuthRequiredCommandCallsHandlerWithProfile(t *testing.T) {
 	var gotProf *Profile
 	mock := &mockCliHandler{
+		onLoadProfile: withProfile(fakeProfile),
 		onServiceStatus: func(prof *Profile) error {
 			gotProf = prof
 			return nil
 		},
 	}
-	if err := run(mock, []string{"service", "status"}, fakeProfile); err != nil {
+	if err := run(context.Background(), mock, []string{"service", "status"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotProf != fakeProfile {
@@ -246,12 +262,13 @@ func TestAuthRequiredCommandCallsHandlerWithProfile(t *testing.T) {
 func TestServiceDeleteRequiresConfirmFlag(t *testing.T) {
 	called := false
 	mock := &mockCliHandler{
+		onLoadProfile: withProfile(fakeProfile),
 		onServiceDelete: func(_ *Profile) error {
 			called = true
 			return nil
 		},
 	}
-	err := run(mock, []string{"service", "delete"}, fakeProfile)
+	err := run(context.Background(), mock, []string{"service", "delete"})
 	if err == nil {
 		t.Fatal("expected error without --confirm, got nil")
 	}
@@ -263,12 +280,13 @@ func TestServiceDeleteRequiresConfirmFlag(t *testing.T) {
 func TestServiceDeleteCallsHandlerWithConfirm(t *testing.T) {
 	called := false
 	mock := &mockCliHandler{
+		onLoadProfile: withProfile(fakeProfile),
 		onServiceDelete: func(_ *Profile) error {
 			called = true
 			return nil
 		},
 	}
-	if err := run(mock, []string{"service", "delete", "--confirm"}, fakeProfile); err != nil {
+	if err := run(context.Background(), mock, []string{"service", "delete", "--confirm"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !called {
@@ -287,7 +305,7 @@ func TestLintPassesStagedFlag(t *testing.T) {
 			return nil
 		},
 	}
-	if err := run(mock, []string{"lint", "--staged"}, nil); err != nil {
+	if err := run(context.Background(), mock, []string{"lint", "--staged"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !gotStaged {
@@ -307,7 +325,7 @@ func TestLintPassesFixFlag(t *testing.T) {
 			return nil
 		},
 	}
-	if err := run(mock, []string{"lint", "--fix"}, nil); err != nil {
+	if err := run(context.Background(), mock, []string{"lint", "--fix"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotStaged {
@@ -323,14 +341,14 @@ func TestLintPassesFixFlag(t *testing.T) {
 func TestTierCreatePassesFlags(t *testing.T) {
 	var gotFlags TierFlags
 	mock := &mockCliHandler{
+		onLoadProfile: withProfile(fakeProfile),
 		onTierCreate: func(_ *Profile, flags TierFlags) error {
 			gotFlags = flags
 			return nil
 		},
 	}
-	err := run(mock,
+	err := run(context.Background(), mock,
 		[]string{"operator", "tier", "create", "--name", "small", "--cpu", "0.5", "--max-apps", "3"},
-		fakeProfile,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -351,15 +369,15 @@ func TestTierCreatePassesFlags(t *testing.T) {
 func TestAppExemptAddPassesFlags(t *testing.T) {
 	var gotRepo, gotApp string
 	mock := &mockCliHandler{
+		onLoadProfile: withProfile(fakeProfile),
 		onAppExemptAdd: func(_ *Profile, repo, app string) error {
 			gotRepo = repo
 			gotApp = app
 			return nil
 		},
 	}
-	err := run(mock,
+	err := run(context.Background(), mock,
 		[]string{"operator", "app", "exempt", "add", "--repo", "org/myrepo", "--app", "api"},
-		fakeProfile,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -379,7 +397,7 @@ func TestHandlerErrorPropagates(t *testing.T) {
 	mock := &mockCliHandler{
 		onLint: func(_, _ bool) error { return sentinel },
 	}
-	err := run(mock, []string{"lint"}, nil)
+	err := run(context.Background(), mock, []string{"lint"})
 	if !errors.Is(err, sentinel) {
 		t.Errorf("expected sentinel error, got: %v", err)
 	}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -13,8 +14,8 @@ func (c *cli) serviceBootstrapCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Install or upgrade the platform",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return c.handler.ServiceBootstrap(platformFlag, kubeconfigFlag)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return c.handler.ServiceBootstrap(cmd.Context(), platformFlag, kubeconfigFlag)
 		},
 	}
 	cmd.Flags().StringVar(&platformFlag, "platform", "", "platform implementation to use (gcp|local)")
@@ -25,6 +26,6 @@ func (c *cli) serviceBootstrapCmd() *cobra.Command {
 	return cmd
 }
 
-func (h *cliHandler) ServiceBootstrap(_, _ string) error {
+func (h *cliHandler) ServiceBootstrap(_ context.Context, _, _ string) error {
 	return fmt.Errorf("not yet implemented")
 }

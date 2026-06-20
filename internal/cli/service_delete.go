@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -12,7 +13,7 @@ func (c *cli) serviceDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Tear down all platform resources",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !confirmed {
 				return fmt.Errorf("pass --confirm to acknowledge this will destroy all platform resources")
 			}
@@ -20,13 +21,13 @@ func (c *cli) serviceDeleteCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return c.handler.ServiceDelete(prof)
+			return c.handler.ServiceDelete(cmd.Context(), prof)
 		},
 	}
 	cmd.Flags().BoolVar(&confirmed, "confirm", false, "required: confirm destructive teardown")
 	return cmd
 }
 
-func (h *cliHandler) ServiceDelete(_ *Profile) error {
+func (h *cliHandler) ServiceDelete(_ context.Context, _ *Profile) error {
 	return fmt.Errorf("not yet implemented")
 }

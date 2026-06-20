@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -19,16 +20,16 @@ func (c *cli) serviceUpgradeRetryCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "retry",
 		Short: "Retry app redeployments that failed during the most recent platform upgrade",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			return c.handler.ServiceUpgradeRetry(prof)
+			return c.handler.ServiceUpgradeRetry(cmd.Context(), prof)
 		},
 	}
 }
 
-func (h *cliHandler) ServiceUpgradeRetry(_ *Profile) error {
+func (h *cliHandler) ServiceUpgradeRetry(_ context.Context, _ *Profile) error {
 	return fmt.Errorf("not yet implemented")
 }

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -8,8 +9,8 @@ import (
 )
 
 // Execute runs the morsel CLI with the production handler against os.Args.
-func Execute() error {
-	return run(&cliHandler{}, os.Args[1:], nil)
+func Execute(ctx context.Context) error {
+	return run(ctx, &cliHandler{}, os.Args[1:])
 }
 
 type cli struct {
@@ -18,13 +19,12 @@ type cli struct {
 	handler     Handler
 }
 
-// run builds and executes the command tree. Tests call this directly with a mock
-// handler and optional pre-set profile (avoids profile file I/O in tests).
-func run(handler Handler, args []string, prof *Profile) error {
-	c := &cli{handler: handler, profile: prof}
+// run builds and executes the command tree. Tests call this directly with a mock handler.
+func run(ctx context.Context, handler Handler, args []string) error {
+	c := &cli{handler: handler}
 	root := c.buildRoot()
 	root.SetArgs(args)
-	return root.Execute()
+	return root.ExecuteContext(ctx)
 }
 
 func (c *cli) buildRoot() *cobra.Command {
@@ -46,10 +46,7 @@ func (c *cli) buildRoot() *cobra.Command {
 }
 
 func (c *cli) loadProfilePreRun(_ *cobra.Command, _ []string) error {
-	if c.profile != nil {
-		return nil // pre-set by run() caller (e.g., tests); skip file load
-	}
-	prof, err := readProfile(c.profileName)
+	prof, err := c.handler.LoadProfile(c.profileName, false)
 	if err == nil {
 		c.profile = prof
 	}
