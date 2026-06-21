@@ -8,13 +8,46 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 )
 
-// AnswerKeyKubeconfig is the answers-map key injected by the bootstrap command
-// handler to pass the kubeconfig path to Provision(). It is not a wizard prompt.
-const AnswerKeyKubeconfig = "_kubeconfig"
-
 type localBootstrapper struct {
-	secretMgr *secrets.Manager
+	secretMgr      *secrets.Manager
+	kubeconfigPath string
+	kubeContext    string
+	clusterServer  string
 }
+
+func (lb *localBootstrapper) CheckPrerequisites(ctx context.Context, kubeconfig string) error {
+	if kubeconfig == "" {
+		kubeconfig = DefaultKubeconfigPath()
+	}
+	kc, err := LoadKubeconfig(kubeconfig, "")
+	if err != nil {
+		return fmt.Errorf(
+			"could not read kubeconfig at %s\n\nPossible remediation:\n"+
+				"  • Start your local Kubernetes cluster (Docker Desktop, Rancher Desktop, kind, …)\n"+
+				"  • If the kubeconfig is in a non-default location, use --kubeconfig to specify the path\n"+
+				"  • Verify the file exists: kubectl config view",
+			kubeconfig,
+		)
+	}
+	if err := kc.CheckAccess(ctx); err != nil {
+		return fmt.Errorf(
+			"cannot reach cluster %q at %s\n\nPossible remediation:\n"+
+				"  • Start your local Kubernetes cluster (Docker Desktop, Rancher Desktop, kind, …)\n"+
+				"  • Check the active context:  kubectl config current-context\n"+
+				"  • Verify connectivity:       kubectl cluster-info\n"+
+				"  • Kubeconfig in use:         %s",
+			kc.ContextName, kc.ServerURL, kubeconfig,
+		)
+	}
+	lb.kubeconfigPath = kubeconfig
+	lb.kubeContext = kc.ContextName
+	lb.clusterServer = kc.ServerURL
+	return nil
+}
+
+func (lb *localBootstrapper) KubeconfigPath() string { return lb.kubeconfigPath }
+func (lb *localBootstrapper) KubeContext() string    { return lb.kubeContext }
+func (lb *localBootstrapper) ClusterServer() string  { return lb.clusterServer }
 
 func (lb *localBootstrapper) Prompts() []platform.Prompt {
 	return []platform.Prompt{
@@ -61,24 +94,11 @@ func (lb *localBootstrapper) Plan(answers map[string]string) platform.Plan {
 }
 
 // Provision writes bootstrap configuration and generates cryptographic keys.
-// When answers includes the "_kubeconfig" key, it also verifies cluster access.
-// Actual Kubernetes resource installation is performed by the bootstrap command
-// handler after Provision returns — Provision is intentionally limited to state
-// that must survive across bootstrap re-runs regardless of cluster state.
+// Cluster access is verified by CheckPrerequisites before the wizard runs;
+// Provision is limited to state that must survive across re-runs.
 func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]string) error {
 	if lb.secretMgr == nil {
 		return platform.ErrNotImplemented
-	}
-
-	// Verify cluster access when a kubeconfig path was supplied.
-	if kubeconfigPath := answers[AnswerKeyKubeconfig]; kubeconfigPath != "" {
-		kc, err := LoadKubeconfig(kubeconfigPath, "")
-		if err != nil {
-			return fmt.Errorf("load kubeconfig: %w", err)
-		}
-		if err := kc.CheckAccess(ctx); err != nil {
-			return fmt.Errorf("cluster access check: %w", err)
-		}
 	}
 
 	// Generate deploy signing key (idempotent — no-op if already present).
@@ -86,14 +106,7 @@ func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]s
 		return fmt.Errorf("generate deploy signing key: %w", err)
 	}
 
-	// Persist wizard answers so subsequent bootstrap runs can skip the wizard.
-	configToSave := make(map[string]string, len(answers))
-	for k, v := range answers {
-		if k != AnswerKeyKubeconfig { // do not persist the kubeconfig path
-			configToSave[k] = v
-		}
-	}
-	if err := lb.secretMgr.SetBootstrapConfig(ctx, configToSave); err != nil {
+	if err := lb.secretMgr.SetBootstrapConfig(ctx, answers); err != nil {
 		return fmt.Errorf("persist bootstrap config: %w", err)
 	}
 

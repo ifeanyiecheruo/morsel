@@ -50,6 +50,20 @@ type CliPlatform interface {
 
 // Bootstrapper provisions all platform resources needed to run Morsel.
 type Bootstrapper interface {
+	// CheckPrerequisites validates that the platform is reachable before the wizard starts.
+	// kubeconfig is the path to the kubeconfig file; empty string uses the platform default.
+	// Populates the values returned by KubeconfigPath, KubeContext, and ClusterServer.
+	CheckPrerequisites(ctx context.Context, kubeconfig string) error
+
+	// KubeconfigPath returns the resolved kubeconfig path used during CheckPrerequisites.
+	KubeconfigPath() string
+
+	// KubeContext returns the active kubeconfig context name resolved during CheckPrerequisites.
+	KubeContext() string
+
+	// ClusterServer returns the Kubernetes API server URL resolved during CheckPrerequisites.
+	ClusterServer() string
+
 	// Prompts returns the wizard questions the platform needs answered before provisioning.
 	Prompts() []Prompt
 

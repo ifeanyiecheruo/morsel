@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 	"github.com/spf13/cobra"
@@ -19,9 +18,6 @@ func (c *cli) serviceBootstrapCmd() *cobra.Command {
 		Use:   "bootstrap",
 		Short: "Install or upgrade the platform",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if kubeconfigFlag != "" && platformFlag != "local" {
-				return fmt.Errorf("--kubeconfig is only supported with --platform local")
-			}
 			prof, err := c.handler.ServiceBootstrap(cmd.Context(), platformFlag, kubeconfigFlag)
 			if err != nil {
 				return err
@@ -37,53 +33,28 @@ func (c *cli) serviceBootstrapCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&platformFlag, "platform", "", "platform implementation to use (gcp|local)")
-	cmd.Flags().StringVar(&kubeconfigFlag, "kubeconfig", "", "path to kubeconfig file (local platform only)")
+	cmd.Flags().StringVar(&kubeconfigFlag, "kubeconfig", "", "path to kubeconfig file")
 	if err := cmd.MarkFlagRequired("platform"); err != nil {
 		panic(err)
 	}
 	return cmd
 }
 
-// TODO: we have lots of code in here that is specific to the local platform
-// thats what the platform interface is for, we need to redesign the interface to eliminate this
 func (h *cliHandler) ServiceBootstrap(ctx context.Context, platformName, kubeconfig string) (*Profile, error) {
 	plat, err := platforms.Create(platformName)
 	if err != nil {
 		return nil, fmt.Errorf("unknown platform %q: %w", platformName, err)
 	}
 
-	// Resolve kubeconfig path for local platform.
-	if platformName == "local" && kubeconfig == "" {
-		kubeconfig = local.DefaultKubeconfigPath()
-	}
+	b := plat.Bootstrap()
 
-	// Phase 1 — verify cluster access before prompting so a bad config is caught early.
-	var kc *local.KubeconfigContext
-	if platformName == "local" {
-		fmt.Printf("  Checking cluster access... ")
-		kc, err = local.LoadKubeconfig(kubeconfig, "")
-		if err != nil {
-			fmt.Println("✗")
-			fmt.Printf("\n  Could not read kubeconfig at %s.\n", kubeconfig)
-			fmt.Println("  Possible remediation:")
-			fmt.Println("    • Start your local Kubernetes cluster (Docker Desktop, Rancher Desktop, kind, …)")
-			fmt.Println("    • If the kubeconfig is in a non-default location, use --kubeconfig to specify the path")
-			fmt.Println("    • Verify the file exists: kubectl config view")
-			fmt.Println()
-			return nil, fmt.Errorf("kubeconfig not found or unreadable")
-		}
-		if err := kc.CheckAccess(ctx); err != nil {
-			fmt.Println("✗")
-			fmt.Printf("\n  Cannot reach cluster %q at %s.\n", kc.ContextName, kc.ServerURL)
-			fmt.Println("  Possible remediation:")
-			fmt.Println("    • Start your local Kubernetes cluster (Docker Desktop, Rancher Desktop, kind, …)")
-			fmt.Println("    • Check the active context:  kubectl config current-context")
-			fmt.Println("    • Verify connectivity:       kubectl cluster-info")
-			fmt.Printf("    • Kubeconfig in use:         %s\n\n", kubeconfig)
-			return nil, fmt.Errorf("cluster %q is not reachable", kc.ContextName)
-		}
-		fmt.Printf("✓ %s\n", kc.ServerURL)
+	// Phase 1 — verify platform prerequisites (cluster connectivity, credentials, etc.)
+	fmt.Printf("  Checking prerequisites... ")
+	if err := b.CheckPrerequisites(ctx, kubeconfig); err != nil {
+		fmt.Println("✗")
+		return nil, err
 	}
+	fmt.Printf("✓ %s\n", b.ClusterServer())
 
 	// Check for a previously saved wizard config so re-runs skip the wizard.
 	mgr := secrets.New(plat.Secrets())
@@ -98,36 +69,30 @@ func (h *cliHandler) ServiceBootstrap(ctx context.Context, platformName, kubecon
 		answers = savedConfig
 	} else {
 		p := NewConsolePrompter(os.Stdin, os.Stdout)
-		answers, err = p.Ask(plat.Bootstrap().Prompts())
+		answers, err = p.Ask(b.Prompts())
 		if err != nil {
 			return nil, err
 		}
-
-		plan := plat.Bootstrap().Plan(answers)
-		p.PrintPlan(plan)
-
+		p.PrintPlan(b.Plan(answers))
 		if !p.Confirm("Proceed with provisioning? [y/N]: ") {
 			return nil, fmt.Errorf("bootstrap cancelled")
 		}
 	}
 
 	// Phase 2 — provision (writes signing keys + persists bootstrap config).
-	answers[local.AnswerKeyKubeconfig] = kubeconfig
 	fmt.Printf("  Provisioning... ")
-	if err := plat.Bootstrap().Provision(ctx, answers); err != nil {
+	if err := b.Provision(ctx, answers); err != nil {
 		fmt.Println("✗")
 		return nil, err
 	}
 	fmt.Println("✓")
 
-	// Build the profile with cluster connection info.
-	prof := &Profile{Platform: platformName}
-	if kc != nil {
-		prof.Kubeconfig = kubeconfig
-		prof.Kubecontext = kc.ContextName
-		prof.ClusterServer = kc.ServerURL
-		// Default local API URL; updated once Envoy Gateway is configured.
-		prof.APIURL = "https://morsel-api.morsel.svc.cluster.local:8080"
+	prof := &Profile{
+		Platform:      platformName,
+		Kubeconfig:    b.KubeconfigPath(),
+		Kubecontext:   b.KubeContext(),
+		ClusterServer: b.ClusterServer(),
+		APIURL:        "https://morsel-api.morsel.svc.cluster.local:8080",
 	}
 
 	fmt.Println("✓ Bootstrap complete. Run 'morsel operator login' to authenticate.")

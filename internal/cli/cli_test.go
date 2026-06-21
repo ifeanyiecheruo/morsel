@@ -329,13 +329,6 @@ func TestServiceBootstrapRequiresPlatformFlag(t *testing.T) {
 	}
 }
 
-func TestServiceBootstrapRejectsKubeconfigForNonLocalPlatform(t *testing.T) {
-	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap", "--platform", "gcp", "--kubeconfig", "/tmp/kube"})
-	if err == nil {
-		t.Fatal("expected error when --kubeconfig is used with non-local platform, got nil")
-	}
-}
-
 // --- Auth gating ---
 
 func TestAuthRequiredCommandRejectsWithoutProfile(t *testing.T) {
