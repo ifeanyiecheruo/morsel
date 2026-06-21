@@ -102,7 +102,7 @@ func silentRefresh(ctx context.Context, prof *Profile, name string) (*Profile, e
 }
 
 // clientFor constructs an authenticated API client from the profile's stored credentials.
-func (h *cliHandler) clientFor(prof *Profile) (*apiclient.Client, error) { //nolint:unused
+func (h *cliHandler) clientFor(prof *Profile) (*apiclient.Client, error) {
 	c, err := apiclient.New(prof.APIURL, prof.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("build api client: %w", err)

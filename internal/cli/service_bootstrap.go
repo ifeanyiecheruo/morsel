@@ -1,13 +1,10 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/internal/secrets"
@@ -100,15 +97,16 @@ func (h *cliHandler) ServiceBootstrap(ctx context.Context, platformName, kubecon
 		fmt.Println("  Existing bootstrap configuration found — skipping wizard.")
 		answers = savedConfig
 	} else {
-		answers, err = runBootstrapWizard(plat.Bootstrap().Prompts())
+		p := NewConsolePrompter(os.Stdin, os.Stdout)
+		answers, err = p.Ask(plat.Bootstrap().Prompts())
 		if err != nil {
 			return nil, err
 		}
 
 		plan := plat.Bootstrap().Plan(answers)
-		printBootstrapPlan(plan)
+		p.PrintPlan(plan)
 
-		if !bootstrapConfirm("Proceed with provisioning? [y/N]: ") {
+		if !p.Confirm("Proceed with provisioning? [y/N]: ") {
 			return nil, fmt.Errorf("bootstrap cancelled")
 		}
 	}
@@ -134,48 +132,4 @@ func (h *cliHandler) ServiceBootstrap(ctx context.Context, platformName, kubecon
 
 	fmt.Println("✓ Bootstrap complete. Run 'morsel operator login' to authenticate.")
 	return prof, nil
-}
-
-// TODO: The code to take prompts and turn then into a map of answers should and to print plans, should be in its own file and testable independent of the cli command handlers
-// runBootstrapWizard presents each prompt interactively and returns a map of answers.
-func runBootstrapWizard(prompts []platform.Prompt) (map[string]string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	answers := make(map[string]string, len(prompts))
-	for _, p := range prompts {
-		label := p.Label
-		if p.Default != "" {
-			label = fmt.Sprintf("%s [%s]", label, p.Default)
-		}
-		fmt.Printf("  %s: ", label)
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return nil, fmt.Errorf("read %q: %w", p.Key, err)
-		}
-		val := strings.TrimRight(line, "\r\n")
-		if val == "" {
-			val = p.Default
-		}
-		if p.Required && val == "" {
-			return nil, fmt.Errorf("%q is required", p.Label)
-		}
-		answers[p.Key] = val
-	}
-	return answers, nil
-}
-
-func printBootstrapPlan(plan platform.Plan) {
-	fmt.Printf("\n  %s\n\n", plan.Summary)
-	fmt.Println("  Resources to be created:")
-	for _, r := range plan.Resources {
-		fmt.Printf("    • %s — %s\n", r.Name, r.Description)
-	}
-	fmt.Println()
-}
-
-func bootstrapConfirm(prompt string) bool {
-	fmt.Print("  " + prompt)
-	reader := bufio.NewReader(os.Stdin)
-	line, _ := reader.ReadString('\n')
-	ans := strings.TrimRight(line, "\r\n")
-	return strings.EqualFold(ans, "y") || strings.EqualFold(ans, "yes")
 }

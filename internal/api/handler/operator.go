@@ -7,8 +7,6 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 )
 
-// TODO: filling out all the stub implementations will make this file quite large. We should split it up by domain
-
 // ── Operator stubs ────────────────────────────────────────────────────────────
 
 func (h *Handler) GetOperatorConfig(ctx context.Context) (oas.GetOperatorConfigRes, error) {

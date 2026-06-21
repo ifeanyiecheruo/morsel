@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ifeanyiecheruo/morsel/internal/apiclient"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +27,7 @@ func (h *cliHandler) ServiceStatus(ctx context.Context, prof *Profile) error {
 		return nil
 	}
 
-	client, err := apiclient.New(prof.APIURL, prof.AccessToken)
+	client, err := h.clientFor(prof)
 	if err != nil {
 		fmt.Printf("  ✗ API: build client: %v\n", err)
 		return nil

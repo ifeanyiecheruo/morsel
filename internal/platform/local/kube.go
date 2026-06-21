@@ -14,10 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TODO: consider using
-// - a lightweight k8s library like k8s.io/client-go/tools/clientcmd to handle kubeconfig parsing
-// - for simple CRUD operations, plain standard Go with the built-in net/http and json packages
-
 // KubeconfigContext holds the resolved cluster connection parameters for the
 // active context in a kubeconfig file.
 type KubeconfigContext struct {

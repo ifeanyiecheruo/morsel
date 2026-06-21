@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
-	"github.com/ifeanyiecheruo/morsel/internal/apiclient"
 	"github.com/spf13/cobra"
 )
 
@@ -77,10 +76,9 @@ func (c *cli) operatorPrincipalListCmd() *cobra.Command {
 }
 
 func (h *cliHandler) OperatorPrincipalAdd(ctx context.Context, prof *Profile, principal string) error {
-	// TODO: rather than creating an instance of the client in every handler, we should probably have a single instance in the cli struct that gets re-used across handlers. We can update the access token on it as needed when we refresh.
-	client, err := apiclient.New(prof.APIURL, prof.AccessToken)
+	client, err := h.clientFor(prof)
 	if err != nil {
-		return fmt.Errorf("build api client: %w", err)
+		return err
 	}
 	res, err := client.Inner().AddOperatorPrincipal(ctx, &oas.PrincipalReq{Principal: principal})
 	if err != nil {
@@ -97,9 +95,9 @@ func (h *cliHandler) OperatorPrincipalAdd(ctx context.Context, prof *Profile, pr
 }
 
 func (h *cliHandler) OperatorPrincipalRemove(ctx context.Context, prof *Profile, principal string) error {
-	client, err := apiclient.New(prof.APIURL, prof.AccessToken)
+	client, err := h.clientFor(prof)
 	if err != nil {
-		return fmt.Errorf("build api client: %w", err)
+		return err
 	}
 	res, err := client.Inner().RemoveOperatorPrincipal(ctx, oas.RemoveOperatorPrincipalParams{Principal: principal})
 	if err != nil {
@@ -116,9 +114,9 @@ func (h *cliHandler) OperatorPrincipalRemove(ctx context.Context, prof *Profile,
 }
 
 func (h *cliHandler) OperatorPrincipalList(ctx context.Context, prof *Profile) error {
-	client, err := apiclient.New(prof.APIURL, prof.AccessToken)
+	client, err := h.clientFor(prof)
 	if err != nil {
-		return fmt.Errorf("build api client: %w", err)
+		return err
 	}
 	res, err := client.Inner().ListOperatorPrincipals(ctx)
 	if err != nil {
