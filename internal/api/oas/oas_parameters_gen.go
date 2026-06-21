@@ -1897,6 +1897,72 @@ func decodeListReposParams(args [0]string, argsEscaped bool, r *http.Request) (p
 	return params, nil
 }
 
+// RemoveOperatorPrincipalParams is parameters of removeOperatorPrincipal operation.
+type RemoveOperatorPrincipalParams struct {
+	// The principal identity (URL-encoded email address) to remove.
+	Principal string
+}
+
+func unpackRemoveOperatorPrincipalParams(packed middleware.Parameters) (params RemoveOperatorPrincipalParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "principal",
+			In:   "path",
+		}
+		params.Principal = packed[key].(string)
+	}
+	return params
+}
+
+func decodeRemoveOperatorPrincipalParams(args [1]string, argsEscaped bool, r *http.Request) (params RemoveOperatorPrincipalParams, _ error) {
+	// Decode path: principal.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "principal",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Principal = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "principal",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // SyncRepoParams is parameters of syncRepo operation.
 type SyncRepoParams struct {
 	// The organisation or user that owns the repo.

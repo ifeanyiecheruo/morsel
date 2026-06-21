@@ -13,6 +13,15 @@ type UnimplementedHandler struct{}
 
 var _ Handler = UnimplementedHandler{}
 
+// AddOperatorPrincipal implements addOperatorPrincipal operation.
+//
+// Grants admin UI access to the specified principal. Idempotent.
+//
+// POST /api/operator/principals
+func (UnimplementedHandler) AddOperatorPrincipal(ctx context.Context, req *PrincipalReq) (r AddOperatorPrincipalRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // BatchActionApprovals implements batchActionApprovals operation.
 //
 // Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected
@@ -178,6 +187,15 @@ func (UnimplementedHandler) ListOperatorApprovals(ctx context.Context) (r ListOp
 	return r, ht.ErrNotImplemented
 }
 
+// ListOperatorPrincipals implements listOperatorPrincipals operation.
+//
+// Returns all principals authorised to access the operator UI.
+//
+// GET /api/operator/principals
+func (UnimplementedHandler) ListOperatorPrincipals(ctx context.Context) (r ListOperatorPrincipalsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // ListRepoApprovals implements listRepoApprovals operation.
 //
 // Returns approval requests raised by changes to this repo that are awaiting operator action before
@@ -195,6 +213,15 @@ func (UnimplementedHandler) ListRepoApprovals(ctx context.Context, params ListRe
 //
 // GET /api/repos
 func (UnimplementedHandler) ListRepos(ctx context.Context, params ListReposParams) (r ListReposRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// RemoveOperatorPrincipal implements removeOperatorPrincipal operation.
+//
+// Revokes admin UI access from the specified principal.
+//
+// DELETE /api/operator/principals/{principal}
+func (UnimplementedHandler) RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (r RemoveOperatorPrincipalRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

@@ -8,6 +8,12 @@ import (
 
 // Handler handles operations described by OpenAPI v3 specification.
 type Handler interface {
+	// AddOperatorPrincipal implements addOperatorPrincipal operation.
+	//
+	// Grants admin UI access to the specified principal. Idempotent.
+	//
+	// POST /api/operator/principals
+	AddOperatorPrincipal(ctx context.Context, req *PrincipalReq) (AddOperatorPrincipalRes, error)
 	// BatchActionApprovals implements batchActionApprovals operation.
 	//
 	// Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected
@@ -122,6 +128,12 @@ type Handler interface {
 	//
 	// GET /api/operator/approvals
 	ListOperatorApprovals(ctx context.Context) (ListOperatorApprovalsRes, error)
+	// ListOperatorPrincipals implements listOperatorPrincipals operation.
+	//
+	// Returns all principals authorised to access the operator UI.
+	//
+	// GET /api/operator/principals
+	ListOperatorPrincipals(ctx context.Context) (ListOperatorPrincipalsRes, error)
 	// ListRepoApprovals implements listRepoApprovals operation.
 	//
 	// Returns approval requests raised by changes to this repo that are awaiting operator action before
@@ -136,6 +148,12 @@ type Handler interface {
 	//
 	// GET /api/repos
 	ListRepos(ctx context.Context, params ListReposParams) (ListReposRes, error)
+	// RemoveOperatorPrincipal implements removeOperatorPrincipal operation.
+	//
+	// Revokes admin UI access from the specified principal.
+	//
+	// DELETE /api/operator/principals/{principal}
+	RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (RemoveOperatorPrincipalRes, error)
 	// SyncRepo implements syncRepo operation.
 	//
 	// Reconciles the cluster against the supplied app list. Apps present in the cluster but absent from

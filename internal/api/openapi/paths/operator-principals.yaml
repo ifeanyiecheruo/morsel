@@ -1,0 +1,51 @@
+get:
+  operationId: listOperatorPrincipals
+  summary: List operator principals
+  description: Returns all principals authorised to access the operator UI.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/OperatorPrincipals.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'
+
+post:
+  operationId: addOperatorPrincipal
+  summary: Add an operator principal
+  description: Grants admin UI access to the specified principal. Idempotent.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/PrincipalReq.yaml'
+  responses:
+    '200':
+      description: OK — returns the updated principal list.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/OperatorPrincipals.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

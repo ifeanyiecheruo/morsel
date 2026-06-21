@@ -3,13 +3,15 @@ package local_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 )
 
-var ctx = context.Background()
+var ctx = ctxlog.With(context.Background(), slog.Default())
 
 func TestAmbientTokenReturnsEmpty(t *testing.T) {
 	plat := local.New()
@@ -128,10 +130,71 @@ func TestSeedDefaultsIsNoOpWhenAlreadySet(t *testing.T) {
 	}
 }
 
-func TestBootstrapProvisionNotImplemented(t *testing.T) {
+func TestBootstrapPromptsReturnsExpectedKeys(t *testing.T) {
 	plat := local.New()
-	if err := plat.Bootstrap().Provision(ctx, nil); !errors.Is(err, platform.ErrNotImplemented) {
-		t.Errorf("Bootstrap.Provision: err = %v, want ErrNotImplemented", err)
+	prompts := plat.Bootstrap().Prompts()
+	if len(prompts) == 0 {
+		t.Fatal("Bootstrap.Prompts: returned no prompts")
+	}
+	keys := make(map[string]bool, len(prompts))
+	for _, p := range prompts {
+		keys[p.Key] = true
+	}
+	for _, want := range []string{"github_org", "domain", "k8s_namespace"} {
+		if !keys[want] {
+			t.Errorf("Bootstrap.Prompts: missing prompt key %q", want)
+		}
+	}
+}
+
+func TestBootstrapPlanReturnsResources(t *testing.T) {
+	plat := local.New()
+	plan := plat.Bootstrap().Plan(map[string]string{})
+	if plan.Summary == "" {
+		t.Error("Bootstrap.Plan: empty summary")
+	}
+	if len(plan.Resources) == 0 {
+		t.Error("Bootstrap.Plan: no resources listed")
+	}
+}
+
+func TestBootstrapProvisionWritesConfigAndKey(t *testing.T) {
+	plat := platWithTempHome(t)
+	answers := map[string]string{
+		"github_org": "my-org",
+		"domain":     "morsel.localhost",
+		// No kubeconfig key → cluster access check is skipped.
+	}
+	if err := plat.Bootstrap().Provision(ctx, answers); err != nil {
+		t.Fatalf("Bootstrap.Provision: unexpected error: %v", err)
+	}
+	// Deploy signing key must have been generated.
+	_, err := plat.Deploy().Credentials(ctx)
+	if err == nil {
+		t.Fatal("Deploy.Credentials: expected error for missing deploy key, got nil")
+	} else {
+		if !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
+			t.Fatalf("Deploy.Credentials: expected ErrPrincipalNotAuthorized for missing deploy key, got %v", err)
+		}
+	}
+
+	token, err := plat.Credentials().DeployToken(ctx)
+	if err != nil {
+		t.Fatalf("DeployToken after Provision: %v", err)
+	}
+	if _, err := plat.Credentials().ValidateDeployToken(ctx, token); err != nil {
+		t.Errorf("ValidateDeployToken after Provision: %v", err)
+	}
+}
+
+func TestBootstrapProvisionIsIdempotent(t *testing.T) {
+	plat := platWithTempHome(t)
+	answers := map[string]string{"github_org": "my-org", "domain": "morsel.localhost"}
+	if err := plat.Bootstrap().Provision(ctx, answers); err != nil {
+		t.Fatalf("first Provision: %v", err)
+	}
+	if err := plat.Bootstrap().Provision(ctx, answers); err != nil {
+		t.Fatalf("second Provision (idempotent): %v", err)
 	}
 }
 

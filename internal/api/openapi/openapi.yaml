@@ -38,6 +38,10 @@ components:
       $ref: './schemas/Approval.yaml'
     PlatformConfig:
       $ref: './schemas/PlatformConfig.yaml'
+    OperatorPrincipals:
+      $ref: './schemas/OperatorPrincipals.yaml'
+    PrincipalReq:
+      $ref: './schemas/PrincipalReq.yaml'
 
   parameters:
     OrgParam:
@@ -139,3 +143,9 @@ paths:
 
   /api/operator/status:
     $ref: './paths/operator-status.yaml'
+
+  /api/operator/principals:
+    $ref: './paths/operator-principals.yaml'
+
+  '/api/operator/principals/{principal}':
+    $ref: './paths/operator-principals-principal.yaml'

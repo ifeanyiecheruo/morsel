@@ -1,0 +1,31 @@
+delete:
+  operationId: removeOperatorPrincipal
+  summary: Remove an operator principal
+  description: Revokes admin UI access from the specified principal.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  parameters:
+    - name: principal
+      in: path
+      description: The principal identity (URL-encoded email address) to remove.
+      required: true
+      schema:
+        type: string
+  responses:
+    '200':
+      description: OK — returns the updated principal list.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/OperatorPrincipals.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

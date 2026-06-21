@@ -12,6 +12,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
+	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 )
 
 // jsonPost returns a POST request with Content-Type: application/json.
@@ -26,10 +27,11 @@ var testKey = make([]byte, 32)
 
 func newTestMux(t *testing.T) http.Handler {
 	t.Helper()
-	return newTestMuxWithPlatform(t, local.New())
+	plat := local.New()
+	return newTestMuxWithPlatform(t, plat)
 }
 
-func newTestMuxWithPlatform(t *testing.T, plat api.AppPlatform) http.Handler {
+func newTestMuxWithPlatform(t *testing.T, plat *local.LocalPlatform) http.Handler {
 	t.Helper()
 	database, err := db.Open(context.Background(), ":memory:")
 	if err != nil {
@@ -39,7 +41,7 @@ func newTestMuxWithPlatform(t *testing.T, plat api.AppPlatform) http.Handler {
 	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("migrate test database: %v", err)
 	}
-	return api.NewMux(context.Background(), plat, testKey, dbqueries.New(database))
+	return api.NewMux(context.Background(), plat, secrets.New(plat.Secrets()), testKey, dbqueries.New(database))
 }
 
 func TestHealthzReturnsOK(t *testing.T) {

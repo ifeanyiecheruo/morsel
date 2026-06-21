@@ -23,10 +23,12 @@ func New() *LocalPlatform {
 	}
 }
 
-func (lp *LocalPlatform) Bootstrap() platform.Bootstrapper { return &localBootstrapper{} }
-func (lp *LocalPlatform) Deploy() platform.Deployer        { return &localDeployer{} }
-func (lp *LocalPlatform) Blobs() platform.BlobStore        { return &localBlobStore{} }
-func (lp *LocalPlatform) Secrets() platform.SecretStore    { return lp.store }
+func (lp *LocalPlatform) Bootstrap() platform.Bootstrapper {
+	return &localBootstrapper{secretMgr: lp.secretMgr}
+}
+func (lp *LocalPlatform) Deploy() platform.Deployer     { return &localDeployer{secretMgr: lp.secretMgr} }
+func (lp *LocalPlatform) Blobs() platform.BlobStore     { return &localBlobStore{} }
+func (lp *LocalPlatform) Secrets() platform.SecretStore { return lp.store }
 func (lp *LocalPlatform) Credentials() platform.CredentialProvider {
 	return &localCredentialProvider{secretMgr: lp.secretMgr}
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
+	"github.com/ifeanyiecheruo/morsel/internal/apiclient"
 	"github.com/spf13/cobra"
 )
 
@@ -74,14 +76,65 @@ func (c *cli) operatorPrincipalListCmd() *cobra.Command {
 	}
 }
 
-func (h *cliHandler) OperatorPrincipalAdd(_ context.Context, _ *Profile, _ string) error {
-	return fmt.Errorf("not yet implemented")
+func (h *cliHandler) OperatorPrincipalAdd(ctx context.Context, prof *Profile, principal string) error {
+	// TODO: rather than creating an instance of the client in every handler, we should probably have a single instance in the cli struct that gets re-used across handlers. We can update the access token on it as needed when we refresh.
+	client, err := apiclient.New(prof.APIURL, prof.AccessToken)
+	if err != nil {
+		return fmt.Errorf("build api client: %w", err)
+	}
+	res, err := client.Inner().AddOperatorPrincipal(ctx, &oas.PrincipalReq{Principal: principal})
+	if err != nil {
+		return fmt.Errorf("add principal: %w", err)
+	}
+	switch r := res.(type) {
+	case *oas.OperatorPrincipals:
+		_ = r
+		fmt.Printf("✓ Added %s as a principal.\n", principal)
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
 }
 
-func (h *cliHandler) OperatorPrincipalRemove(_ context.Context, _ *Profile, _ string) error {
-	return fmt.Errorf("not yet implemented")
+func (h *cliHandler) OperatorPrincipalRemove(ctx context.Context, prof *Profile, principal string) error {
+	client, err := apiclient.New(prof.APIURL, prof.AccessToken)
+	if err != nil {
+		return fmt.Errorf("build api client: %w", err)
+	}
+	res, err := client.Inner().RemoveOperatorPrincipal(ctx, oas.RemoveOperatorPrincipalParams{Principal: principal})
+	if err != nil {
+		return fmt.Errorf("remove principal: %w", err)
+	}
+	switch r := res.(type) {
+	case *oas.OperatorPrincipals:
+		_ = r
+		fmt.Printf("✓ Removed %s from principals.\n", principal)
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
 }
 
-func (h *cliHandler) OperatorPrincipalList(_ context.Context, _ *Profile) error {
-	return fmt.Errorf("not yet implemented")
+func (h *cliHandler) OperatorPrincipalList(ctx context.Context, prof *Profile) error {
+	client, err := apiclient.New(prof.APIURL, prof.AccessToken)
+	if err != nil {
+		return fmt.Errorf("build api client: %w", err)
+	}
+	res, err := client.Inner().ListOperatorPrincipals(ctx)
+	if err != nil {
+		return fmt.Errorf("list principals: %w", err)
+	}
+	switch r := res.(type) {
+	case *oas.OperatorPrincipals:
+		if len(r.Principals) == 0 {
+			fmt.Println("  (no principals configured)")
+			return nil
+		}
+		for _, p := range r.Principals {
+			fmt.Printf("  %s\n", p)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
 }

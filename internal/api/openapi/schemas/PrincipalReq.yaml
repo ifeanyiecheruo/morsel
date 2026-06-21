@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: Request body for adding an operator principal.
+type: object
+required: [principal]
+properties:
+  principal:
+    description: Principal identity (email address).
+    type: string

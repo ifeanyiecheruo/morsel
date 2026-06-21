@@ -13,6 +13,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 )
 
@@ -25,13 +26,14 @@ type AppPlatform interface {
 // Handler implements oas.Handler for all Morsel API operations.
 type Handler struct {
 	plat       AppPlatform
+	secretMgr  *secrets.Manager
 	signingKey []byte
 	queries    *dbqueries.Queries
 }
 
 // New constructs a Handler.
-func New(plat AppPlatform, signingKey []byte, queries *dbqueries.Queries) *Handler {
-	return &Handler{plat: plat, signingKey: signingKey, queries: queries}
+func New(plat AppPlatform, secretMgr *secrets.Manager, signingKey []byte, queries *dbqueries.Queries) *Handler {
+	return &Handler{plat: plat, secretMgr: secretMgr, signingKey: signingKey, queries: queries}
 }
 
 // apiError is the internal structured error type. It is written by WriteError
@@ -148,6 +150,7 @@ func requireOperator(ctx context.Context) error {
 	return nil
 }
 
+// TODO: filling out all the stub implementations will make this file quite large. We should split it up by domain
 // ── Health ────────────────────────────────────────────────────────────────────
 
 func (h *Handler) GetHealthz(_ context.Context) (*oas.GetHealthzOK, error) {
@@ -250,64 +253,6 @@ func (h *Handler) HibernateApp(ctx context.Context, params oas.HibernateAppParam
 
 func (h *Handler) WakeApp(ctx context.Context, params oas.WakeAppParams) (oas.WakeAppRes, error) {
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
-		return nil, err
-	}
-	return nil, errNotImplemented
-}
-
-// ── Operator stubs ────────────────────────────────────────────────────────────
-
-func (h *Handler) GetOperatorConfig(ctx context.Context) (oas.GetOperatorConfigRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
-	}
-	return nil, errNotImplemented
-}
-
-func (h *Handler) UpdateOperatorConfig(ctx context.Context, _ *oas.PlatformConfig) (oas.UpdateOperatorConfigRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
-	}
-	return nil, errNotImplemented
-}
-
-func (h *Handler) UpdateRepoTier(ctx context.Context, _ *oas.UpdateRepoTierReq, _ oas.UpdateRepoTierParams) (oas.UpdateRepoTierRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
-	}
-	return nil, errNotImplemented
-}
-
-func (h *Handler) ListOperatorApprovals(ctx context.Context) (oas.ListOperatorApprovalsRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
-	}
-	return nil, errNotImplemented
-}
-
-func (h *Handler) GetOperatorApproval(ctx context.Context, _ oas.GetOperatorApprovalParams) (oas.GetOperatorApprovalRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
-	}
-	return nil, errNotImplemented
-}
-
-func (h *Handler) BatchActionApprovals(ctx context.Context, _ *oas.BatchActionApprovalsReq) (oas.BatchActionApprovalsRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
-	}
-	return nil, errNotImplemented
-}
-
-func (h *Handler) GetOperatorCost(ctx context.Context) (oas.GetOperatorCostRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
-	}
-	return nil, errNotImplemented
-}
-
-func (h *Handler) GetOperatorStatus(ctx context.Context) (oas.GetOperatorStatusRes, error) {
-	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
 	return nil, errNotImplemented

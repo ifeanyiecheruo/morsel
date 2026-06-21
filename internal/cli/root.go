@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +18,7 @@ func Execute(ctx context.Context) error {
 type cli struct {
 	profileName string
 	profile     *Profile
+	platform    platform.Platform // created once when the profile is loaded
 	handler     Handler
 }
 
@@ -47,8 +50,17 @@ func (c *cli) buildRoot() *cobra.Command {
 
 func (c *cli) loadProfilePreRun(cmd *cobra.Command, _ []string) error {
 	prof, err := c.handler.LoadProfile(cmd.Context(), c.profileName, true)
-	if err == nil {
-		c.profile = prof
+	if err != nil || prof == nil {
+		return nil
+	}
+	c.profile = prof
+	// Create the platform instance once so all commands in this invocation share it.
+	// Errors here are non-fatal; individual commands fail with a clearer message if
+	// they actually try to use the platform.
+	if prof.Platform != "" {
+		if p, err := platforms.Create(prof.Platform); err == nil {
+			c.platform = p
+		}
 	}
 	return nil
 }
@@ -58,4 +70,14 @@ func (c *cli) requireProfile() (*Profile, error) {
 		return nil, fmt.Errorf("not authenticated — run 'morsel operator login' first")
 	}
 	return c.profile, nil
+}
+
+func (c *cli) requirePlatform() (platform.Platform, error) {
+	if c.platform == nil {
+		if c.profile != nil && c.profile.Platform != "" {
+			return nil, fmt.Errorf("unsupported platform %q", c.profile.Platform)
+		}
+		return nil, fmt.Errorf("not authenticated — run 'morsel operator login' first")
+	}
+	return c.platform, nil
 }

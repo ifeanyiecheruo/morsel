@@ -7,6 +7,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 	"github.com/ifeanyiecheruo/morsel/internal/apiclient"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 )
 
@@ -19,7 +20,7 @@ type Handler interface {
 	LoadProfile(ctx context.Context, name string, ensureValid bool) (*Profile, error)
 
 	// No-auth commands
-	ServiceBootstrap(ctx context.Context, platformName, kubeconfig string) error
+	ServiceBootstrap(ctx context.Context, platformName, kubeconfig string) (*Profile, error)
 
 	OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, error)
 	SaveProfile(ctx context.Context, name string, prof *Profile) error
@@ -28,7 +29,7 @@ type Handler interface {
 
 	// Auth-required commands — prof is pre-validated by the cli layer
 	ServiceStatus(ctx context.Context, prof *Profile) error
-	ServiceDelete(ctx context.Context, prof *Profile) error
+	ServiceDelete(ctx context.Context, plat platform.Platform, prof *Profile) error
 	ServiceUpgradeRetry(ctx context.Context, prof *Profile) error
 	OperatorLogout(ctx context.Context, prof *Profile) error
 	OperatorPrincipalAdd(ctx context.Context, prof *Profile, principal string) error

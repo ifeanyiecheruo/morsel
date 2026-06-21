@@ -12,6 +12,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 )
 
 // AppPlatform is the subset of platform.Platform that API handlers are allowed
@@ -29,8 +30,8 @@ type AppPlatform interface {
 // NewMux constructs the root HTTP handler for the Morsel API using the
 // ogen-generated router. Panics if the server cannot be constructed (indicates
 // a programmer error such as a nil handler).
-func NewMux(ctx context.Context, plat AppPlatform, signingKey []byte, queries *dbqueries.Queries) http.Handler {
-	h := handler.New(plat, signingKey, queries)
+func NewMux(ctx context.Context, plat AppPlatform, secretMgr *secrets.Manager, signingKey []byte, queries *dbqueries.Queries) http.Handler {
+	h := handler.New(plat, secretMgr, signingKey, queries)
 	sec := handler.NewSecurityHandler(signingKey)
 
 	srv, err := oas.NewServer(h, sec,

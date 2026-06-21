@@ -23,7 +23,7 @@
 | [F04](004-feature-lint-and-schema-validation.md) | App Lint and Schema Validation | ⬜ not started | F03a |
 | [F05](005-feature-app-lifecycle-api.md) | App Lifecycle: API Layer | ⬜ not started | F03b |
 | [F06](006-feature-kubernetes-manifest-apply.md) | Kubernetes Manifest Apply | ⬜ not started | F05 |
-| [F07](007-feature-bootstrap-local-platform.md) | Bootstrap: LocalPlatform | ⬜ not started | F02, F03 |
+| [F07](007-feature-bootstrap-local-platform.md) | Bootstrap: LocalPlatform | ✅ done | F02, F03 |
 | [F08](008-feature-local-platform-deploy-path.md) | LocalPlatform Deploy Path | ⬜ not started | F03, F05, F06, F07 |
 | [F09](009-feature-networking.md) | Networking | ⬜ not started | F06, F07 |
 | [F10](010-feature-blob-service.md) | Blob Service | ⬜ not started | F07 |

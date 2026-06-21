@@ -705,6 +705,22 @@
         ],
         "type": "object"
       },
+      "OperatorPrincipals": {
+        "description": "The set of principals (email addresses) authorised to access the operator UI.",
+        "properties": {
+          "principals": {
+            "description": "Email addresses of all authorised operator principals.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "principals"
+        ],
+        "type": "object"
+      },
       "PlatformConfig": {
         "description": "Mutable platform-wide configuration managed by the operator.",
         "properties": {
@@ -719,6 +735,19 @@
             "type": "number"
           }
         },
+        "type": "object"
+      },
+      "PrincipalReq": {
+        "description": "Request body for adding an operator principal.",
+        "properties": {
+          "principal": {
+            "description": "Principal identity (email address).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "principal"
+        ],
         "type": "object"
       },
       "Repo": {
@@ -2287,6 +2316,727 @@
           }
         ],
         "summary": "Platform-wide cost estimate",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/principals": {
+      "get": {
+        "description": "Returns all principals authorised to access the operator UI.",
+        "operationId": "listOperatorPrincipals",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The set of principals (email addresses) authorised to access the operator UI.",
+                  "properties": {
+                    "principals": {
+                      "description": "Email addresses of all authorised operator principals.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "principals"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List operator principals",
+        "tags": [
+          "operator"
+        ]
+      },
+      "post": {
+        "description": "Grants admin UI access to the specified principal. Idempotent.",
+        "operationId": "addOperatorPrincipal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Request body for adding an operator principal.",
+                "properties": {
+                  "principal": {
+                    "description": "Principal identity (email address).",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "principal"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The set of principals (email addresses) authorised to access the operator UI.",
+                  "properties": {
+                    "principals": {
+                      "description": "Email addresses of all authorised operator principals.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "principals"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK — returns the updated principal list."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Add an operator principal",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/principals/{principal}": {
+      "delete": {
+        "description": "Revokes admin UI access from the specified principal.",
+        "operationId": "removeOperatorPrincipal",
+        "parameters": [
+          {
+            "description": "The principal identity (URL-encoded email address) to remove.",
+            "in": "path",
+            "name": "principal",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The set of principals (email addresses) authorised to access the operator UI.",
+                  "properties": {
+                    "principals": {
+                      "description": "Email addresses of all authorised operator principals.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "principals"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK — returns the updated principal list."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Remove an operator principal",
         "tags": [
           "operator"
         ]

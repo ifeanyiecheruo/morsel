@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 // --- Test doubles ---
@@ -13,7 +15,7 @@ import (
 // which returns a safe empty profile). Tests set only the hooks they care about.
 type mockCliHandler struct {
 	onLoadProfile             func(name string, ensureValid bool) (*Profile, error)
-	onServiceBootstrap        func(platformName, kubeconfig string) error
+	onServiceBootstrap        func(platformName, kubeconfig string) (*Profile, error)
 	onOperatorLogin           func(apiURL, username, password string) (*Profile, error)
 	onSaveProfile             func(name string, prof *Profile) error
 	onDeleteProfile           func(name string) error
@@ -44,11 +46,11 @@ func (h *mockCliHandler) LoadProfile(_ context.Context, name string, ensureValid
 	return nil, nil
 }
 
-func (h *mockCliHandler) ServiceBootstrap(_ context.Context, platformName, kubeconfig string) error {
+func (h *mockCliHandler) ServiceBootstrap(_ context.Context, platformName, kubeconfig string) (*Profile, error) {
 	if h.onServiceBootstrap != nil {
 		return h.onServiceBootstrap(platformName, kubeconfig)
 	}
-	return nil
+	return &Profile{}, nil
 }
 
 func (h *mockCliHandler) OperatorLogin(_ context.Context, apiURL, username, password string) (*Profile, error) {
@@ -86,7 +88,7 @@ func (h *mockCliHandler) ServiceStatus(_ context.Context, prof *Profile) error {
 	return nil
 }
 
-func (h *mockCliHandler) ServiceDelete(_ context.Context, prof *Profile) error {
+func (h *mockCliHandler) ServiceDelete(_ context.Context, _ platform.Platform, prof *Profile) error {
 	if h.onServiceDelete != nil {
 		return h.onServiceDelete(prof)
 	}
@@ -269,6 +271,17 @@ func TestOperatorLoginFailsWithoutAPIURLWhenNoProfile(t *testing.T) {
 	}
 }
 
+func TestOperatorLoginFailsWithEmptyAPIURLInProfile(t *testing.T) {
+	// Profile exists but has no APIURL — should get a clear message, not a raw HTTP scheme error.
+	mock := &mockCliHandler{
+		onLoadProfile: withProfile(&Profile{Platform: "local", APIURL: ""}),
+	}
+	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"})
+	if err == nil {
+		t.Fatal("expected error when profile has empty APIURL, got nil")
+	}
+}
+
 func TestOperatorLoginSucceedsWithAPIURLAndNoProfile(t *testing.T) {
 	var gotURL string
 	const want = "http://remote:8080"
@@ -292,10 +305,10 @@ func TestOperatorLoginSucceedsWithAPIURLAndNoProfile(t *testing.T) {
 func TestServiceBootstrapPassesFlagsToHandler(t *testing.T) {
 	var gotPlatform, gotKubeconfig string
 	mock := &mockCliHandler{
-		onServiceBootstrap: func(platformName, kubeconfig string) error {
+		onServiceBootstrap: func(platformName, kubeconfig string) (*Profile, error) {
 			gotPlatform = platformName
 			gotKubeconfig = kubeconfig
-			return nil
+			return &Profile{}, nil
 		},
 	}
 	if err := run(context.Background(), mock, []string{"service", "bootstrap", "--platform", "local", "--kubeconfig", "/tmp/kube"}); err != nil {
@@ -313,6 +326,13 @@ func TestServiceBootstrapRequiresPlatformFlag(t *testing.T) {
 	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap"})
 	if err == nil {
 		t.Fatal("expected error for missing --platform, got nil")
+	}
+}
+
+func TestServiceBootstrapRejectsKubeconfigForNonLocalPlatform(t *testing.T) {
+	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap", "--platform", "gcp", "--kubeconfig", "/tmp/kube"})
+	if err == nil {
+		t.Fatal("expected error when --kubeconfig is used with non-local platform, got nil")
 	}
 }
 

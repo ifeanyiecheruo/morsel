@@ -147,6 +147,14 @@ func (s *AcceptedOperationPendingApproval) init() AcceptedOperationPendingApprov
 	return m
 }
 
+type AddOperatorPrincipalForbidden ErrorResponse
+
+func (*AddOperatorPrincipalForbidden) addOperatorPrincipalRes() {}
+
+type AddOperatorPrincipalUnauthorized ErrorResponse
+
+func (*AddOperatorPrincipalUnauthorized) addOperatorPrincipalRes() {}
+
 // A deployed app and its current observed state.
 // Ref: #
 type App struct {
@@ -782,32 +790,35 @@ func (s *ErrorInternalServerStatusCode) SetResponse(val ErrorResponse) {
 	s.Response = val
 }
 
-func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()  {}
-func (*ErrorInternalServerStatusCode) deleteAppRes()             {}
-func (*ErrorInternalServerStatusCode) deleteRepoRes()            {}
-func (*ErrorInternalServerStatusCode) getAppHistoryRes()         {}
-func (*ErrorInternalServerStatusCode) getAppRes()                {}
-func (*ErrorInternalServerStatusCode) getAppStatusRes()          {}
-func (*ErrorInternalServerStatusCode) getAppUtilisationRes()     {}
-func (*ErrorInternalServerStatusCode) getOperationRes()          {}
-func (*ErrorInternalServerStatusCode) getOperatorApprovalRes()   {}
-func (*ErrorInternalServerStatusCode) getOperatorConfigRes()     {}
-func (*ErrorInternalServerStatusCode) getOperatorCostRes()       {}
-func (*ErrorInternalServerStatusCode) getOperatorStatusRes()     {}
-func (*ErrorInternalServerStatusCode) getRepoRes()               {}
-func (*ErrorInternalServerStatusCode) hibernateAppRes()          {}
-func (*ErrorInternalServerStatusCode) listAppsRes()              {}
-func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes() {}
-func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()     {}
-func (*ErrorInternalServerStatusCode) listReposRes()             {}
-func (*ErrorInternalServerStatusCode) syncRepoRes()              {}
-func (*ErrorInternalServerStatusCode) tokenDeployRes()           {}
-func (*ErrorInternalServerStatusCode) tokenOIDCRes()             {}
-func (*ErrorInternalServerStatusCode) tokenRefreshRes()          {}
-func (*ErrorInternalServerStatusCode) updateOperatorConfigRes()  {}
-func (*ErrorInternalServerStatusCode) updateRepoTierRes()        {}
-func (*ErrorInternalServerStatusCode) upsertAppRes()             {}
-func (*ErrorInternalServerStatusCode) wakeAppRes()               {}
+func (*ErrorInternalServerStatusCode) addOperatorPrincipalRes()    {}
+func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()    {}
+func (*ErrorInternalServerStatusCode) deleteAppRes()               {}
+func (*ErrorInternalServerStatusCode) deleteRepoRes()              {}
+func (*ErrorInternalServerStatusCode) getAppHistoryRes()           {}
+func (*ErrorInternalServerStatusCode) getAppRes()                  {}
+func (*ErrorInternalServerStatusCode) getAppStatusRes()            {}
+func (*ErrorInternalServerStatusCode) getAppUtilisationRes()       {}
+func (*ErrorInternalServerStatusCode) getOperationRes()            {}
+func (*ErrorInternalServerStatusCode) getOperatorApprovalRes()     {}
+func (*ErrorInternalServerStatusCode) getOperatorConfigRes()       {}
+func (*ErrorInternalServerStatusCode) getOperatorCostRes()         {}
+func (*ErrorInternalServerStatusCode) getOperatorStatusRes()       {}
+func (*ErrorInternalServerStatusCode) getRepoRes()                 {}
+func (*ErrorInternalServerStatusCode) hibernateAppRes()            {}
+func (*ErrorInternalServerStatusCode) listAppsRes()                {}
+func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes()   {}
+func (*ErrorInternalServerStatusCode) listOperatorPrincipalsRes()  {}
+func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()       {}
+func (*ErrorInternalServerStatusCode) listReposRes()               {}
+func (*ErrorInternalServerStatusCode) removeOperatorPrincipalRes() {}
+func (*ErrorInternalServerStatusCode) syncRepoRes()                {}
+func (*ErrorInternalServerStatusCode) tokenDeployRes()             {}
+func (*ErrorInternalServerStatusCode) tokenOIDCRes()               {}
+func (*ErrorInternalServerStatusCode) tokenRefreshRes()            {}
+func (*ErrorInternalServerStatusCode) updateOperatorConfigRes()    {}
+func (*ErrorInternalServerStatusCode) updateRepoTierRes()          {}
+func (*ErrorInternalServerStatusCode) upsertAppRes()               {}
+func (*ErrorInternalServerStatusCode) wakeAppRes()                 {}
 
 // Envelope returned for all error responses.
 // Ref: #
@@ -1171,6 +1182,14 @@ type ListOperatorApprovalsUnauthorized ErrorResponse
 
 func (*ListOperatorApprovalsUnauthorized) listOperatorApprovalsRes() {}
 
+type ListOperatorPrincipalsForbidden ErrorResponse
+
+func (*ListOperatorPrincipalsForbidden) listOperatorPrincipalsRes() {}
+
+type ListOperatorPrincipalsUnauthorized ErrorResponse
+
+func (*ListOperatorPrincipalsUnauthorized) listOperatorPrincipalsRes() {}
+
 type ListRepoApprovalsForbidden ErrorResponse
 
 func (*ListRepoApprovalsForbidden) listRepoApprovalsRes() {}
@@ -1326,6 +1345,27 @@ func (s *OperationStatus) UnmarshalText(data []byte) error {
 		return errors.Errorf("invalid value: %q", data)
 	}
 }
+
+// The set of principals (email addresses) authorised to access the operator UI.
+// Ref: #
+type OperatorPrincipals struct {
+	// Email addresses of all authorised operator principals.
+	Principals []string `json:"principals"`
+}
+
+// GetPrincipals returns the value of Principals.
+func (s *OperatorPrincipals) GetPrincipals() []string {
+	return s.Principals
+}
+
+// SetPrincipals sets the value of Principals.
+func (s *OperatorPrincipals) SetPrincipals(val []string) {
+	s.Principals = val
+}
+
+func (*OperatorPrincipals) addOperatorPrincipalRes()    {}
+func (*OperatorPrincipals) listOperatorPrincipalsRes()  {}
+func (*OperatorPrincipals) removeOperatorPrincipalRes() {}
 
 // NewOptAppSpecEnv returns new OptAppSpecEnv with value set to v.
 func NewOptAppSpecEnv(v AppSpecEnv) OptAppSpecEnv {
@@ -2020,6 +2060,35 @@ func (s *PlatformConfig) SetSoftLimitPct(val OptFloat64) {
 
 func (*PlatformConfig) getOperatorConfigRes()    {}
 func (*PlatformConfig) updateOperatorConfigRes() {}
+
+// Request body for adding an operator principal.
+// Ref: #
+type PrincipalReq struct {
+	// Principal identity (email address).
+	Principal string `json:"principal"`
+}
+
+// GetPrincipal returns the value of Principal.
+func (s *PrincipalReq) GetPrincipal() string {
+	return s.Principal
+}
+
+// SetPrincipal sets the value of Principal.
+func (s *PrincipalReq) SetPrincipal(val string) {
+	s.Principal = val
+}
+
+type RemoveOperatorPrincipalForbidden ErrorResponse
+
+func (*RemoveOperatorPrincipalForbidden) removeOperatorPrincipalRes() {}
+
+type RemoveOperatorPrincipalNotFound ErrorResponse
+
+func (*RemoveOperatorPrincipalNotFound) removeOperatorPrincipalRes() {}
+
+type RemoveOperatorPrincipalUnauthorized ErrorResponse
+
+func (*RemoveOperatorPrincipalUnauthorized) removeOperatorPrincipalRes() {}
 
 // A repository that groups one or more apps, subject to a resource tier and quota.
 // Ref: #

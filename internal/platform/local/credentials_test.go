@@ -1,7 +1,6 @@
 package local_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -14,7 +13,7 @@ func TestValidateOperatorTokenAcceptsKnownPrincipal(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	subject, err := plat.Credentials().ValidateOperatorToken(context.Background(), "alice@example.com", "")
+	subject, err := plat.Credentials().ValidateOperatorToken(ctx, "alice@example.com", "")
 	if err != nil {
 		t.Fatalf("ValidateOperatorToken: unexpected error: %v", err)
 	}
@@ -27,7 +26,7 @@ func TestValidateOperatorTokenRejectsUnknownPrincipal(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "eve@example.com", "")
+	_, err := plat.Credentials().ValidateOperatorToken(ctx, "eve@example.com", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
@@ -36,7 +35,7 @@ func TestValidateOperatorTokenRejectsUnknownPrincipal(t *testing.T) {
 func TestValidateOperatorTokenRejectsEmptyPrincipalsList(t *testing.T) {
 	plat := platWithTempHome(t)
 
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "alice@example.com", "")
+	_, err := plat.Credentials().ValidateOperatorToken(ctx, "alice@example.com", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
@@ -46,7 +45,7 @@ func TestValidateOperatorTokenRejectsEmptyUsername(t *testing.T) {
 	plat := platWithTempHome(t)
 	seedPrincipals(t, plat, "alice@example.com")
 
-	_, err := plat.Credentials().ValidateOperatorToken(context.Background(), "", "")
+	_, err := plat.Credentials().ValidateOperatorToken(ctx, "", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
@@ -58,7 +57,7 @@ func seedPrincipals(t *testing.T, plat *local.LocalPlatform, emails ...string) {
 	if err != nil {
 		t.Fatalf("marshal principals: %v", err)
 	}
-	if err := plat.Secrets().Set(context.Background(), "operator-principals", raw); err != nil {
+	if err := plat.Secrets().Set(ctx, "operator-principals", raw); err != nil {
 		t.Fatalf("seed principals: %v", err)
 	}
 }

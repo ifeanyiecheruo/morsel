@@ -81,7 +81,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGHUP, os.Interrupt)
 
 	for {
-		srv := &http.Server{Handler: api.NewMux(ctx, plat, signingKey, dbqueries.New(database))}
+		srv := &http.Server{Handler: api.NewMux(ctx, plat, secretMgr, signingKey, dbqueries.New(database))}
 
 		go func() {
 			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {

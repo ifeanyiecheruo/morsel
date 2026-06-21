@@ -27,6 +27,10 @@ func (c *cli) operatorLoginCmd() *cobra.Command {
 				apiURL = c.profile.APIURL
 			}
 
+			if apiURL == "" {
+				return fmt.Errorf("no API URL configured — provide --api-url to connect to a Morsel instance")
+			}
+
 			reader := bufio.NewReader(cmd.InOrStdin())
 			if !cmd.Flags().Changed("username") {
 				if _, err := fmt.Fprint(cmd.OutOrStdout(), "Username: "); err != nil {

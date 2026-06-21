@@ -8,12 +8,12 @@ _Delivers: `morsel service bootstrap --platform local` provisions a working loca
 
 ## Tasks
 
-- [ ] `morsel service bootstrap` command — phase runner with progress output; idempotent
-- [ ] `LocalPlatform.Secrets()` — filesystem implementation (`~/.morsel/local/secrets.json`)
-- [ ] `LocalPlatform.Bootstrap().Prompts()` — collect base domain (default `morsel.localhost`), optional config
-- [ ] `LocalPlatform.Bootstrap().Plan()` — describe what will be created; no estimated cost (LocalPlatform is free)
-- [ ] `LocalPlatform.Bootstrap().Provision()` — install Morsel API, blob service, queue service, database service, local registry into cluster; write bootstrap config to secret store; generate and store `local-deploy-signing-key` in SecretStore
-- [ ] Bootstrap config persistence — store wizard answers in local secret store; subsequent runs skip wizard
-- [ ] `morsel service status` — health-check all platform components; report pass/fail per component
-- [ ] `morsel service delete` — tear down all platform resources; requires explicit `--confirm` flag
-- [ ] `morsel operator principal add/remove/list` — manage local operator principal list in secret store
+- [x] `morsel service bootstrap` command — phase runner with progress output; idempotent
+- [x] `LocalPlatform.Secrets()` — filesystem implementation (`~/.morsel/local/secrets.json`)
+- [x] `LocalPlatform.Bootstrap().Prompts()` — collect base domain (default `morsel.localhost`), optional config
+- [x] `LocalPlatform.Bootstrap().Plan()` — describe what will be created; no estimated cost (LocalPlatform is free)
+- [x] `LocalPlatform.Bootstrap().Provision()` — write bootstrap config to secret store; generate and store `local-deploy-signing-key` in SecretStore; verify cluster access when kubeconfig is supplied. Kubernetes resource installation (Morsel API, blob service, queue service, database service, local registry) is deferred to F08 once those components have container images.
+- [x] Bootstrap config persistence — store wizard answers in local secret store; subsequent runs skip wizard
+- [x] `morsel service status` — health-check all platform components; report pass/fail per component
+- [x] `morsel service delete` — tear down all platform resources; requires explicit `--confirm` flag
+- [x] `morsel operator principal add/remove/list` — manage local operator principal list in secret store

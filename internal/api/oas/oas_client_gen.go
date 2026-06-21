@@ -29,6 +29,12 @@ func trimTrailingSlashes(u *url.URL) {
 
 // Invoker invokes operations described by OpenAPI v3 specification.
 type Invoker interface {
+	// AddOperatorPrincipal invokes addOperatorPrincipal operation.
+	//
+	// Grants admin UI access to the specified principal. Idempotent.
+	//
+	// POST /api/operator/principals
+	AddOperatorPrincipal(ctx context.Context, request *PrincipalReq) (AddOperatorPrincipalRes, error)
 	// BatchActionApprovals invokes batchActionApprovals operation.
 	//
 	// Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected
@@ -143,6 +149,12 @@ type Invoker interface {
 	//
 	// GET /api/operator/approvals
 	ListOperatorApprovals(ctx context.Context) (ListOperatorApprovalsRes, error)
+	// ListOperatorPrincipals invokes listOperatorPrincipals operation.
+	//
+	// Returns all principals authorised to access the operator UI.
+	//
+	// GET /api/operator/principals
+	ListOperatorPrincipals(ctx context.Context) (ListOperatorPrincipalsRes, error)
 	// ListRepoApprovals invokes listRepoApprovals operation.
 	//
 	// Returns approval requests raised by changes to this repo that are awaiting operator action before
@@ -157,6 +169,12 @@ type Invoker interface {
 	//
 	// GET /api/repos
 	ListRepos(ctx context.Context, params ListReposParams) (ListReposRes, error)
+	// RemoveOperatorPrincipal invokes removeOperatorPrincipal operation.
+	//
+	// Revokes admin UI access from the specified principal.
+	//
+	// DELETE /api/operator/principals/{principal}
+	RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (RemoveOperatorPrincipalRes, error)
 	// SyncRepo invokes syncRepo operation.
 	//
 	// Reconciles the cluster against the supplied app list. Apps present in the cluster but absent from
@@ -255,6 +273,122 @@ func (c *Client) requestURL(ctx context.Context) *url.URL {
 		return c.serverURL
 	}
 	return u
+}
+
+// AddOperatorPrincipal invokes addOperatorPrincipal operation.
+//
+// Grants admin UI access to the specified principal. Idempotent.
+//
+// POST /api/operator/principals
+func (c *Client) AddOperatorPrincipal(ctx context.Context, request *PrincipalReq) (AddOperatorPrincipalRes, error) {
+	res, err := c.sendAddOperatorPrincipal(ctx, request)
+	return res, err
+}
+
+func (c *Client) sendAddOperatorPrincipal(ctx context.Context, request *PrincipalReq) (res AddOperatorPrincipalRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("addOperatorPrincipal"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/operator/principals"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, AddOperatorPrincipalOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/api/operator/principals"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeAddOperatorPrincipalRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, AddOperatorPrincipalOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeAddOperatorPrincipalResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
 }
 
 // BatchActionApprovals invokes batchActionApprovals operation.
@@ -2705,6 +2839,119 @@ func (c *Client) sendListOperatorApprovals(ctx context.Context) (res ListOperato
 	return result, nil
 }
 
+// ListOperatorPrincipals invokes listOperatorPrincipals operation.
+//
+// Returns all principals authorised to access the operator UI.
+//
+// GET /api/operator/principals
+func (c *Client) ListOperatorPrincipals(ctx context.Context) (ListOperatorPrincipalsRes, error) {
+	res, err := c.sendListOperatorPrincipals(ctx)
+	return res, err
+}
+
+func (c *Client) sendListOperatorPrincipals(ctx context.Context) (res ListOperatorPrincipalsRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("listOperatorPrincipals"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/api/operator/principals"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, ListOperatorPrincipalsOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/api/operator/principals"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, ListOperatorPrincipalsOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeListOperatorPrincipalsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // ListRepoApprovals invokes listRepoApprovals operation.
 //
 // Returns approval requests raised by changes to this repo that are awaiting operator action before
@@ -2985,6 +3232,137 @@ func (c *Client) sendListRepos(ctx context.Context, params ListReposParams) (res
 
 	stage = "DecodeResponse"
 	result, err := decodeListReposResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// RemoveOperatorPrincipal invokes removeOperatorPrincipal operation.
+//
+// Revokes admin UI access from the specified principal.
+//
+// DELETE /api/operator/principals/{principal}
+func (c *Client) RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (RemoveOperatorPrincipalRes, error) {
+	res, err := c.sendRemoveOperatorPrincipal(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendRemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (res RemoveOperatorPrincipalRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("removeOperatorPrincipal"),
+		semconv.HTTPRequestMethodKey.String("DELETE"),
+		semconv.URLTemplateKey.String("/api/operator/principals/{principal}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, RemoveOperatorPrincipalOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [2]string
+	pathParts[0] = "/api/operator/principals/"
+	{
+		// Encode "principal" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "principal",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Principal))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, RemoveOperatorPrincipalOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeRemoveOperatorPrincipalResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

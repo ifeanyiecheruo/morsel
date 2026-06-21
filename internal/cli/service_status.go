@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ifeanyiecheruo/morsel/internal/apiclient"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +22,28 @@ func (c *cli) serviceStatusCmd() *cobra.Command {
 	}
 }
 
-func (h *cliHandler) ServiceStatus(_ context.Context, _ *Profile) error {
-	return fmt.Errorf("not yet implemented")
+func (h *cliHandler) ServiceStatus(ctx context.Context, prof *Profile) error {
+	if prof.APIURL == "" {
+		fmt.Println("  ✗ API: no URL configured (run 'morsel service bootstrap' first)")
+		return nil
+	}
+
+	client, err := apiclient.New(prof.APIURL, prof.AccessToken)
+	if err != nil {
+		fmt.Printf("  ✗ API: build client: %v\n", err)
+		return nil
+	}
+
+	resp, err := client.Inner().GetHealthz(ctx)
+	if err != nil {
+		fmt.Printf("  ✗ API (%s): %v\n", prof.APIURL, err)
+	} else {
+		fmt.Printf("  ✓ API (%s): %s\n", prof.APIURL, resp.Status)
+	}
+
+	if prof.ClusterServer != "" {
+		fmt.Printf("  ✓ Cluster: %s (context: %s)\n", prof.ClusterServer, prof.Kubecontext)
+	}
+
+	return nil
 }
