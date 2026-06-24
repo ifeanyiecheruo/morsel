@@ -9,6 +9,18 @@ import (
 	"context"
 )
 
+const countAppsByRepo = `-- name: CountAppsByRepo :one
+SELECT COUNT(*) FROM apps
+WHERE repo_slug = ? AND deletion_pending = 0
+`
+
+func (q *Queries) CountAppsByRepo(ctx context.Context, repoSlug string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAppsByRepo, repoSlug)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createRepo = `-- name: CreateRepo :one
 INSERT INTO repos (slug, tier)
 VALUES (?, ?)
@@ -81,6 +93,19 @@ type UpdateRepoTierParams struct {
 
 func (q *Queries) UpdateRepoTier(ctx context.Context, arg UpdateRepoTierParams) (Repo, error) {
 	row := q.db.QueryRowContext(ctx, updateRepoTier, arg.Tier, arg.Slug)
+	var i Repo
+	err := row.Scan(&i.Slug, &i.Tier, &i.CreatedAt)
+	return i, err
+}
+
+const upsertRepo = `-- name: UpsertRepo :one
+INSERT INTO repos (slug, tier) VALUES (?, 'small')
+ON CONFLICT(slug) DO UPDATE SET slug = slug
+RETURNING slug, tier, created_at
+`
+
+func (q *Queries) UpsertRepo(ctx context.Context, slug string) (Repo, error) {
+	row := q.db.QueryRowContext(ctx, upsertRepo, slug)
 	var i Repo
 	err := row.Scan(&i.Slug, &i.Tier, &i.CreatedAt)
 	return i, err

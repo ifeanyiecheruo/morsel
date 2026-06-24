@@ -171,3 +171,53 @@ func (q *Queries) UpdateAppStatus(ctx context.Context, arg UpdateAppStatusParams
 	_, err := q.db.ExecContext(ctx, updateAppStatus, arg.Status, arg.ID)
 	return err
 }
+
+const upsertApp = `-- name: UpsertApp :one
+INSERT INTO apps (repo_slug, name, type, namespace, image_current)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(repo_slug, name) DO UPDATE SET
+    type               = excluded.type,
+    namespace          = excluded.namespace,
+    image_last_healthy = apps.image_current,
+    image_current      = excluded.image_current,
+    status             = 'pending',
+    deletion_pending   = 0,
+    deleted_at         = NULL,
+    updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+RETURNING id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at
+`
+
+type UpsertAppParams struct {
+	RepoSlug     string
+	Name         string
+	Type         string
+	Namespace    sql.NullString
+	ImageCurrent sql.NullString
+}
+
+func (q *Queries) UpsertApp(ctx context.Context, arg UpsertAppParams) (App, error) {
+	row := q.db.QueryRowContext(ctx, upsertApp,
+		arg.RepoSlug,
+		arg.Name,
+		arg.Type,
+		arg.Namespace,
+		arg.ImageCurrent,
+	)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.RepoSlug,
+		&i.Name,
+		&i.Type,
+		&i.Status,
+		&i.Namespace,
+		&i.ImageCurrent,
+		&i.ImageLastHealthy,
+		&i.Permanent,
+		&i.DeletionPending,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

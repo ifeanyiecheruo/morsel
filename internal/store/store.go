@@ -9,8 +9,11 @@ import (
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 )
 
-// RefreshToken is re-exported so callers do not need to import db/queries directly.
+// Re-export domain types so callers do not import db/queries directly.
 type RefreshToken = dbqueries.RefreshToken
+type App = dbqueries.App
+type Repo = dbqueries.Repo
+type Operation = dbqueries.Operation
 
 // Store wraps the sqlc-generated query layer with typed, domain-level methods.
 type Store struct {
@@ -71,4 +74,105 @@ func (s *Store) RotateRefreshToken(ctx context.Context, id, tokenHash string, ex
 		ExpiresAt: expiresAt,
 	})
 	return err
+}
+
+// ── Repos ─────────────────────────────────────────────────────────────────────
+
+// GetOrCreateRepo returns the repo by slug, creating it with tier 'small' if absent.
+func (s *Store) GetOrCreateRepo(ctx context.Context, slug string) (Repo, error) {
+	return s.q.UpsertRepo(ctx, slug)
+}
+
+// GetRepo returns the repo by slug. Returns sql.ErrNoRows if not found.
+func (s *Store) GetRepo(ctx context.Context, slug string) (Repo, error) {
+	return s.q.GetRepo(ctx, slug)
+}
+
+// ListRepos returns all repos ordered by slug.
+func (s *Store) ListRepos(ctx context.Context) ([]Repo, error) {
+	return s.q.ListRepos(ctx)
+}
+
+// CountAppsByRepo returns the number of non-deleted apps in the repo.
+func (s *Store) CountAppsByRepo(ctx context.Context, slug string) (int64, error) {
+	return s.q.CountAppsByRepo(ctx, slug)
+}
+
+// ── Apps ──────────────────────────────────────────────────────────────────────
+
+// GetApp returns the app by repo slug and name. Returns sql.ErrNoRows if not found.
+func (s *Store) GetApp(ctx context.Context, repoSlug, name string) (App, error) {
+	return s.q.GetApp(ctx, dbqueries.GetAppParams{RepoSlug: repoSlug, Name: name})
+}
+
+// ListApps returns all non-deleted apps in the repo, ordered by name.
+func (s *Store) ListApps(ctx context.Context, repoSlug string) ([]App, error) {
+	return s.q.ListAppsByRepo(ctx, repoSlug)
+}
+
+// UpsertApp creates or updates the app record. Returns the resulting row.
+func (s *Store) UpsertApp(ctx context.Context, repoSlug, name, appType, namespace, image string) (App, error) {
+	var ns sql.NullString
+	if namespace != "" {
+		ns = sql.NullString{String: namespace, Valid: true}
+	}
+	var img sql.NullString
+	if image != "" {
+		img = sql.NullString{String: image, Valid: true}
+	}
+	return s.q.UpsertApp(ctx, dbqueries.UpsertAppParams{
+		RepoSlug:     repoSlug,
+		Name:         name,
+		Type:         appType,
+		Namespace:    ns,
+		ImageCurrent: img,
+	})
+}
+
+// MarkAppDeletionPending begins the deletion grace period for the given app.
+func (s *Store) MarkAppDeletionPending(ctx context.Context, id int64) error {
+	return s.q.MarkAppDeletionPending(ctx, id)
+}
+
+// ── Operations ────────────────────────────────────────────────────────────────
+
+// GetOperation returns the operation by ID. Returns sql.ErrNoRows if not found.
+func (s *Store) GetOperation(ctx context.Context, id string) (Operation, error) {
+	return s.q.GetOperation(ctx, id)
+}
+
+// CreateOperation creates a new pending operation record.
+func (s *Store) CreateOperation(ctx context.Context, id, repoSlug, appName, kind string) (Operation, error) {
+	return s.q.CreateOperation(ctx, dbqueries.CreateOperationParams{
+		ID:       id,
+		RepoSlug: repoSlug,
+		AppName:  appName,
+		Kind:     kind,
+	})
+}
+
+// SucceedOperation marks an operation as succeeded.
+func (s *Store) SucceedOperation(ctx context.Context, id string) error {
+	return s.q.UpdateOperationStatus(ctx, dbqueries.UpdateOperationStatusParams{
+		ID:     id,
+		Status: "succeeded",
+		Error:  sql.NullString{},
+	})
+}
+
+// FailOperation marks an operation as failed with the given error message.
+func (s *Store) FailOperation(ctx context.Context, id, message string) error {
+	return s.q.UpdateOperationStatus(ctx, dbqueries.UpdateOperationStatusParams{
+		ID:     id,
+		Status: "failed",
+		Error:  sql.NullString{String: message, Valid: true},
+	})
+}
+
+// ListAppOperations returns all operations for an app in reverse chronological order.
+func (s *Store) ListAppOperations(ctx context.Context, repoSlug, appName string) ([]Operation, error) {
+	return s.q.ListOperationsByApp(ctx, dbqueries.ListOperationsByAppParams{
+		RepoSlug: repoSlug,
+		AppName:  appName,
+	})
 }

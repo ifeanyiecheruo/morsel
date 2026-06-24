@@ -157,10 +157,24 @@ func (h *Handler) GetHealthz(_ context.Context) (*oas.GetHealthzOK, error) {
 
 // NewError converts any handler error into the ogen convenient-error envelope.
 // Called by the ogen-generated server when a handler returns an error rather
-// than a typed response value.
+// than a typed response value (including security failures).
 func (h *Handler) NewError(_ context.Context, err error) *oas.ErrorInternalServerStatusCode {
 	var ae *apiError
 	if errors.As(err, &ae) {
+		return &oas.ErrorInternalServerStatusCode{
+			StatusCode: ae.httpStatus,
+			Response: oas.ErrorResponse{
+				Error: oas.ErrorDetail{
+					Code:    ae.code,
+					Message: ae.message,
+					Remedy:  ae.remedy,
+				},
+			},
+		}
+	}
+	// ogen security and routing errors carry a structured HTTP status code.
+	if code := ogenerrors.ErrorCode(err); code != http.StatusInternalServerError {
+		ae = ogenAPIError(code)
 		return &oas.ErrorInternalServerStatusCode{
 			StatusCode: ae.httpStatus,
 			Response: oas.ErrorResponse{
