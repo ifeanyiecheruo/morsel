@@ -20,7 +20,7 @@
 | [F03](003-feature-authentication.md) | Authentication | ✅ done | F02 |
 | [F03a](003a-feature-cli-scaffold.md) | CLI Scaffold | ✅ done | F01 |
 | [F03b](003b-feature-openapi-ogen.md) | OpenAPI Spec & ogen Code Generation | ✅ done | F03 |
-| [F04](004-feature-lint-and-schema-validation.md) | App Lint and Schema Validation | ⬜ not started | F03a |
+| [F04](004-feature-lint-and-schema-validation.md) | App Lint and Schema Validation | ✅ done | F03a |
 | [F05](005-feature-app-lifecycle-api.md) | App Lifecycle: API Layer | ⬜ not started | F03b |
 | [F06](006-feature-kubernetes-manifest-apply.md) | Kubernetes Manifest Apply | ⬜ not started | F05 |
 | [F07](007-feature-bootstrap-local-platform.md) | Bootstrap: LocalPlatform | ✅ done | F02, F03 |

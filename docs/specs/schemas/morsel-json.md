@@ -12,7 +12,7 @@ Up: [Index](../README.md) · [Schemas](README.md)
 
 Every app deployed through Morsel is declared in a `*.morsel.json` file committed to the repository. Morsel reads these files on deploy to determine what to build, how to route it, what resources to provision, and what quotas apply. A single repository can declare any number of apps by committing multiple files.
 
-The formal JSON Schema is at [`morsel.schema.json`](morsel.schema.json).
+The formal JSON Schema is at [`/schemas/morsel.schema.json`](../../../schemas/morsel.schema.json).
 
 ---
 

@@ -6,7 +6,7 @@ Formal schemas for files that developers and operators author. Each schema has a
 |---|---|
 | [morsel.json](morsel-json.md) | App declaration — all fields, types, defaults, constraints |
 
-The JSON Schema files in this directory (`*.schema.json`) target JSON Schema draft-07 and can be referenced from VS Code's `json.schemas` setting for in-editor validation.
+The canonical JSON Schema files live in [`/schemas/`](../../../schemas/) at the repository root. They are published via raw GitHub URLs and registered with SchemaStore for automatic IDE validation — see [`/schemas/README.md`](../../../schemas/README.md).
 
 ---
 

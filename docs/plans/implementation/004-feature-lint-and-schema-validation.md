@@ -8,7 +8,7 @@ _Delivers: `morsel lint` works; developers catch schema errors before pushing._
 
 ## Tasks
 
-- [ ] `morsel lint` command — find and validate all `*.morsel.json` files in `.morsel/`; validate against `morsel.schema.json`
-- [ ] `morsel lint --staged` — validate only git-staged files; suitable for pre-commit hook
-- [ ] `morsel lint --fix` — auto-correct safe issues (field ordering, whitespace)
-- [ ] Lint checks: schema validity, valid `type` value, `schedule`+`timeout` present for `cronjob`, unique `name` within `.morsel/`, `permanent: true` removal warning, type-incompatible field warnings
+- [x] `morsel lint` command — find and validate all `*.morsel.json` files in `.morsel/`; validate against `morsel.schema.json`
+- [x] `morsel lint --staged` — validate only git-staged files; suitable for pre-commit hook
+- [x] `morsel lint --fix` — auto-correct safe issues (field ordering, whitespace)
+- [x] Lint checks: schema validity, valid `type` value, `schedule`+`timeout` present for `cronjob`, unique `name` within `.morsel/`, `permanent: true` removal warning, type-incompatible field warnings

@@ -1,12 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "morsel.schema.json",
+  "$id": "https://raw.githubusercontent.com/ifeanyiecheruo/morsel/v0.1.0/schemas/morsel.schema.json",
   "title": "morsel.json",
   "description": "Declares a single Morsel app within a repository.",
   "type": "object",
   "additionalProperties": false,
   "required": ["type", "dockerfile"],
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URI for IDE validation. Points to a versioned schema URL."
+    },
     "name": {
       "type": "string",
       "description": "Unique app identifier within the repo. Lowercase alphanumeric and hyphens only. If omitted, the repo itself is the app.",
