@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
-	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +18,12 @@ func (c *cli) serviceBootstrapCmd() *cobra.Command {
 		Use:   "bootstrap",
 		Short: "Install or upgrade the platform",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			prof, err := c.handler.ServiceBootstrap(cmd.Context(), platformFlag, kubeconfigFlag)
+			plat, err := platforms.Create(platformFlag, nil)
+			if err != nil {
+				return fmt.Errorf("unknown platform %q: %w", platformFlag, err)
+			}
+
+			prof, err := c.handler.ServiceBootstrap(cmd.Context(), platformFlag, kubeconfigFlag, plat)
 			if err != nil {
 				return err
 			}
@@ -40,15 +45,9 @@ func (c *cli) serviceBootstrapCmd() *cobra.Command {
 	return cmd
 }
 
-func (h *cliHandler) ServiceBootstrap(ctx context.Context, platformName, kubeconfig string) (*Profile, error) {
-	plat, err := platforms.Create(platformName)
-	if err != nil {
-		return nil, fmt.Errorf("unknown platform %q: %w", platformName, err)
-	}
-
+func (h *cliHandler) ServiceBootstrap(ctx context.Context, platformName, kubeconfig string, plat platform.Platform) (*Profile, error) {
 	b := plat.Bootstrap()
 
-	// Phase 1 — verify platform prerequisites (cluster connectivity, credentials, etc.)
 	fmt.Printf("  Checking prerequisites... ")
 	if err := b.CheckPrerequisites(ctx, kubeconfig); err != nil {
 		fmt.Println("✗")
@@ -56,30 +55,16 @@ func (h *cliHandler) ServiceBootstrap(ctx context.Context, platformName, kubecon
 	}
 	fmt.Printf("✓ %s\n", b.ClusterServer())
 
-	// Check for a previously saved wizard config so re-runs skip the wizard.
-	mgr := secrets.New(plat.Secrets())
-	savedConfig, err := mgr.BootstrapConfig(ctx)
+	p := NewConsolePrompter(os.Stdin, os.Stdout)
+	answers, err := p.Ask(b.Prompts())
 	if err != nil {
-		return nil, fmt.Errorf("load existing bootstrap config: %w", err)
+		return nil, err
+	}
+	p.PrintPlan(b.Plan(answers))
+	if !p.Confirm("Proceed with provisioning? [y/N]: ") {
+		return nil, fmt.Errorf("bootstrap cancelled")
 	}
 
-	var answers map[string]string
-	if savedConfig != nil {
-		fmt.Println("  Existing bootstrap configuration found — skipping wizard.")
-		answers = savedConfig
-	} else {
-		p := NewConsolePrompter(os.Stdin, os.Stdout)
-		answers, err = p.Ask(b.Prompts())
-		if err != nil {
-			return nil, err
-		}
-		p.PrintPlan(b.Plan(answers))
-		if !p.Confirm("Proceed with provisioning? [y/N]: ") {
-			return nil, fmt.Errorf("bootstrap cancelled")
-		}
-	}
-
-	// Phase 2 — provision (writes signing keys + persists bootstrap config).
 	fmt.Printf("  Provisioning... ")
 	if err := b.Provision(ctx, answers); err != nil {
 		fmt.Println("✗")

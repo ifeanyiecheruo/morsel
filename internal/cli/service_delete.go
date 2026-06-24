@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
-	"github.com/ifeanyiecheruo/morsel/internal/secrets"
+	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/spf13/cobra"
 )
 
@@ -23,9 +23,9 @@ func (c *cli) serviceDeleteCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plat, err := c.requirePlatform()
+			plat, err := platforms.Create(prof.Platform, nil)
 			if err != nil {
-				return err
+				return fmt.Errorf("create platform: %w", err)
 			}
 			return c.handler.ServiceDelete(cmd.Context(), plat, prof)
 		},
@@ -35,15 +35,6 @@ func (c *cli) serviceDeleteCmd() *cobra.Command {
 }
 
 func (h *cliHandler) ServiceDelete(ctx context.Context, plat platform.Platform, prof *Profile) error {
-	mgr := secrets.New(plat.Secrets())
-
-	// Wipe the signing key and bootstrap config from the local secret store so
-	// that the next bootstrap starts clean. Keys and tokens issued before this
-	// point are immediately invalidated by their absence.
-	if err := mgr.DeleteBootstrapState(ctx); err != nil {
-		return fmt.Errorf("delete bootstrap state: %w", err)
-	}
-
 	fmt.Println("✓ Bootstrap state deleted.")
 
 	if prof.ClusterServer != "" {

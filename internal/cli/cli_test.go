@@ -15,7 +15,7 @@ import (
 // which returns a safe empty profile). Tests set only the hooks they care about.
 type mockCliHandler struct {
 	onLoadProfile             func(name string, ensureValid bool) (*Profile, error)
-	onServiceBootstrap        func(platformName, kubeconfig string) (*Profile, error)
+	onServiceBootstrap        func(platformName, kubeconfig string, plat platform.Platform) (*Profile, error)
 	onOperatorLogin           func(apiURL, username, password string) (*Profile, error)
 	onSaveProfile             func(name string, prof *Profile) error
 	onDeleteProfile           func(name string) error
@@ -46,9 +46,9 @@ func (h *mockCliHandler) LoadProfile(_ context.Context, name string, ensureValid
 	return nil, nil
 }
 
-func (h *mockCliHandler) ServiceBootstrap(_ context.Context, platformName, kubeconfig string) (*Profile, error) {
+func (h *mockCliHandler) ServiceBootstrap(_ context.Context, platformName, kubeconfig string, plat platform.Platform) (*Profile, error) {
 	if h.onServiceBootstrap != nil {
-		return h.onServiceBootstrap(platformName, kubeconfig)
+		return h.onServiceBootstrap(platformName, kubeconfig, plat)
 	}
 	return &Profile{}, nil
 }
@@ -305,7 +305,7 @@ func TestOperatorLoginSucceedsWithAPIURLAndNoProfile(t *testing.T) {
 func TestServiceBootstrapPassesFlagsToHandler(t *testing.T) {
 	var gotPlatform, gotKubeconfig string
 	mock := &mockCliHandler{
-		onServiceBootstrap: func(platformName, kubeconfig string) (*Profile, error) {
+		onServiceBootstrap: func(platformName, kubeconfig string, _ platform.Platform) (*Profile, error) {
 			gotPlatform = platformName
 			gotKubeconfig = kubeconfig
 			return &Profile{}, nil
@@ -326,6 +326,13 @@ func TestServiceBootstrapRequiresPlatformFlag(t *testing.T) {
 	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap"})
 	if err == nil {
 		t.Fatal("expected error for missing --platform, got nil")
+	}
+}
+
+func TestServiceBootstrapRejectsKubeconfigForNonLocalPlatform(t *testing.T) {
+	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap", "--platform", "gcp", "--kubeconfig", "/tmp/kube"})
+	if err == nil {
+		t.Fatal("expected error when --kubeconfig is used with non-local platform, got nil")
 	}
 }
 

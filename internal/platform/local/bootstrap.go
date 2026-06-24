@@ -5,11 +5,10 @@ import (
 	"fmt"
 
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
-	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 )
 
 type localBootstrapper struct {
-	secretMgr      *secrets.Manager
+	secrets        *localSecrets
 	kubeconfigPath string
 	kubeContext    string
 	clusterServer  string
@@ -93,22 +92,13 @@ func (lb *localBootstrapper) Plan(answers map[string]string) platform.Plan {
 	}
 }
 
-// Provision writes bootstrap configuration and generates cryptographic keys.
-// Cluster access is verified by CheckPrerequisites before the wizard runs;
-// Provision is limited to state that must survive across re-runs.
-func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]string) error {
-	if lb.secretMgr == nil {
-		return platform.ErrNotImplemented
-	}
-
+// Provision generates cryptographic keys needed to run Morsel.
+// Safe to re-run — key generation is idempotent.
+// Bootstrap config is persisted separately by the caller via the store.
+func (lb *localBootstrapper) Provision(ctx context.Context, _ map[string]string) error {
 	// Generate deploy signing key (idempotent — no-op if already present).
-	if _, err := lb.secretMgr.DeploySigningKey(ctx); err != nil {
+	if _, err := lb.secrets.DeploySigningKey(ctx); err != nil {
 		return fmt.Errorf("generate deploy signing key: %w", err)
 	}
-
-	if err := lb.secretMgr.SetBootstrapConfig(ctx, answers); err != nil {
-		return fmt.Errorf("persist bootstrap config: %w", err)
-	}
-
 	return nil
 }

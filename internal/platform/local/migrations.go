@@ -1,28 +1,52 @@
-package secrets
+package local
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
 	"io/fs"
 	"strconv"
 	"strings"
 
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
-type migration struct {
+//go:embed migrations/*.secrets.txt
+var secretMigrationsFS embed.FS
+
+type secretMigration struct {
 	name string
-	run  func(ctx context.Context, store platform.SecretStore) error
+	run  func(ctx context.Context, store *localFileSecretStore) error
+}
+
+func runFileMigrations(ctx context.Context, store *localFileSecretStore) error {
+	logger := ctxlog.From(ctx)
+	fsys, err := fs.Sub(secretMigrationsFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("secret migrations fs: %w", err)
+	}
+	migs, err := loadFileMigrations(fsys)
+	if err != nil {
+		return fmt.Errorf("load secret migrations: %w", err)
+	}
+	for _, mig := range migs {
+		if err := mig.run(ctx, store); err != nil {
+			return fmt.Errorf("secret migration %q: %w", mig.name, err)
+		}
+		logger.Debug("secret migration ok", "migration", mig.name)
+	}
+	return nil
 }
 
 // fs.ReadDir guarantees lexicographic order, so NNN_ prefixes determine sequence.
-func loadMigrations(fsys fs.FS) ([]migration, error) {
+func loadFileMigrations(fsys fs.FS) ([]secretMigration, error) {
 	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		return nil, fmt.Errorf("read migrations: %w", err)
 	}
-	var all []migration
+	var all []secretMigration
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".secrets.txt") {
 			continue
@@ -31,7 +55,7 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read %s: %w", entry.Name(), err)
 		}
-		migs, err := parseMigrationScript(entry.Name(), content)
+		migs, err := parseFileMigrationScript(entry.Name(), content)
 		if err != nil {
 			return nil, err
 		}
@@ -44,8 +68,8 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 //
 //	rename "old-name" "new-name"
 //	delete "name"
-func parseMigrationScript(filename string, content []byte) ([]migration, error) {
-	var migs []migration
+func parseFileMigrationScript(filename string, content []byte) ([]secretMigration, error) {
+	var migs []secretMigration
 	for lineNum, rawLine := range strings.Split(string(content), "\n") {
 		line := strings.TrimSpace(rawLine)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -65,9 +89,9 @@ func parseMigrationScript(filename string, content []byte) ([]migration, error) 
 			if err != nil {
 				return nil, fmt.Errorf("%s:%d: invalid dest name: %w", filename, lineNum+1, err)
 			}
-			migs = append(migs, migration{
+			migs = append(migs, secretMigration{
 				name: fmt.Sprintf("%s: rename %q → %q", filename, src, dst),
-				run:  renameSecret(src, dst),
+				run:  renameFileSecret(src, dst),
 			})
 		case "delete":
 			if len(fields) != 2 {
@@ -77,9 +101,9 @@ func parseMigrationScript(filename string, content []byte) ([]migration, error) 
 			if err != nil {
 				return nil, fmt.Errorf("%s:%d: invalid secret name: %w", filename, lineNum+1, err)
 			}
-			migs = append(migs, migration{
+			migs = append(migs, secretMigration{
 				name: fmt.Sprintf("%s: delete %q", filename, name),
-				run:  deleteSecret(name),
+				run:  deleteFileSecret(name),
 			})
 		default:
 			return nil, fmt.Errorf("%s:%d: unknown directive %q", filename, lineNum+1, fields[0])
@@ -88,27 +112,25 @@ func parseMigrationScript(filename string, content []byte) ([]migration, error) 
 	return migs, nil
 }
 
-// If src is absent this is a no-op.
-func renameSecret(src, dst string) func(context.Context, platform.SecretStore) error {
-	return func(ctx context.Context, store platform.SecretStore) error {
-		value, err := store.Get(ctx, src)
+func renameFileSecret(src, dst string) func(context.Context, *localFileSecretStore) error {
+	return func(ctx context.Context, store *localFileSecretStore) error {
+		value, err := store.get(ctx, src)
 		if errors.Is(err, platform.ErrSecretNotFound) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if err := store.Set(ctx, dst, value); err != nil {
+		if err := store.set(ctx, dst, value); err != nil {
 			return err
 		}
-		return store.Delete(ctx, src)
+		return store.delete(ctx, src)
 	}
 }
 
-// If name is absent this is a no-op.
-func deleteSecret(name string) func(context.Context, platform.SecretStore) error {
-	return func(ctx context.Context, store platform.SecretStore) error {
-		err := store.Delete(ctx, name)
+func deleteFileSecret(name string) func(context.Context, *localFileSecretStore) error {
+	return func(ctx context.Context, store *localFileSecretStore) error {
+		err := store.delete(ctx, name)
 		if errors.Is(err, platform.ErrSecretNotFound) {
 			return nil
 		}

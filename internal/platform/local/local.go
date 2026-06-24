@@ -4,34 +4,37 @@ package local
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
-	"github.com/ifeanyiecheruo/morsel/internal/secrets"
+	"github.com/ifeanyiecheruo/morsel/internal/store"
 )
 
 // LocalPlatform implements platform.Platform with no cloud dependencies.
 type LocalPlatform struct {
-	store     *localSecretStore
-	secretMgr *secrets.Manager
+	secrets *localSecrets
+	store   *store.Store
 }
 
-func New() *LocalPlatform {
-	store := newLocalSecretStore()
-	return &LocalPlatform{
-		store:     store,
-		secretMgr: secrets.New(store),
-	}
+func New(s *store.Store) *LocalPlatform {
+	fileStore := newLocalFileSecretStore()
+	sec := &localSecrets{fileStore: fileStore, store: s}
+	return &LocalPlatform{secrets: sec, store: s}
+}
+
+// DBPath returns the path to the SQLite database for the local platform.
+func DBPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".morsel", "local", "morsel.db")
 }
 
 func (lp *LocalPlatform) Bootstrap() platform.Bootstrapper {
-	return &localBootstrapper{secretMgr: lp.secretMgr}
+	return &localBootstrapper{secrets: lp.secrets}
 }
-func (lp *LocalPlatform) Deploy() platform.Deployer     { return &localDeployer{secretMgr: lp.secretMgr} }
-func (lp *LocalPlatform) Blobs() platform.BlobStore     { return &localBlobStore{} }
-func (lp *LocalPlatform) Secrets() platform.SecretStore { return lp.store }
-func (lp *LocalPlatform) Credentials() platform.CredentialProvider {
-	return &localCredentialProvider{secretMgr: lp.secretMgr}
-}
+func (lp *LocalPlatform) Deploy() platform.Deployer         { return &localDeployer{secrets: lp.secrets} }
+func (lp *LocalPlatform) Blobs() platform.BlobStore         { return &localBlobStore{} }
+func (lp *LocalPlatform) Secrets() platform.Secrets         { return lp.secrets }
 func (lp *LocalPlatform) DNS() platform.DNSProvider         { return &localDNSProvider{} }
 func (lp *LocalPlatform) Certs() platform.CertProvider      { return &localCertProvider{} }
 func (lp *LocalPlatform) Pricing() platform.PricingProvider { return &localPricingProvider{} }
@@ -39,14 +42,17 @@ func (lp *LocalPlatform) Pricing() platform.PricingProvider { return &localPrici
 // SeedDefaults installs the default operator principal if none have been
 // configured yet. Called once on server startup via platform.Seeder.
 func (lp *LocalPlatform) SeedDefaults(ctx context.Context) error {
-	existing, err := lp.secretMgr.OperatorPrincipals(ctx)
+	if lp.store == nil {
+		return nil
+	}
+	existing, err := lp.store.ListPrincipals(ctx)
 	if err != nil {
 		return err
 	}
 	if len(existing) > 0 {
 		return nil
 	}
-	return lp.secretMgr.SetOperatorPrincipals(ctx, []string{"operator@example.com"})
+	return lp.store.AddPrincipal(ctx, "operator@example.com")
 }
 
 var _ platform.Seeder = (*LocalPlatform)(nil)

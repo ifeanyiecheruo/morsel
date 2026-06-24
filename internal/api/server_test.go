@@ -12,7 +12,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
-	"github.com/ifeanyiecheruo/morsel/internal/secrets"
+	"github.com/ifeanyiecheruo/morsel/internal/store"
 )
 
 // jsonPost returns a POST request with Content-Type: application/json.
@@ -22,17 +22,19 @@ func jsonPost(target, body string) *http.Request {
 	return req
 }
 
-// testKey is a fixed 32-byte key used in tests — never used outside tests.
-var testKey = make([]byte, 32)
-
 func newTestMux(t *testing.T) http.Handler {
 	t.Helper()
-	plat := local.New()
-	return newTestMuxWithPlatform(t, plat)
+	_, _, mux := testSetup(t)
+	return mux
 }
 
-func newTestMuxWithPlatform(t *testing.T, plat *local.LocalPlatform) http.Handler {
+// testSetup creates a platform backed by an in-memory DB and the API mux.
+func testSetup(t *testing.T) (*local.LocalPlatform, *store.Store, http.Handler) {
 	t.Helper()
+	tmp := t.TempDir()
+	t.Setenv("USERPROFILE", tmp)
+	t.Setenv("HOME", tmp)
+
 	database, err := db.Open(context.Background(), ":memory:")
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
@@ -41,7 +43,14 @@ func newTestMuxWithPlatform(t *testing.T, plat *local.LocalPlatform) http.Handle
 	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("migrate test database: %v", err)
 	}
-	return api.NewMux(context.Background(), plat, secrets.New(plat.Secrets()), testKey, dbqueries.New(database))
+
+	s := store.New(dbqueries.New(database))
+	plat := local.New(s)
+	if err := plat.Secrets().Migrate(context.Background()); err != nil {
+		t.Fatalf("secret migration: %v", err)
+	}
+	mux := api.NewMux(context.Background(), plat, s)
+	return plat, s, mux
 }
 
 func TestHealthzReturnsOK(t *testing.T) {
@@ -99,16 +108,11 @@ func TestHealthzIgnoresWrongMethod(t *testing.T) {
 }
 
 func TestTokenOIDCIssuesBothTokens(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("USERPROFILE", tmp)
-	t.Setenv("HOME", tmp)
-	plat := local.New()
-	principals, _ := json.Marshal([]string{"alice@example.com"})
-	if err := plat.Secrets().Set(context.Background(), "operator-principals", principals); err != nil {
-		t.Fatalf("seed principals: %v", err)
+	_, s, mux := testSetup(t)
+	if err := s.AddPrincipal(context.Background(), "alice@example.com"); err != nil {
+		t.Fatalf("seed principal: %v", err)
 	}
 
-	mux := newTestMuxWithPlatform(t, plat)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"username":"alice@example.com","password":""}`))
 
@@ -135,16 +139,11 @@ func TestTokenOIDCIssuesBothTokens(t *testing.T) {
 }
 
 func TestTokenOIDCRejectsUnknownPrincipal(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("USERPROFILE", tmp)
-	t.Setenv("HOME", tmp)
-	plat := local.New()
-	principals, _ := json.Marshal([]string{"alice@example.com"})
-	if err := plat.Secrets().Set(context.Background(), "operator-principals", principals); err != nil {
-		t.Fatalf("seed principals: %v", err)
+	_, s, mux := testSetup(t)
+	if err := s.AddPrincipal(context.Background(), "alice@example.com"); err != nil {
+		t.Fatalf("seed principal: %v", err)
 	}
 
-	mux := newTestMuxWithPlatform(t, plat)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"username":"eve@example.com","password":""}`))
 

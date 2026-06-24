@@ -4,15 +4,14 @@ import (
 	"context"
 
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
-	"github.com/ifeanyiecheruo/morsel/internal/secrets"
 )
 
 type localDeployer struct {
-	secretMgr *secrets.Manager
+	secrets *localSecrets
 }
 
 func (ld *localDeployer) Credentials(ctx context.Context) (platform.DeployCredentials, error) {
-	exists, err := ld.secretMgr.DeploySigningKeyExists(ctx)
+	exists, err := ld.secrets.DeploySigningKeyExists(ctx)
 	if err != nil {
 		return platform.DeployCredentials{}, err
 	}

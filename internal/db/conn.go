@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	_ "modernc.org/sqlite"
@@ -13,6 +15,11 @@ import (
 // pool capped to one connection. SQLite serialises writes regardless, but a pool
 // cap prevents the driver from opening multiple file handles and racing on locks.
 func Open(ctx context.Context, path string) (*sql.DB, error) {
+	if path != ":memory:" {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			return nil, fmt.Errorf("create database directory: %w", err)
+		}
+	}
 	database, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err

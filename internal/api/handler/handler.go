@@ -11,29 +11,27 @@ import (
 	"github.com/ogen-go/ogen/ogenerrors"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
-	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
-	"github.com/ifeanyiecheruo/morsel/internal/secrets"
+	"github.com/ifeanyiecheruo/morsel/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 )
 
 // AppPlatform is the subset of platform.Platform that API handlers may consume.
 // Expanded as stub methods are implemented.
 type AppPlatform interface {
-	Credentials() platform.CredentialProvider
+	Secrets() platform.Secrets
 }
 
 // Handler implements oas.Handler for all Morsel API operations.
 type Handler struct {
 	plat       AppPlatform
-	secretMgr  *secrets.Manager
+	store      *store.Store
 	signingKey []byte
-	queries    *dbqueries.Queries
 }
 
 // New constructs a Handler.
-func New(plat AppPlatform, secretMgr *secrets.Manager, signingKey []byte, queries *dbqueries.Queries) *Handler {
-	return &Handler{plat: plat, secretMgr: secretMgr, signingKey: signingKey, queries: queries}
+func New(plat AppPlatform, s *store.Store, signingKey []byte) *Handler {
+	return &Handler{plat: plat, store: s, signingKey: signingKey}
 }
 
 // apiError is the internal structured error type. It is written by WriteError

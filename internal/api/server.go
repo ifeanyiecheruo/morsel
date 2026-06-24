@@ -10,16 +10,14 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 	"github.com/ifeanyiecheruo/morsel/internal/api/wellknown"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
-	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
-	"github.com/ifeanyiecheruo/morsel/internal/secrets"
+	"github.com/ifeanyiecheruo/morsel/internal/store"
 )
 
 // AppPlatform is the subset of platform.Platform that API handlers are allowed
-// to consume. Secrets() and Bootstrap() are deliberately absent: secrets must
-// be accessed through secrets.Manager, and bootstrapping is a CLI concern.
+// to consume. Bootstrap() is deliberately absent: bootstrapping is a CLI concern.
 type AppPlatform interface {
-	Credentials() platform.CredentialProvider
+	Secrets() platform.Secrets
 	Deploy() platform.Deployer
 	Blobs() platform.BlobStore
 	DNS() platform.DNSProvider
@@ -30,8 +28,12 @@ type AppPlatform interface {
 // NewMux constructs the root HTTP handler for the Morsel API using the
 // ogen-generated router. Panics if the server cannot be constructed (indicates
 // a programmer error such as a nil handler).
-func NewMux(ctx context.Context, plat AppPlatform, secretMgr *secrets.Manager, signingKey []byte, queries *dbqueries.Queries) http.Handler {
-	h := handler.New(plat, secretMgr, signingKey, queries)
+func NewMux(ctx context.Context, plat AppPlatform, s *store.Store) http.Handler {
+	signingKey, err := plat.Secrets().SigningKey(ctx)
+	if err != nil {
+		panic("morsel api: signing key unavailable: " + err.Error())
+	}
+	h := handler.New(plat, s, signingKey)
 	sec := handler.NewSecurityHandler(signingKey)
 
 	srv, err := oas.NewServer(h, sec,

@@ -36,6 +36,13 @@ type Operation struct {
 	UpdatedAt time.Time
 }
 
+type Principal struct {
+	Username     string
+	PasswordHash sql.NullString
+	Salt         sql.NullString
+	CreatedAt    time.Time
+}
+
 type RefreshToken struct {
 	ID        string
 	TokenHash string

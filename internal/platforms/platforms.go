@@ -8,14 +8,16 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
+	"github.com/ifeanyiecheruo/morsel/internal/store"
 )
 
 // Create constructs the Platform implementation for the given name.
-// An empty name defaults to "local".
-func Create(name string) (platform.Platform, error) {
+// Pass a non-nil store for server contexts that need principal validation;
+// pass nil for CLI contexts.
+func Create(name string, s *store.Store) (platform.Platform, error) {
 	switch name {
 	case "local":
-		return local.New(), nil
+		return local.New(s), nil
 	default:
 		return nil, fmt.Errorf("unknown platform %q (supported: local)", name)
 	}

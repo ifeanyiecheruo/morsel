@@ -15,10 +15,10 @@ var (
 	// ErrNotImplemented is returned by stub methods not yet built.
 	ErrNotImplemented = errors.New("not implemented")
 
-	// ErrSecretNotFound is returned by SecretStore.Get when the named secret does not exist.
+	// ErrSecretNotFound is returned when a named secret does not exist.
 	ErrSecretNotFound = errors.New("secret not found")
 
-	// ErrPrincipalNotAuthorized is returned by CredentialProvider.ValidateOperatorToken
+	// ErrPrincipalNotAuthorized is returned by Secrets.ValidateOperatorCredential
 	// when the identity is not an authorised operator. Callers map this to 401.
 	ErrPrincipalNotAuthorized = errors.New("principal not authorized")
 )
@@ -34,18 +34,52 @@ type Platform interface {
 	Bootstrap() Bootstrapper
 	Deploy() Deployer
 	Blobs() BlobStore
-	Secrets() SecretStore
-	Credentials() CredentialProvider
+	Secrets() Secrets
 	DNS() DNSProvider
 	Certs() CertProvider
 	Pricing() PricingProvider
 }
 
 // CliPlatform is the CLI-facing subset. Re-exported from the public platform
-// package as platform.Platform so CLI commands only see Bootstrap and Deploy.
+// package as platform.Platform so CLI commands only see Bootstrap, Deploy, and Secrets.
 type CliPlatform interface {
 	Bootstrap() Bootstrapper
 	Deploy() Deployer
+	Secrets() Secrets
+}
+
+// Secrets is the strongly-typed platform secret and credential interface.
+// It replaces the generic SecretStore + CredentialProvider pair.
+type Secrets interface {
+	// SigningKey returns (or generates on first call) the Morsel service signing key.
+	SigningKey(ctx context.Context) ([]byte, error)
+
+	// DeploySigningKey returns (or generates on first call) the deploy identity signing key.
+	// Only platforms that use HMAC-signed deploy JWTs implement this; cloud platforms
+	// use Workload Identity Federation and can return ErrNotImplemented.
+	DeploySigningKey(ctx context.Context) ([]byte, error)
+
+	// DeploySigningKeyExists reports whether a deploy signing key has been provisioned
+	// without generating one if absent.
+	DeploySigningKeyExists(ctx context.Context) (bool, error)
+
+	// AmbientToken returns a short-lived platform access token for ambient service identity.
+	// Returns ("", nil) on platforms that rely on implicit credentials (e.g., Workload Identity).
+	AmbientToken(ctx context.Context) (string, error)
+
+	// DeployToken generates a deploy identity token for the current repo.
+	DeployToken(ctx context.Context) (string, error)
+
+	// ValidateDeployToken validates a deploy identity token and returns the repo slug.
+	ValidateDeployToken(ctx context.Context, token string) (slug string, err error)
+
+	// ValidateOperatorCredential validates an operator login and returns the subject.
+	// Returns ErrPrincipalNotAuthorized for any auth failure; other errors are infrastructure failures.
+	ValidateOperatorCredential(ctx context.Context, username, password string) (subject string, err error)
+
+	// Migrate runs any pending file-level secret migrations (key renames, deletions).
+	// Safe to call on every startup; idempotent.
+	Migrate(ctx context.Context) error
 }
 
 // Bootstrapper provisions all platform resources needed to run Morsel.
@@ -90,30 +124,6 @@ type BlobStore interface {
 	List(ctx context.Context, namespace, prefix, cursor string, limit int) (keys []string, nextCursor string, err error)
 	Delete(ctx context.Context, namespace, key string) error
 	Usage(ctx context.Context, namespace string) (int64, error)
-}
-
-// SecretStore is the low-level platform secret read/write interface.
-// Use secrets.Manager for strongly-typed access in business logic.
-type SecretStore interface {
-	Get(ctx context.Context, name string) ([]byte, error)
-	Set(ctx context.Context, name string, value []byte) error
-	Delete(ctx context.Context, name string) error
-}
-
-// CredentialProvider handles service identity and operator authentication.
-type CredentialProvider interface {
-	// AmbientToken returns a short-lived platform access token for ambient service identity.
-	AmbientToken(ctx context.Context) (string, error)
-
-	// DeployToken generates a deploy identity token for the current repo.
-	DeployToken(ctx context.Context) (string, error)
-
-	// ValidateDeployToken validates a deploy identity token and returns the repo slug.
-	ValidateDeployToken(ctx context.Context, token string) (slug string, err error)
-
-	// ValidateOperatorToken validates an operator login and returns the subject.
-	// Returns ErrPrincipalNotAuthorized for any auth failure; other errors are infrastructure failures.
-	ValidateOperatorToken(ctx context.Context, username, password string) (subject string, err error)
 }
 
 // DNSProvider manages DNS records for app subdomains.

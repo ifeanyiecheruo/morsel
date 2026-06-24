@@ -20,7 +20,7 @@ type Handler interface {
 	LoadProfile(ctx context.Context, name string, ensureValid bool) (*Profile, error)
 
 	// No-auth commands
-	ServiceBootstrap(ctx context.Context, platformName, kubeconfig string) (*Profile, error)
+	ServiceBootstrap(ctx context.Context, platformName, kubeconfig string, plat platform.Platform) (*Profile, error)
 
 	OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, error)
 	SaveProfile(ctx context.Context, name string, prof *Profile) error

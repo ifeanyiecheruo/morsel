@@ -55,9 +55,14 @@ func TestOpenEnablesForeignKeys(t *testing.T) {
 	}
 }
 
-func TestOpenFailsOnBadPath(t *testing.T) {
-	_, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "no-such-dir", "x", "test.db"))
-	if err == nil {
-		t.Error("expected error for non-existent directory, got nil")
+func TestOpenCreatesNestedDirectories(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "no-such-dir", "x", "test.db")
+	database, err := db.Open(context.Background(), path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	if err := database.Ping(); err != nil {
+		t.Errorf("Ping after Open: %v", err)
 	}
 }

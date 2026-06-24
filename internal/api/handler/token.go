@@ -12,8 +12,8 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
-	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 )
 
@@ -26,7 +26,7 @@ func (h *Handler) TokenDeploy(ctx context.Context, req *oas.TokenDeployReq) (oas
 		}}, nil
 	}
 
-	slug, err := h.plat.Credentials().ValidateDeployToken(ctx, req.Token)
+	slug, err := h.plat.Secrets().ValidateDeployToken(ctx, req.Token)
 	if err != nil {
 		return &oas.TokenDeployUnauthorized{Error: oas.ErrorDetail{
 			Code:    "invalid_token",
@@ -46,7 +46,7 @@ func (h *Handler) TokenDeploy(ctx context.Context, req *oas.TokenDeployReq) (oas
 func (h *Handler) TokenOIDC(ctx context.Context, req *oas.TokenOIDCReq) (oas.TokenOIDCRes, error) {
 	log := ctxlog.From(ctx)
 	log.Info("operator login attempt", "username", req.Username)
-	subject, err := h.plat.Credentials().ValidateOperatorToken(ctx, req.Username, req.Password)
+	subject, err := h.plat.Secrets().ValidateOperatorCredential(ctx, req.Username, req.Password)
 	if errors.Is(err, platform.ErrPrincipalNotAuthorized) {
 		log.Warn("operator login rejected", "username", req.Username, "reason", err)
 		return &oas.ErrorResponse{Error: oas.ErrorDetail{
@@ -75,13 +75,7 @@ func (h *Handler) TokenOIDC(ctx context.Context, req *oas.TokenOIDCReq) (oas.Tok
 		return nil, fmt.Errorf("generate token id: %w", err)
 	}
 
-	if err := h.queries.InsertRefreshToken(ctx, dbqueries.InsertRefreshTokenParams{
-		ID:        id,
-		TokenHash: tokens.HashRefreshToken(raw),
-		Subject:   subject,
-		Role:      tokens.RoleOperator,
-		ExpiresAt: time.Now().Add(tokens.OperatorRefreshTTL),
-	}); err != nil {
+	if err := h.store.InsertRefreshToken(ctx, id, tokens.HashRefreshToken(raw), subject, tokens.RoleOperator, time.Now().Add(tokens.OperatorRefreshTTL)); err != nil {
 		return nil, fmt.Errorf("store refresh token: %w", err)
 	}
 
@@ -110,7 +104,7 @@ func (h *Handler) TokenRefresh(ctx context.Context, req *oas.TokenRefreshReq) (o
 		}}, nil
 	}
 
-	found, findErr := h.queries.GetRefreshTokenByHash(ctx, tokens.HashRefreshToken(raw))
+	found, findErr := h.store.GetRefreshTokenByHash(ctx, tokens.HashRefreshToken(raw))
 	rt, typedResp, err := validateRefreshToken(found, findErr)
 	if err != nil {
 		return nil, err
@@ -128,11 +122,7 @@ func (h *Handler) TokenRefresh(ctx context.Context, req *oas.TokenRefreshReq) (o
 	if err != nil {
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
-	if _, err := h.queries.RotateRefreshToken(ctx, dbqueries.RotateRefreshTokenParams{
-		ID:        rt.ID,
-		TokenHash: tokens.HashRefreshToken(newRaw),
-		ExpiresAt: time.Now().Add(tokens.OperatorRefreshTTL),
-	}); err != nil {
+	if err := h.store.RotateRefreshToken(ctx, rt.ID, tokens.HashRefreshToken(newRaw), time.Now().Add(tokens.OperatorRefreshTTL)); err != nil {
 		return nil, fmt.Errorf("rotate refresh token: %w", err)
 	}
 
@@ -146,7 +136,7 @@ func (h *Handler) TokenRefresh(ctx context.Context, req *oas.TokenRefreshReq) (o
 // validateRefreshToken checks db-level validity of a refresh token row.
 // Returns the row on success, a typed TokenRefreshRes on a 4xx condition,
 // or an error for infrastructure failures.
-func validateRefreshToken(rt dbqueries.RefreshToken, lookupErr error) (*dbqueries.RefreshToken, oas.TokenRefreshRes, error) {
+func validateRefreshToken(rt store.RefreshToken, lookupErr error) (*store.RefreshToken, oas.TokenRefreshRes, error) {
 	if errors.Is(lookupErr, sql.ErrNoRows) {
 		return nil, &oas.TokenRefreshUnauthorized{Error: oas.ErrorDetail{
 			Code:    "invalid_token",

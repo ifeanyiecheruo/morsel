@@ -1,64 +1,61 @@
 package local_test
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
-	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
+	"github.com/ifeanyiecheruo/morsel/internal/store"
 )
 
-func TestValidateOperatorTokenAcceptsKnownPrincipal(t *testing.T) {
-	plat := platWithTempHome(t)
-	seedPrincipals(t, plat, "alice@example.com")
+func TestValidateOperatorCredentialAcceptsKnownPrincipal(t *testing.T) {
+	plat, s := platWithStore(t)
+	seedPrincipals(t, s, "alice@example.com")
 
-	subject, err := plat.Credentials().ValidateOperatorToken(ctx, "alice@example.com", "")
+	subject, err := plat.Secrets().ValidateOperatorCredential(ctx, "alice@example.com", "")
 	if err != nil {
-		t.Fatalf("ValidateOperatorToken: unexpected error: %v", err)
+		t.Fatalf("ValidateOperatorCredential: unexpected error: %v", err)
 	}
 	if subject != "alice@example.com" {
 		t.Errorf("subject = %q, want alice@example.com", subject)
 	}
 }
 
-func TestValidateOperatorTokenRejectsUnknownPrincipal(t *testing.T) {
-	plat := platWithTempHome(t)
-	seedPrincipals(t, plat, "alice@example.com")
+func TestValidateOperatorCredentialRejectsUnknownPrincipal(t *testing.T) {
+	plat, s := platWithStore(t)
+	seedPrincipals(t, s, "alice@example.com")
 
-	_, err := plat.Credentials().ValidateOperatorToken(ctx, "eve@example.com", "")
+	_, err := plat.Secrets().ValidateOperatorCredential(ctx, "eve@example.com", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
 }
 
-func TestValidateOperatorTokenRejectsEmptyPrincipalsList(t *testing.T) {
-	plat := platWithTempHome(t)
+func TestValidateOperatorCredentialRejectsEmptyPrincipalsList(t *testing.T) {
+	plat, _ := platWithStore(t)
 
-	_, err := plat.Credentials().ValidateOperatorToken(ctx, "alice@example.com", "")
+	_, err := plat.Secrets().ValidateOperatorCredential(ctx, "alice@example.com", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
 }
 
-func TestValidateOperatorTokenRejectsEmptyUsername(t *testing.T) {
-	plat := platWithTempHome(t)
-	seedPrincipals(t, plat, "alice@example.com")
+func TestValidateOperatorCredentialRejectsEmptyUsername(t *testing.T) {
+	plat, s := platWithStore(t)
+	seedPrincipals(t, s, "alice@example.com")
 
-	_, err := plat.Credentials().ValidateOperatorToken(ctx, "", "")
+	_, err := plat.Secrets().ValidateOperatorCredential(ctx, "", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
 }
 
-func seedPrincipals(t *testing.T, plat *local.LocalPlatform, emails ...string) {
+func seedPrincipals(t *testing.T, s *store.Store, emails ...string) {
 	t.Helper()
-	raw, err := json.Marshal(emails)
-	if err != nil {
-		t.Fatalf("marshal principals: %v", err)
-	}
-	if err := plat.Secrets().Set(ctx, "operator-principals", raw); err != nil {
-		t.Fatalf("seed principals: %v", err)
+	for _, email := range emails {
+		if err := s.AddPrincipal(ctx, email); err != nil {
+			t.Fatalf("seed principal %q: %v", email, err)
+		}
 	}
 }
 
