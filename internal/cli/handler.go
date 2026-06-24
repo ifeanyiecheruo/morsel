@@ -44,7 +44,13 @@ type Handler interface {
 	AppExemptRemove(ctx context.Context, prof *Profile, repo, app string) error
 	RepoExemptAdd(ctx context.Context, prof *Profile, repo string) error
 	RepoExemptRemove(ctx context.Context, prof *Profile, repo string) error
-	AppDeploy(ctx context.Context, prof *Profile) error
+	AppDeploy(ctx context.Context, prof *Profile, org, repo, name, image, appType string) error
+	AppList(ctx context.Context, prof *Profile, org, repo string) error
+	AppGet(ctx context.Context, prof *Profile, org, repo, name string) error
+	AppStatus(ctx context.Context, prof *Profile, org, repo, name string) error
+	AppDelete(ctx context.Context, prof *Profile, org, repo, name string) error
+	AppHistory(ctx context.Context, prof *Profile, org, repo, name string) error
+	AppSync(ctx context.Context, prof *Profile, org, repo, name string) error
 }
 
 type cliHandler struct{}

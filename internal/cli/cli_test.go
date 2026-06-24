@@ -36,7 +36,13 @@ type mockCliHandler struct {
 	onAppExemptRemove         func(prof *Profile, repo, app string) error
 	onRepoExemptAdd           func(prof *Profile, repo string) error
 	onRepoExemptRemove        func(prof *Profile, repo string) error
-	onAppDeploy               func(prof *Profile) error
+	onAppDeploy               func(prof *Profile, org, repo, name, image, appType string) error
+	onAppList                 func(prof *Profile, org, repo string) error
+	onAppGet                  func(prof *Profile, org, repo, name string) error
+	onAppStatus               func(prof *Profile, org, repo, name string) error
+	onAppDelete               func(prof *Profile, org, repo, name string) error
+	onAppHistory              func(prof *Profile, org, repo, name string) error
+	onAppSync                 func(prof *Profile, org, repo, name string) error
 }
 
 func (h *mockCliHandler) LoadProfile(_ context.Context, name string, ensureValid bool) (*Profile, error) {
@@ -193,9 +199,51 @@ func (h *mockCliHandler) RepoExemptRemove(_ context.Context, prof *Profile, repo
 	return nil
 }
 
-func (h *mockCliHandler) AppDeploy(_ context.Context, prof *Profile) error {
+func (h *mockCliHandler) AppDeploy(_ context.Context, prof *Profile, org, repo, name, image, appType string) error {
 	if h.onAppDeploy != nil {
-		return h.onAppDeploy(prof)
+		return h.onAppDeploy(prof, org, repo, name, image, appType)
+	}
+	return nil
+}
+
+func (h *mockCliHandler) AppList(_ context.Context, prof *Profile, org, repo string) error {
+	if h.onAppList != nil {
+		return h.onAppList(prof, org, repo)
+	}
+	return nil
+}
+
+func (h *mockCliHandler) AppGet(_ context.Context, prof *Profile, org, repo, name string) error {
+	if h.onAppGet != nil {
+		return h.onAppGet(prof, org, repo, name)
+	}
+	return nil
+}
+
+func (h *mockCliHandler) AppStatus(_ context.Context, prof *Profile, org, repo, name string) error {
+	if h.onAppStatus != nil {
+		return h.onAppStatus(prof, org, repo, name)
+	}
+	return nil
+}
+
+func (h *mockCliHandler) AppDelete(_ context.Context, prof *Profile, org, repo, name string) error {
+	if h.onAppDelete != nil {
+		return h.onAppDelete(prof, org, repo, name)
+	}
+	return nil
+}
+
+func (h *mockCliHandler) AppHistory(_ context.Context, prof *Profile, org, repo, name string) error {
+	if h.onAppHistory != nil {
+		return h.onAppHistory(prof, org, repo, name)
+	}
+	return nil
+}
+
+func (h *mockCliHandler) AppSync(_ context.Context, prof *Profile, org, repo, name string) error {
+	if h.onAppSync != nil {
+		return h.onAppSync(prof, org, repo, name)
 	}
 	return nil
 }
