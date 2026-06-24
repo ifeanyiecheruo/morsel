@@ -12,7 +12,7 @@ func TestValidateOperatorCredentialAcceptsKnownPrincipal(t *testing.T) {
 	plat, s := platWithStore(t)
 	seedPrincipals(t, s, "alice@example.com")
 
-	subject, err := plat.Secrets().ValidateOperatorCredential(ctx, "alice@example.com", "")
+	subject, err := plat.Tokens().ValidateOperatorCredential(ctx, "alice@example.com", "")
 	if err != nil {
 		t.Fatalf("ValidateOperatorCredential: unexpected error: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestValidateOperatorCredentialRejectsUnknownPrincipal(t *testing.T) {
 	plat, s := platWithStore(t)
 	seedPrincipals(t, s, "alice@example.com")
 
-	_, err := plat.Secrets().ValidateOperatorCredential(ctx, "eve@example.com", "")
+	_, err := plat.Tokens().ValidateOperatorCredential(ctx, "eve@example.com", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
@@ -34,7 +34,7 @@ func TestValidateOperatorCredentialRejectsUnknownPrincipal(t *testing.T) {
 func TestValidateOperatorCredentialRejectsEmptyPrincipalsList(t *testing.T) {
 	plat, _ := platWithStore(t)
 
-	_, err := plat.Secrets().ValidateOperatorCredential(ctx, "alice@example.com", "")
+	_, err := plat.Tokens().ValidateOperatorCredential(ctx, "alice@example.com", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
@@ -44,7 +44,7 @@ func TestValidateOperatorCredentialRejectsEmptyUsername(t *testing.T) {
 	plat, s := platWithStore(t)
 	seedPrincipals(t, s, "alice@example.com")
 
-	_, err := plat.Secrets().ValidateOperatorCredential(ctx, "", "")
+	_, err := plat.Tokens().ValidateOperatorCredential(ctx, "", "")
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}

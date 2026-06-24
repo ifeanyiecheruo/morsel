@@ -97,7 +97,7 @@ func (lb *localBootstrapper) Plan(answers map[string]string) platform.Plan {
 // Bootstrap config is persisted separately by the caller via the store.
 func (lb *localBootstrapper) Provision(ctx context.Context, _ map[string]string) error {
 	// Generate deploy signing key (idempotent — no-op if already present).
-	if _, err := lb.secrets.DeploySigningKey(ctx); err != nil {
+	if _, err := lb.secrets.EnsureDeploySigningKey(ctx); err != nil {
 		return fmt.Errorf("generate deploy signing key: %w", err)
 	}
 	return nil

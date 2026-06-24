@@ -35,6 +35,7 @@ type Platform interface {
 	Deploy() Deployer
 	Blobs() BlobStore
 	Secrets() Secrets
+	Tokens() Tokens
 	DNS() DNSProvider
 	Certs() CertProvider
 	Pricing() PricingProvider
@@ -48,38 +49,48 @@ type CliPlatform interface {
 	Secrets() Secrets
 }
 
-// Secrets is the strongly-typed platform secret and credential interface.
-// It replaces the generic SecretStore + CredentialProvider pair.
+// Secrets manages raw key material for the platform. Each key type exposes a
+// consistent Get / Ensure / Rotate / Delete model:
+//
+//   - GetXXXKeys returns the current key array (nil when not provisioned).
+//   - EnsureXXXKey provisions a key if the array is empty and returns the array.
+//   - RotateXXXKey removes the oldest key (index 0), appends a new one, and
+//     returns the updated array. The length stays constant after the first rotation.
+//   - DeleteXXXKey removes the entire key array from storage.
 type Secrets interface {
-	// SigningKey returns (or generates on first call) the Morsel service signing key.
-	SigningKey(ctx context.Context) ([]byte, error)
+	// Signing key — used to sign and verify Morsel API JWTs.
+	GetSigningKeys(ctx context.Context) ([][]byte, error)
+	EnsureSigningKey(ctx context.Context) ([][]byte, error)
+	RotateSigningKey(ctx context.Context) ([][]byte, error)
+	DeleteSigningKey(ctx context.Context) error
 
-	// DeploySigningKey returns (or generates on first call) the deploy identity signing key.
-	// Only platforms that use HMAC-signed deploy JWTs implement this; cloud platforms
-	// use Workload Identity Federation and can return ErrNotImplemented.
-	DeploySigningKey(ctx context.Context) ([]byte, error)
+	// Deploy signing key — HMAC key for deploy identity JWTs.
+	GetDeploySigningKeys(ctx context.Context) ([][]byte, error)
+	EnsureDeploySigningKey(ctx context.Context) ([][]byte, error)
+	RotateDeploySigningKey(ctx context.Context) ([][]byte, error)
+	DeleteDeploySigningKey(ctx context.Context) error
 
-	// DeploySigningKeyExists reports whether a deploy signing key has been provisioned
-	// without generating one if absent.
-	DeploySigningKeyExists(ctx context.Context) (bool, error)
-
-	// AmbientToken returns a short-lived platform access token for ambient service identity.
-	// Returns ("", nil) on platforms that rely on implicit credentials (e.g., Workload Identity).
-	AmbientToken(ctx context.Context) (string, error)
-
-	// DeployToken generates a deploy identity token for the current repo.
-	DeployToken(ctx context.Context) (string, error)
-
-	// ValidateDeployToken validates a deploy identity token and returns the repo slug.
-	ValidateDeployToken(ctx context.Context, token string) (slug string, err error)
-
-	// ValidateOperatorCredential validates an operator login and returns the subject.
-	// Returns ErrPrincipalNotAuthorized for any auth failure; other errors are infrastructure failures.
-	ValidateOperatorCredential(ctx context.Context, username, password string) (subject string, err error)
-
-	// Migrate runs any pending file-level secret migrations (key renames, deletions).
-	// Safe to call on every startup; idempotent.
+	// Migrate runs pending secret store migrations. Safe to call on every startup.
 	Migrate(ctx context.Context) error
+}
+
+// Tokens handles token retrieval and creation. Token creation requires key material
+// from Secrets, so this interface sits above it.
+type Tokens interface {
+	// GetAmbientToken returns a platform-issued short-lived access token for
+	// ambient service identity. Returns ("", nil) on platforms that use implicit
+	// credentials (e.g., Workload Identity).
+	GetAmbientToken(ctx context.Context) (string, error)
+
+	// CreateDeployToken issues a signed deploy identity token for the current repo.
+	CreateDeployToken(ctx context.Context) (string, error)
+
+	// VerifyDeployToken validates a deploy identity token and returns the repo slug.
+	VerifyDeployToken(ctx context.Context, token string) (slug string, err error)
+
+	// ValidateOperatorCredential checks an operator login and returns the subject.
+	// Returns ErrPrincipalNotAuthorized for any auth failure.
+	ValidateOperatorCredential(ctx context.Context, username, password string) (subject string, err error)
 }
 
 // Bootstrapper provisions all platform resources needed to run Morsel.

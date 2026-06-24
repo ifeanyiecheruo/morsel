@@ -26,7 +26,7 @@ func (h *Handler) TokenDeploy(ctx context.Context, req *oas.TokenDeployReq) (oas
 		}}, nil
 	}
 
-	slug, err := h.plat.Secrets().ValidateDeployToken(ctx, req.Token)
+	slug, err := h.plat.Tokens().VerifyDeployToken(ctx, req.Token)
 	if err != nil {
 		return &oas.TokenDeployUnauthorized{Error: oas.ErrorDetail{
 			Code:    "invalid_token",
@@ -46,7 +46,7 @@ func (h *Handler) TokenDeploy(ctx context.Context, req *oas.TokenDeployReq) (oas
 func (h *Handler) TokenOIDC(ctx context.Context, req *oas.TokenOIDCReq) (oas.TokenOIDCRes, error) {
 	log := ctxlog.From(ctx)
 	log.Info("operator login attempt", "username", req.Username)
-	subject, err := h.plat.Secrets().ValidateOperatorCredential(ctx, req.Username, req.Password)
+	subject, err := h.plat.Tokens().ValidateOperatorCredential(ctx, req.Username, req.Password)
 	if errors.Is(err, platform.ErrPrincipalNotAuthorized) {
 		log.Warn("operator login rejected", "username", req.Username, "reason", err)
 		return &oas.ErrorResponse{Error: oas.ErrorDetail{

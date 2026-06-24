@@ -18,6 +18,7 @@ import (
 // to consume. Bootstrap() is deliberately absent: bootstrapping is a CLI concern.
 type AppPlatform interface {
 	Secrets() platform.Secrets
+	Tokens() platform.Tokens
 	Deploy() platform.Deployer
 	Blobs() platform.BlobStore
 	DNS() platform.DNSProvider
@@ -29,10 +30,11 @@ type AppPlatform interface {
 // ogen-generated router. Panics if the server cannot be constructed (indicates
 // a programmer error such as a nil handler).
 func NewMux(ctx context.Context, plat AppPlatform, s *store.Store) http.Handler {
-	signingKey, err := plat.Secrets().SigningKey(ctx)
-	if err != nil {
+	keys, err := plat.Secrets().EnsureSigningKey(ctx)
+	if err != nil || len(keys) == 0 {
 		panic("morsel api: signing key unavailable: " + err.Error())
 	}
+	signingKey := keys[0]
 	h := handler.New(plat, s, signingKey)
 	sec := handler.NewSecurityHandler(signingKey)
 

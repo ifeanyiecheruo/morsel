@@ -16,38 +16,38 @@ import (
 
 var ctx = ctxlog.With(context.Background(), slog.Default())
 
-func TestAmbientTokenReturnsEmpty(t *testing.T) {
+func TestGetAmbientTokenReturnsEmpty(t *testing.T) {
 	plat := local.New(nil)
-	token, err := plat.Secrets().AmbientToken(ctx)
+	token, err := plat.Tokens().GetAmbientToken(ctx)
 	if err != nil {
-		t.Fatalf("AmbientToken: unexpected error: %v", err)
+		t.Fatalf("GetAmbientToken: unexpected error: %v", err)
 	}
 	if token != "" {
 		t.Errorf("token = %q, want empty string", token)
 	}
 }
 
-func TestValidateDeployTokenRejectsInvalidToken(t *testing.T) {
+func TestVerifyDeployTokenRejectsInvalidToken(t *testing.T) {
 	plat := platWithTempHome(t)
-	_, err := plat.Secrets().ValidateDeployToken(ctx, "not-a-valid-token")
+	_, err := plat.Tokens().VerifyDeployToken(ctx, "not-a-valid-token")
 	if err == nil {
-		t.Error("ValidateDeployToken: expected error for invalid token, got nil")
+		t.Error("VerifyDeployToken: expected error for invalid token, got nil")
 	}
 }
 
 func TestDeployTokenRoundTrip(t *testing.T) {
 	plat := platWithTempHome(t)
 
-	token, err := plat.Secrets().DeployToken(ctx)
+	token, err := plat.Tokens().CreateDeployToken(ctx)
 	if err != nil {
-		t.Fatalf("DeployToken: %v", err)
+		t.Fatalf("CreateDeployToken: %v", err)
 	}
-	slug, err := plat.Secrets().ValidateDeployToken(ctx, token)
+	slug, err := plat.Tokens().VerifyDeployToken(ctx, token)
 	if err != nil {
-		t.Fatalf("ValidateDeployToken: %v", err)
+		t.Fatalf("VerifyDeployToken: %v", err)
 	}
 	if slug == "" {
-		t.Error("ValidateDeployToken: returned empty slug")
+		t.Error("VerifyDeployToken: returned empty slug")
 	}
 }
 
@@ -124,7 +124,7 @@ func TestSeedDefaultsWritesWhenAbsent(t *testing.T) {
 	if err := plat.SeedDefaults(ctx); err != nil {
 		t.Fatalf("SeedDefaults: %v", err)
 	}
-	subject, err := plat.Secrets().ValidateOperatorCredential(ctx, "operator@example.com", "")
+	subject, err := plat.Tokens().ValidateOperatorCredential(ctx, "operator@example.com", "")
 	if err != nil {
 		t.Fatalf("ValidateOperatorCredential after SeedDefaults: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestSeedDefaultsIsNoOpWhenAlreadySet(t *testing.T) {
 		t.Fatalf("SeedDefaults: %v", err)
 	}
 	// The pre-existing principal must still authenticate.
-	subject, err := plat.Secrets().ValidateOperatorCredential(ctx, "custom@example.com", "")
+	subject, err := plat.Tokens().ValidateOperatorCredential(ctx, "custom@example.com", "")
 	if err != nil {
 		t.Fatalf("ValidateOperatorCredential: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestSeedDefaultsIsNoOpWhenAlreadySet(t *testing.T) {
 		t.Errorf("subject = %q, want custom@example.com", subject)
 	}
 	// The default principal must NOT have been injected.
-	if _, err := plat.Secrets().ValidateOperatorCredential(ctx, "operator@example.com", ""); !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
+	if _, err := plat.Tokens().ValidateOperatorCredential(ctx, "operator@example.com", ""); !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
 		t.Errorf("expected ErrPrincipalNotAuthorized for default principal after SeedDefaults no-op, got %v", err)
 	}
 }
@@ -201,12 +201,12 @@ func TestBootstrapProvisionWritesConfigAndKey(t *testing.T) {
 		}
 	}
 
-	token, err := plat.Secrets().DeployToken(ctx)
+	token, err := plat.Tokens().CreateDeployToken(ctx)
 	if err != nil {
-		t.Fatalf("DeployToken after Provision: %v", err)
+		t.Fatalf("CreateDeployToken after Provision: %v", err)
 	}
-	if _, err := plat.Secrets().ValidateDeployToken(ctx, token); err != nil {
-		t.Errorf("ValidateDeployToken after Provision: %v", err)
+	if _, err := plat.Tokens().VerifyDeployToken(ctx, token); err != nil {
+		t.Errorf("VerifyDeployToken after Provision: %v", err)
 	}
 }
 

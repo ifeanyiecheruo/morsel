@@ -11,11 +11,11 @@ type localDeployer struct {
 }
 
 func (ld *localDeployer) Credentials(ctx context.Context) (platform.DeployCredentials, error) {
-	exists, err := ld.secrets.DeploySigningKeyExists(ctx)
+	keys, err := ld.secrets.GetDeploySigningKeys(ctx)
 	if err != nil {
 		return platform.DeployCredentials{}, err
 	}
-	if !exists {
+	if len(keys) == 0 {
 		return platform.DeployCredentials{}, platform.ErrNotImplemented
 	}
 	return platform.DeployCredentials{}, platform.ErrPrincipalNotAuthorized

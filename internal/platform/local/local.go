@@ -14,13 +14,15 @@ import (
 // LocalPlatform implements platform.Platform with no cloud dependencies.
 type LocalPlatform struct {
 	secrets *localSecrets
+	tok     *localTokens
 	store   *store.Store
 }
 
 func New(s *store.Store) *LocalPlatform {
 	fileStore := newLocalFileSecretStore()
-	sec := &localSecrets{fileStore: fileStore, store: s}
-	return &LocalPlatform{secrets: sec, store: s}
+	sec := &localSecrets{fileStore: fileStore}
+	tok := &localTokens{secrets: sec, store: s}
+	return &LocalPlatform{secrets: sec, tok: tok, store: s}
 }
 
 // DBPath returns the path to the SQLite database for the local platform.
@@ -35,6 +37,7 @@ func (lp *LocalPlatform) Bootstrap() platform.Bootstrapper {
 func (lp *LocalPlatform) Deploy() platform.Deployer         { return &localDeployer{secrets: lp.secrets} }
 func (lp *LocalPlatform) Blobs() platform.BlobStore         { return &localBlobStore{} }
 func (lp *LocalPlatform) Secrets() platform.Secrets         { return lp.secrets }
+func (lp *LocalPlatform) Tokens() platform.Tokens           { return lp.tok }
 func (lp *LocalPlatform) DNS() platform.DNSProvider         { return &localDNSProvider{} }
 func (lp *LocalPlatform) Certs() platform.CertProvider      { return &localCertProvider{} }
 func (lp *LocalPlatform) Pricing() platform.PricingProvider { return &localPricingProvider{} }

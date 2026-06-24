@@ -20,6 +20,7 @@ import (
 // Expanded as stub methods are implemented.
 type AppPlatform interface {
 	Secrets() platform.Secrets
+	Tokens() platform.Tokens
 }
 
 // Handler implements oas.Handler for all Morsel API operations.
