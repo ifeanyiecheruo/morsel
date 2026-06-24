@@ -257,6 +257,8 @@ type AppSpec struct {
 	Image string `json:"image"`
 	// Environment variables injected into the container at runtime.
 	Env OptAppSpecEnv `json:"env"`
+	// Cron schedule expression (e.g. "0 * * * *"). Required for type: cron, ignored otherwise.
+	Schedule OptString `json:"schedule"`
 }
 
 // GetName returns the value of Name.
@@ -279,6 +281,11 @@ func (s *AppSpec) GetEnv() OptAppSpecEnv {
 	return s.Env
 }
 
+// GetSchedule returns the value of Schedule.
+func (s *AppSpec) GetSchedule() OptString {
+	return s.Schedule
+}
+
 // SetName sets the value of Name.
 func (s *AppSpec) SetName(val OptString) {
 	s.Name = val
@@ -297,6 +304,11 @@ func (s *AppSpec) SetImage(val string) {
 // SetEnv sets the value of Env.
 func (s *AppSpec) SetEnv(val OptAppSpecEnv) {
 	s.Env = val
+}
+
+// SetSchedule sets the value of Schedule.
+func (s *AppSpec) SetSchedule(val OptString) {
+	s.Schedule = val
 }
 
 // Environment variables injected into the container at runtime.

@@ -134,6 +134,27 @@ func (s *Store) MarkAppDeletionPending(ctx context.Context, id int64) error {
 	return s.q.MarkAppDeletionPending(ctx, id)
 }
 
+// UpdateAppStatus sets the runtime status string for an app (e.g. "running", "pending").
+func (s *Store) UpdateAppStatus(ctx context.Context, id int64, status string) error {
+	return s.q.UpdateAppStatus(ctx, dbqueries.UpdateAppStatusParams{ID: id, Status: status})
+}
+
+// UpdateAppImages records the current and last-healthy image digests for an app.
+func (s *Store) UpdateAppImages(ctx context.Context, id int64, current, lastHealthy string) error {
+	var cur, lh sql.NullString
+	if current != "" {
+		cur = sql.NullString{String: current, Valid: true}
+	}
+	if lastHealthy != "" {
+		lh = sql.NullString{String: lastHealthy, Valid: true}
+	}
+	return s.q.UpdateAppImages(ctx, dbqueries.UpdateAppImagesParams{
+		ID:               id,
+		ImageCurrent:     cur,
+		ImageLastHealthy: lh,
+	})
+}
+
 // ── Operations ────────────────────────────────────────────────────────────────
 
 // GetOperation returns the operation by ID. Returns sql.ErrNoRows if not found.
@@ -148,6 +169,15 @@ func (s *Store) CreateOperation(ctx context.Context, id, repoSlug, appName, kind
 		RepoSlug: repoSlug,
 		AppName:  appName,
 		Kind:     kind,
+	})
+}
+
+// StartOperation marks an operation as running.
+func (s *Store) StartOperation(ctx context.Context, id string) error {
+	return s.q.UpdateOperationStatus(ctx, dbqueries.UpdateOperationStatusParams{
+		ID:     id,
+		Status: "running",
+		Error:  sql.NullString{},
 	})
 }
 

@@ -6,6 +6,21 @@ else
 EXE :=
 endif
 
+CLUSTER_NAME ?= morsel-dev
+
+# ---- Container runtime --------------------------------------------------------
+# docker takes precedence when its daemon is reachable; otherwise fall back to
+# rootless podman. KIND_PROVIDER is prepended to kind commands when needed.
+_docker_ok := $(shell docker info >/dev/null 2>&1 && echo yes)
+ifeq ($(_docker_ok),yes)
+CONTAINER_RUNTIME := docker
+KIND_PROVIDER     :=
+else
+CONTAINER_RUNTIME := podman
+KIND_PROVIDER     := KIND_EXPERIMENTAL_PROVIDER=podman
+endif
+# -------------------------------------------------------------------------------
+
 # ---- Local Go ecosystem --------------------------------------------------------
 # REPO_ROOT uses pwd -W (real Windows path C:/...) for Go env vars that need
 # Windows-style paths. LOCAL_SHELL uses cygpath -u to get the MSYS-style path
@@ -17,6 +32,11 @@ LOCAL       := $(REPO_ROOT)/.local
 LOCAL_SHELL := $(shell cygpath -u "$(REPO_ROOT)" 2>/dev/null || echo "$(REPO_ROOT)")/.local
 GO_VERSION  := $(shell sed -n 's/^go //p' go.mod)
 export PATH     := $(LOCAL_SHELL)/go/bin:$(LOCAL_SHELL)/bin:$(PATH)
+# Append the default winget podman install location so it is findable
+# immediately after make install-tools without reopening the shell.
+ifeq ($(OS),Windows_NT)
+export PATH     := $(PATH):/c/Program Files/RedHat/Podman
+endif
 export GOPATH   := $(LOCAL)
 export GOCACHE             := $(LOCAL)/cache
 export GOLANGCI_LINT_CACHE := $(LOCAL)/golangci-lint-cache
@@ -113,3 +133,38 @@ install-tools: ## Install prerequisites
 	@echo "Installing tool binaries from go.mod into $(LOCAL)/bin ..."
 	@awk '/^tool [^(]/{print $$2} /^tool \(/{f=1;next} f&&/^\)/{f=0} f&&NF{print $$1}' go.mod | \
 	while read -r tool; do echo "  $$tool"; go install "$$tool"; done
+	@if ! docker info >/dev/null 2>&1 && ! command -v podman >/dev/null 2>&1; then \
+		echo "Installing podman (no docker daemon found) ..."; \
+		if [ "$(OS)" = "Windows_NT" ]; then \
+			winget install --id RedHat.Podman -e --accept-source-agreements --accept-package-agreements; \
+		elif uname -s | grep -qi darwin; then \
+			brew install podman; \
+		elif command -v apt-get >/dev/null 2>&1; then \
+			sudo apt-get install -y podman; \
+		elif command -v dnf >/dev/null 2>&1; then \
+			sudo dnf install -y podman; \
+		else \
+			echo "Cannot auto-install podman; see https://podman.io/docs/installation"; exit 1; \
+		fi; \
+	else \
+		echo "container runtime: $(CONTAINER_RUNTIME)"; \
+	fi
+
+.PHONY: cluster-up
+cluster-up: _ensure-podman-machine ## Create a local kind cluster for development (override: CLUSTER_NAME=morsel-dev)
+	$(KIND_PROVIDER) kind create cluster --name $(CLUSTER_NAME)
+
+.PHONY: cluster-down
+cluster-down: ## Delete the local kind cluster (override: CLUSTER_NAME=morsel-dev)
+	$(KIND_PROVIDER) kind delete cluster --name $(CLUSTER_NAME)
+
+# _ensure-podman-machine starts the default podman machine on Windows/macOS
+# when podman is the container runtime. No-op on Linux (native socket).
+.PHONY: _ensure-podman-machine
+_ensure-podman-machine:
+ifeq ($(CONTAINER_RUNTIME),podman)
+	@if ! uname -s | grep -qi linux; then \
+		podman machine inspect >/dev/null 2>&1 || podman machine init; \
+		podman info >/dev/null 2>&1 || podman machine start; \
+	fi
+endif

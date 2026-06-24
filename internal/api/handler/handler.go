@@ -11,10 +11,19 @@ import (
 	"github.com/ogen-go/ogen/ogenerrors"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
+	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 )
+
+// Deployer is the subset of kube.Client methods used by the handler.
+type Deployer interface {
+	Apply(ctx context.Context, m kube.AppManifest) error
+	WatchDeploymentRollout(ctx context.Context, namespace string) error
+	RollbackDeployment(ctx context.Context, namespace, lastHealthyImage string) error
+	AppStatus(ctx context.Context, namespace, appType string) string
+}
 
 // AppPlatform is the subset of platform.Platform that API handlers may consume.
 // Expanded as stub methods are implemented.
@@ -28,11 +37,12 @@ type Handler struct {
 	plat       AppPlatform
 	store      *store.Store
 	signingKey []byte
+	deployer   Deployer
 }
 
 // New constructs a Handler.
-func New(plat AppPlatform, s *store.Store, signingKey []byte) *Handler {
-	return &Handler{plat: plat, store: s, signingKey: signingKey}
+func New(plat AppPlatform, s *store.Store, signingKey []byte, deployer Deployer) *Handler {
+	return &Handler{plat: plat, store: s, signingKey: signingKey, deployer: deployer}
 }
 
 // apiError is the internal structured error type. It is written by WriteError

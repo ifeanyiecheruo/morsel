@@ -496,6 +496,10 @@
             "description": "Unique name for the app within its repo.",
             "type": "string"
           },
+          "schedule": {
+            "description": "Cron schedule expression (e.g. \"0 * * * *\"). Required for type: cron, ignored otherwise.",
+            "type": "string"
+          },
           "type": {
             "description": "Runtime type: http for web traffic, worker for continuous jobs, cron for scheduled jobs.",
             "enum": [
@@ -4949,6 +4953,10 @@
                     "description": "Unique name for the app within its repo.",
                     "type": "string"
                   },
+                  "schedule": {
+                    "description": "Cron schedule expression (e.g. \"0 * * * *\"). Required for type: cron, ignored otherwise.",
+                    "type": "string"
+                  },
                   "type": {
                     "description": "Runtime type: http for web traffic, worker for continuous jobs, cron for scheduled jobs.",
                     "enum": [
@@ -7972,6 +7980,10 @@
                         },
                         "name": {
                           "description": "Unique name for the app within its repo.",
+                          "type": "string"
+                        },
+                        "schedule": {
+                          "description": "Cron schedule expression (e.g. \"0 * * * *\"). Required for type: cron, ignored otherwise.",
                           "type": "string"
                         },
                         "type": {

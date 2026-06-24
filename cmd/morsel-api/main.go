@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"log/slog"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/internal/store"
@@ -24,46 +26,17 @@ func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
 	platformName := flag.String("platform", "local", "platform implementation (local|gcp)")
 	dbPath := flag.String("db", "morsel.db", "SQLite database path")
+	kubeconfigPath := flag.String("kubeconfig", "", "path to kubeconfig file (defaults to in-cluster config, then ~/.kube/config)")
 	flag.Parse()
 
 	logger := slog.Default()
 	ctx := ctxlog.With(context.Background(), logger)
 
-	database, err := db.Open(ctx, *dbPath)
-	if err != nil {
-		logger.Error("database error", "err", err)
-		os.Exit(1)
-	}
-	defer func() {
-		if err := database.Close(); err != nil {
-			logger.Error("database close error", "err", err)
-		}
-	}()
+	s, closeStore := initializeStore(ctx, logger, *dbPath)
+	defer closeStore()
 
-	if err := db.Migrate(ctx, database); err != nil {
-		logger.Error("migration error", "err", err)
-		os.Exit(1)
-	}
-
-	s := store.New(dbqueries.New(database))
-
-	plat, err := platforms.Create(*platformName, s)
-	if err != nil {
-		logger.Error("platform error", "err", err)
-		os.Exit(1)
-	}
-
-	if err := plat.Secrets().Migrate(ctx); err != nil {
-		logger.Error("secret migration error", "err", err)
-		os.Exit(1)
-	}
-
-	if seeder, ok := plat.(platform.Seeder); ok {
-		if err := seeder.SeedDefaults(ctx); err != nil {
-			logger.Error("seed defaults error", "err", err)
-			os.Exit(1)
-		}
-	}
+	plat := initializePlatform(ctx, logger, *platformName, s)
+	kubeClient := initializeKube(logger, *kubeconfigPath)
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -76,7 +49,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGHUP, os.Interrupt)
 
 	for {
-		srv := &http.Server{Handler: api.NewMux(ctx, plat, s)}
+		srv := &http.Server{Handler: api.NewMux(ctx, plat, s, kubeClient)}
 
 		go func() {
 			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -105,4 +78,68 @@ func main() {
 		logger.Info("shutdown complete")
 		return
 	}
+}
+
+func initializeStore(ctx context.Context, logger *slog.Logger, dbPath string) (*store.Store, func()) {
+	database, err := db.Open(ctx, dbPath)
+	if err != nil {
+		logger.Error("database error", "err", err)
+		os.Exit(1)
+	}
+	if err := db.Migrate(ctx, database); err != nil {
+		logger.Error("migration error", "err", err)
+		os.Exit(1)
+	}
+	closeStore := func() {
+		if err := database.Close(); err != nil {
+			logger.Error("database close error", "err", err)
+		}
+	}
+	return store.New(dbqueries.New(database)), closeStore
+}
+
+func initializePlatform(ctx context.Context, logger *slog.Logger, platformName string, s *store.Store) platform.Platform {
+	plat, err := platforms.Create(platformName, s)
+	if err != nil {
+		logger.Error("platform error", "err", err)
+		os.Exit(1)
+	}
+	if err := plat.Secrets().Migrate(ctx); err != nil {
+		logger.Error("secret migration error", "err", err)
+		os.Exit(1)
+	}
+	if seeder, ok := plat.(platform.Seeder); ok {
+		if err := seeder.SeedDefaults(ctx); err != nil {
+			logger.Error("seed defaults error", "err", err)
+			os.Exit(1)
+		}
+	}
+	return plat
+}
+
+func initializeKube(logger *slog.Logger, kubeconfigPath string) *kube.Client {
+	deployer, err := kube.New(kubeconfigPath)
+	if err != nil {
+		var ce *kube.ConfigError
+		switch {
+		case errors.As(err, &ce) && ce.KubeconfigPath != "":
+			logger.Error("kubernetes config not found",
+				"err", err,
+				"kubeconfig", ce.KubeconfigPath,
+				"remedy", "verify the file exists, is readable, and contains a valid kubeconfig")
+		case errors.As(err, &ce):
+			logger.Error("kubernetes config not found",
+				"err", err,
+				"remedy", "run inside a Kubernetes pod with a mounted service account, "+
+					"set the KUBECONFIG environment variable, "+
+					"ensure ~/.kube/config exists, "+
+					"or pass --kubeconfig pointing to a valid kubeconfig file")
+		default:
+			logger.Error("kubernetes client unavailable",
+				"err", err,
+				"remedy", "verify the cluster API server address in the kubeconfig is correct and reachable")
+		}
+		os.Exit(1)
+	}
+	return deployer
 }

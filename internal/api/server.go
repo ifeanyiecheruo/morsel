@@ -29,13 +29,13 @@ type AppPlatform interface {
 // NewMux constructs the root HTTP handler for the Morsel API using the
 // ogen-generated router. Panics if the server cannot be constructed (indicates
 // a programmer error such as a nil handler).
-func NewMux(ctx context.Context, plat AppPlatform, s *store.Store) http.Handler {
+func NewMux(ctx context.Context, plat AppPlatform, s *store.Store, deployer handler.Deployer) http.Handler {
 	keys, err := plat.Secrets().EnsureSigningKey(ctx)
 	if err != nil || len(keys) == 0 {
 		panic("morsel api: signing key unavailable: " + err.Error())
 	}
 	signingKey := keys[0]
-	h := handler.New(plat, s, signingKey)
+	h := handler.New(plat, s, signingKey, deployer)
 	sec := handler.NewSecurityHandler(signingKey)
 
 	srv, err := oas.NewServer(h, sec,

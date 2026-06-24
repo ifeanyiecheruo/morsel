@@ -635,13 +635,20 @@ func (s *AppSpec) encodeFields(e *jx.Encoder) {
 			s.Env.Encode(e)
 		}
 	}
+	{
+		if s.Schedule.Set {
+			e.FieldStart("schedule")
+			s.Schedule.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfAppSpec = [4]string{
+var jsonFieldsNameOfAppSpec = [5]string{
 	0: "name",
 	1: "type",
 	2: "image",
 	3: "env",
+	4: "schedule",
 }
 
 // Decode decodes AppSpec from json.
@@ -694,6 +701,16 @@ func (s *AppSpec) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"env\"")
+			}
+		case "schedule":
+			if err := func() error {
+				s.Schedule.Reset()
+				if err := s.Schedule.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"schedule\"")
 			}
 		default:
 			return d.Skip()

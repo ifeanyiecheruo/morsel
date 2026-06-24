@@ -8,6 +8,8 @@ import (
 	"net/http"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
 // ── App-scoped handlers ───────────────────────────────────────────────────────
@@ -40,7 +42,8 @@ func (h *Handler) UpsertApp(ctx context.Context, spec *oas.AppSpec, params oas.U
 		return nil, fmt.Errorf("get or create repo: %w", err)
 	}
 
-	if _, err := h.store.UpsertApp(ctx, slug, name, string(spec.Type), ns, spec.Image); err != nil {
+	app, err := h.store.UpsertApp(ctx, slug, name, string(spec.Type), ns, spec.Image)
+	if err != nil {
 		return nil, fmt.Errorf("upsert app: %w", err)
 	}
 
@@ -51,15 +54,71 @@ func (h *Handler) UpsertApp(ctx context.Context, spec *oas.AppSpec, params oas.U
 	if _, err := h.store.CreateOperation(ctx, opID, slug, name, "deploy"); err != nil {
 		return nil, fmt.Errorf("create operation: %w", err)
 	}
-	if err := h.store.SucceedOperation(ctx, opID); err != nil {
-		return nil, fmt.Errorf("succeed operation: %w", err)
+
+	var env map[string]string
+	if spec.Env.Set {
+		env = map[string]string(spec.Env.Value)
 	}
+	manifest := kube.AppManifest{
+		Namespace: ns,
+		AppName:   name,
+		Type:      string(spec.Type),
+		Image:     spec.Image,
+		Env:       env,
+		Schedule:  spec.Schedule.Or(""),
+	}
+	lastHealthy := ""
+	if app.ImageLastHealthy.Valid {
+		lastHealthy = app.ImageLastHealthy.String
+	}
+
+	go h.runDeploy(context.WithoutCancel(ctx), opID, app.ID, manifest, lastHealthy)
 
 	return &oas.AcceptedOperationHeaders{
 		Location:   operationLocation(params.Org, params.Repo, name, opID),
 		RetryAfter: oas.NewOptInt(int(retryAfterDeploy.Seconds())),
 		Response:   oas.AcceptedOperation{OperationID: opID},
 	}, nil
+}
+
+func (h *Handler) runDeploy(ctx context.Context, opID string, appID int64, m kube.AppManifest, lastHealthyImage string) {
+	logger := ctxlog.From(ctx).With("op", opID, "app", m.AppName)
+
+	if err := h.store.StartOperation(ctx, opID); err != nil {
+		logger.Error("start operation", "err", err)
+	}
+	if err := h.store.UpdateAppStatus(ctx, appID, "deploying"); err != nil {
+		logger.Error("update app status deploying", "err", err)
+	}
+
+	if err := h.deployer.Apply(ctx, m); err != nil {
+		logger.Error("apply manifests", "err", err)
+		_ = h.store.FailOperation(ctx, opID, err.Error())
+		_ = h.store.UpdateAppStatus(ctx, appID, "failed")
+		return
+	}
+
+	if m.Type != "cron" {
+		if err := h.deployer.WatchDeploymentRollout(ctx, m.Namespace); err != nil {
+			logger.Error("rollout failed, rolling back", "err", err)
+			if lastHealthyImage != "" {
+				if rbErr := h.deployer.RollbackDeployment(ctx, m.Namespace, lastHealthyImage); rbErr != nil {
+					logger.Error("rollback failed", "err", rbErr)
+				} else {
+					_ = h.store.UpdateAppImages(ctx, appID, lastHealthyImage, lastHealthyImage)
+				}
+			}
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			_ = h.store.UpdateAppStatus(ctx, appID, "failed")
+			return
+		}
+	}
+
+	_ = h.store.UpdateAppImages(ctx, appID, m.Image, m.Image)
+	_ = h.store.UpdateAppStatus(ctx, appID, "running")
+	if err := h.store.SucceedOperation(ctx, opID); err != nil {
+		logger.Error("succeed operation", "err", err)
+	}
 }
 
 func (h *Handler) GetApp(ctx context.Context, params oas.GetAppParams) (oas.GetAppRes, error) {
@@ -109,8 +168,10 @@ func (h *Handler) DeleteApp(ctx context.Context, params oas.DeleteAppParams) (oa
 	if _, err := h.store.CreateOperation(ctx, opID, slug, params.Name, "delete"); err != nil {
 		return nil, fmt.Errorf("create operation: %w", err)
 	}
-	if err := h.store.SucceedOperation(ctx, opID); err != nil {
-		return nil, fmt.Errorf("succeed operation: %w", err)
+	// Kubernetes namespace teardown is not yet implemented; fail the operation
+	// rather than reporting false success.
+	if err := h.store.FailOperation(ctx, opID, "kubernetes namespace teardown is not yet implemented"); err != nil {
+		return nil, fmt.Errorf("fail operation: %w", err)
 	}
 
 	return &oas.AcceptedOperationHeaders{
@@ -124,7 +185,7 @@ func (h *Handler) GetAppStatus(ctx context.Context, params oas.GetAppStatusParam
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	_, err := h.store.GetApp(ctx, repoSlug(params.Org, params.Repo), params.Name)
+	app, err := h.store.GetApp(ctx, repoSlug(params.Org, params.Repo), params.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &oas.GetAppStatusNotFound{Error: oas.ErrorDetail{
 			Code:    "not_found",
@@ -135,8 +196,12 @@ func (h *Handler) GetAppStatus(ctx context.Context, params oas.GetAppStatusParam
 	if err != nil {
 		return nil, fmt.Errorf("get app: %w", err)
 	}
-	// Kubernetes runtime state is not available until F06.
-	return &oas.GetAppStatusOK{Status: "unknown"}, nil
+	ns := ""
+	if app.Namespace.Valid {
+		ns = app.Namespace.String
+	}
+	status := h.deployer.AppStatus(ctx, ns, app.Type)
+	return &oas.GetAppStatusOK{Status: status}, nil
 }
 
 func (h *Handler) GetAppHistory(ctx context.Context, params oas.GetAppHistoryParams) (oas.GetAppHistoryRes, error) {

@@ -9,11 +9,24 @@ import (
 	"testing"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api"
+	"github.com/ifeanyiecheruo/morsel/internal/api/handler"
 	"github.com/ifeanyiecheruo/morsel/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 	"github.com/ifeanyiecheruo/morsel/internal/store"
 )
+
+// fakeDeployer satisfies handler.Deployer and immediately succeeds every
+// operation, allowing tests to verify API contracts without a real cluster.
+type fakeDeployer struct{}
+
+func (fakeDeployer) Apply(_ context.Context, _ kube.AppManifest) error        { return nil }
+func (fakeDeployer) WatchDeploymentRollout(_ context.Context, _ string) error { return nil }
+func (fakeDeployer) RollbackDeployment(_ context.Context, _, _ string) error  { return nil }
+func (fakeDeployer) AppStatus(_ context.Context, _, _ string) string          { return "running" }
+
+var _ handler.Deployer = fakeDeployer{}
 
 // jsonPost returns a POST request with Content-Type: application/json.
 func jsonPost(target, body string) *http.Request {
@@ -49,7 +62,7 @@ func testSetup(t *testing.T) (*local.LocalPlatform, *store.Store, http.Handler) 
 	if err := plat.Secrets().Migrate(context.Background()); err != nil {
 		t.Fatalf("secret migration: %v", err)
 	}
-	mux := api.NewMux(context.Background(), plat, s)
+	mux := api.NewMux(context.Background(), plat, s, &fakeDeployer{})
 	return plat, s, mux
 }
 

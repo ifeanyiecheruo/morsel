@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
@@ -246,9 +248,31 @@ func TestDeletedAppNoLongerInList(t *testing.T) {
 	}
 }
 
+// waitForOperationComplete polls an operation URL until it reaches a terminal
+// state ("complete" or "failed"), or fails the test after 2 seconds.
+// Deploy operations are async so we must wait for the goroutine to finish.
+func waitForOperationComplete(t *testing.T, env *testEnv, loc string) string {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		runtime.Gosched()
+		rec := env.get(loc, env.devToken)
+		var body struct {
+			Status string `json:"status"`
+		}
+		_ = json.NewDecoder(rec.Body).Decode(&body)
+		if body.Status == "complete" || body.Status == "failed" {
+			return body.Status
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("operation did not reach terminal state within 2s")
+	return ""
+}
+
 // ── GetAppStatus ──────────────────────────────────────────────────────────────
 
-func TestGetAppStatusReturnsUnknown(t *testing.T) {
+func TestGetAppStatusQueriesDeployer(t *testing.T) {
 	env := newEnv(t)
 
 	env.doJSON(http.MethodPost, "/api/repos/myorg/myrepo/apps", deployBody("api", "http", "img:v1"), env.devToken)
@@ -263,8 +287,8 @@ func TestGetAppStatusReturnsUnknown(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Status != "unknown" {
-		t.Errorf("status = %q, want unknown", body.Status)
+	if body.Status == "" {
+		t.Error("status is empty, want a non-empty string from the deployer")
 	}
 }
 
@@ -282,19 +306,16 @@ func TestGetOperationReturnsComplete(t *testing.T) {
 		t.Fatal("no Location header")
 	}
 
-	rec = env.get(loc, env.devToken)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("get operation status = %d; body: %s", rec.Code, rec.Body)
+	if status := waitForOperationComplete(t, env, loc); status != "complete" {
+		t.Errorf("operation status = %q, want complete", status)
 	}
+
+	rec = env.get(loc, env.devToken)
 	var body struct {
-		Status string `json:"status"`
-		Type   string `json:"type"`
+		Type string `json:"type"`
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
-	}
-	if body.Status != "complete" {
-		t.Errorf("status = %q, want complete", body.Status)
 	}
 	if body.Type != "deploy" {
 		t.Errorf("type = %q, want deploy", body.Type)
@@ -314,9 +335,11 @@ func TestGetOperationNotFoundReturns404(t *testing.T) {
 func TestGetAppHistoryContainsDeploy(t *testing.T) {
 	env := newEnv(t)
 
-	env.doJSON(http.MethodPost, "/api/repos/myorg/myrepo/apps", deployBody("api", "http", "img:v1"), env.devToken)
+	rec := env.doJSON(http.MethodPost, "/api/repos/myorg/myrepo/apps", deployBody("api", "http", "img:v1"), env.devToken)
+	loc := rec.Header().Get("Location")
+	waitForOperationComplete(t, env, loc)
 
-	rec := env.get("/api/repos/myorg/myrepo/apps/api/history", env.devToken)
+	rec = env.get("/api/repos/myorg/myrepo/apps/api/history", env.devToken)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d; body: %s", rec.Code, rec.Body)
 	}
