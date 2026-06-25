@@ -21,7 +21,7 @@ type mockCliHandler struct {
 	onDeleteProfile           func(name string) error
 	onLint                    func(staged, fix bool) error
 	onServiceStatus           func(prof *Profile) error
-	onServiceDelete           func(prof *Profile) error
+	onServiceDelete           func(prof *Profile, kubecontext, namespace string) error
 	onServiceUpgradeRetry     func(prof *Profile) error
 	onOperatorLogout          func(prof *Profile) error
 	onOperatorPrincipalAdd    func(prof *Profile, principal string) error
@@ -36,7 +36,7 @@ type mockCliHandler struct {
 	onAppExemptRemove         func(prof *Profile, repo, app string) error
 	onRepoExemptAdd           func(prof *Profile, repo string) error
 	onRepoExemptRemove        func(prof *Profile, repo string) error
-	onAppDeploy               func(prof *Profile, org, repo, name, image, appType string) error
+	onAppDeploy               func(prof *Profile) error
 	onAppList                 func(prof *Profile, org, repo string) error
 	onAppGet                  func(prof *Profile, org, repo, name string) error
 	onAppStatus               func(prof *Profile, org, repo, name string) error
@@ -94,9 +94,9 @@ func (h *mockCliHandler) ServiceStatus(_ context.Context, prof *Profile) error {
 	return nil
 }
 
-func (h *mockCliHandler) ServiceDelete(_ context.Context, _ platform.Platform, prof *Profile) error {
+func (h *mockCliHandler) ServiceDelete(_ context.Context, prof *Profile, kubecontext, namespace string) error {
 	if h.onServiceDelete != nil {
-		return h.onServiceDelete(prof)
+		return h.onServiceDelete(prof, kubecontext, namespace)
 	}
 	return nil
 }
@@ -199,9 +199,9 @@ func (h *mockCliHandler) RepoExemptRemove(_ context.Context, prof *Profile, repo
 	return nil
 }
 
-func (h *mockCliHandler) AppDeploy(_ context.Context, prof *Profile, org, repo, name, image, appType string) error {
+func (h *mockCliHandler) AppDeploy(_ context.Context, prof *Profile) error {
 	if h.onAppDeploy != nil {
-		return h.onAppDeploy(prof, org, repo, name, image, appType)
+		return h.onAppDeploy(prof)
 	}
 	return nil
 }
@@ -249,7 +249,7 @@ func (h *mockCliHandler) AppSync(_ context.Context, prof *Profile, org, repo, na
 }
 
 // fakeProfile is a pre-built profile for injecting into auth-required command tests.
-var fakeProfile = &Profile{Platform: "local", APIURL: "http://localhost:8080"}
+var fakeProfile = &Profile{APIURL: "http://localhost:8080"}
 
 // withProfile returns a LoadProfile hook that always returns fakeProfile.
 func withProfile(prof *Profile) func(string, bool) (*Profile, error) {
@@ -279,7 +279,7 @@ func TestOperatorLoginUsesAPIURLFlag(t *testing.T) {
 	var gotURL string
 	const want = "http://localhost:9090"
 	mock := &mockCliHandler{
-		onLoadProfile: withProfile(&Profile{Platform: "local", APIURL: "http://localhost:8080"}),
+		onLoadProfile: withProfile(&Profile{APIURL: "http://localhost:8080"}),
 		onOperatorLogin: func(apiURL, _, _ string) (*Profile, error) {
 			gotURL = apiURL
 			return &Profile{}, nil
@@ -322,7 +322,7 @@ func TestOperatorLoginFailsWithoutAPIURLWhenNoProfile(t *testing.T) {
 func TestOperatorLoginFailsWithEmptyAPIURLInProfile(t *testing.T) {
 	// Profile exists but has no APIURL — should get a clear message, not a raw HTTP scheme error.
 	mock := &mockCliHandler{
-		onLoadProfile: withProfile(&Profile{Platform: "local", APIURL: ""}),
+		onLoadProfile: withProfile(&Profile{APIURL: ""}),
 	}
 	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"})
 	if err == nil {
@@ -428,7 +428,7 @@ func TestServiceDeleteRequiresConfirmFlag(t *testing.T) {
 	called := false
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(fakeProfile),
-		onServiceDelete: func(_ *Profile) error {
+		onServiceDelete: func(_ *Profile, _, _ string) error {
 			called = true
 			return nil
 		},
@@ -446,7 +446,7 @@ func TestServiceDeleteCallsHandlerWithConfirm(t *testing.T) {
 	called := false
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(fakeProfile),
-		onServiceDelete: func(_ *Profile) error {
+		onServiceDelete: func(_ *Profile, _, _ string) error {
 			called = true
 			return nil
 		},

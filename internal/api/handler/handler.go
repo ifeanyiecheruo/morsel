@@ -28,8 +28,10 @@ type Deployer interface {
 // AppPlatform is the subset of platform.Platform that API handlers may consume.
 // Expanded as stub methods are implemented.
 type AppPlatform interface {
+	Namespace() string
 	Secrets() platform.Secrets
 	Tokens() platform.Tokens
+	Deploy() platform.Deployer
 }
 
 // Handler implements oas.Handler for all Morsel API operations.

@@ -1,0 +1,25 @@
+name: Morsel Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install morsel CLI
+        run: go install ./cmd/morsel
+
+      - name: Deploy apps
+        run: morsel app deploy

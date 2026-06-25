@@ -26,6 +26,12 @@ const (
 	quotaName          = "morsel-quota"
 	limitRangeName     = "morsel-limits"
 	networkPolicyName  = "morsel-netpol"
+
+	registryName     = "registry"
+	registryPort     = int32(5000)
+	registryImage    = "registry:2"
+	registryPortName = "registry"
+	registrySvcName  = "registry"
 )
 
 // smallTierQuota is hardcoded until F14 introduces dynamic tier configuration.
@@ -305,4 +311,96 @@ func envVars(env map[string]string) []corev1.EnvVar {
 		out = append(out, corev1.EnvVar{Name: k, Value: v})
 	}
 	return out
+}
+
+// EnsureRegistry provisions the registry:2 Deployment and LoadBalancer Service
+// in the given namespace. Idempotent — safe to call on every bootstrap run.
+// The registry is exposed as a LoadBalancer on port 5000. Docker Desktop
+// surfaces LoadBalancer services at localhost, making localhost:5000 reachable
+// from both the host (for docker push) and from pods (for image pull).
+func (c *Client) EnsureRegistry(ctx context.Context, namespace string) error {
+	if err := c.ensureNamespace(ctx, namespace); err != nil {
+		return fmt.Errorf("namespace: %w", err)
+	}
+	if err := c.applyRegistryDeployment(ctx, namespace); err != nil {
+		return fmt.Errorf("registry deployment: %w", err)
+	}
+	if err := c.applyRegistryService(ctx, namespace); err != nil {
+		return fmt.Errorf("registry service: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) applyRegistryDeployment(ctx context.Context, namespace string) error {
+	replicas := int32(1)
+	labels := map[string]string{"morsel.io/component": registryName}
+	desired := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      registryName,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{MatchLabels: labels},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: labels},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  registryName,
+							Image: registryImage,
+							Ports: []corev1.ContainerPort{
+								{ContainerPort: registryPort, Name: registryPortName},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	existing, err := c.cs.AppsV1().Deployments(namespace).Get(ctx, registryName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		_, err = c.cs.AppsV1().Deployments(namespace).Create(ctx, desired, metav1.CreateOptions{})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	existing.Spec = desired.Spec
+	_, err = c.cs.AppsV1().Deployments(namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	return err
+}
+
+func (c *Client) applyRegistryService(ctx context.Context, namespace string) error {
+	port := corev1.ServicePort{
+		Name:       registryPortName,
+		Port:       registryPort,
+		TargetPort: intstr.FromInt32(registryPort),
+	}
+	labels := map[string]string{"morsel.io/component": registryName}
+	desired := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      registrySvcName,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeLoadBalancer,
+			Selector: map[string]string{"morsel.io/component": registryName},
+			Ports:    []corev1.ServicePort{port},
+		},
+	}
+	existing, err := c.cs.CoreV1().Services(namespace).Get(ctx, registrySvcName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		_, err = c.cs.CoreV1().Services(namespace).Create(ctx, desired, metav1.CreateOptions{})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	existing.Spec.Ports = desired.Spec.Ports
+	existing.Spec.Selector = desired.Spec.Selector
+	_, err = c.cs.CoreV1().Services(namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	return err
 }

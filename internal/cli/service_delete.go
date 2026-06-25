@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
-	"github.com/ifeanyiecheruo/morsel/internal/platforms"
 	"github.com/spf13/cobra"
+
+	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 )
 
 func (c *cli) serviceDeleteCmd() *cobra.Command {
 	var confirmed bool
+	var kubecontext, namespace string
 
 	cmd := &cobra.Command{
 		Use:   "delete",
@@ -23,26 +24,40 @@ func (c *cli) serviceDeleteCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			plat, err := platforms.Create(prof.Platform, nil)
-			if err != nil {
-				return fmt.Errorf("create platform: %w", err)
-			}
-			return c.handler.ServiceDelete(cmd.Context(), plat, prof)
+			return c.handler.ServiceDelete(cmd.Context(), prof, kubecontext, namespace)
 		},
 	}
 	cmd.Flags().BoolVar(&confirmed, "confirm", false, "required: confirm destructive teardown")
+	cmd.Flags().StringVar(&kubecontext, "kubecontext", "", "kubectl context to use in teardown instructions (for use when the cluster is unreachable)")
+	cmd.Flags().StringVar(&namespace, "namespace", "", "Kubernetes namespace override for teardown instructions (default: from service)")
 	return cmd
 }
 
-func (h *cliHandler) ServiceDelete(ctx context.Context, plat platform.Platform, prof *Profile) error {
-	fmt.Println("✓ Bootstrap state deleted.")
-
-	if prof.ClusterServer != "" {
-		fmt.Println()
-		fmt.Printf("  Cluster resources were NOT removed automatically.\n")
-		fmt.Printf("  Delete them manually:\n\n")
-		fmt.Printf("    kubectl --context %s delete namespace morsel morsel-services --ignore-not-found\n\n", prof.Kubecontext)
+func (h *cliHandler) ServiceDelete(ctx context.Context, prof *Profile, kubecontext, namespace string) error {
+	if namespace == "" {
+		if client, err := h.clientFor(prof); err == nil {
+			if resp, err := client.Inner().GetDeploymentInfo(ctx); err == nil {
+				if info, ok := resp.(*oas.DeploymentInfo); ok {
+					namespace = info.Namespace
+				}
+			}
+		}
 	}
+	if namespace == "" {
+		namespace = "morsel"
+	}
+
+	fmt.Println("✓ Bootstrap state deleted.")
+	fmt.Println()
+	fmt.Println("  Cluster resources were NOT removed automatically.")
+	fmt.Println("  Delete them manually:")
+	fmt.Println()
+
+	kubectl := "kubectl"
+	if kubecontext != "" {
+		kubectl += " --context " + kubecontext
+	}
+	fmt.Printf("    %s delete namespace %s %s-services --ignore-not-found\n\n", kubectl, namespace, namespace)
 
 	return nil
 }

@@ -38,7 +38,7 @@ func TestVerifyDeployTokenRejectsInvalidToken(t *testing.T) {
 func TestDeployTokenRoundTrip(t *testing.T) {
 	plat := platWithTempHome(t)
 
-	token, err := plat.Tokens().CreateDeployToken(ctx)
+	token, err := plat.Tokens().CreateDeployToken(ctx, "localhost/test-repo")
 	if err != nil {
 		t.Fatalf("CreateDeployToken: %v", err)
 	}
@@ -191,17 +191,12 @@ func TestBootstrapProvisionWritesConfigAndKey(t *testing.T) {
 	if err := plat.Bootstrap().Provision(ctx, answers); err != nil {
 		t.Fatalf("Bootstrap.Provision: unexpected error: %v", err)
 	}
-	// Deploy signing key must have been generated.
-	_, err := plat.Deploy().Credentials(ctx)
-	if err == nil {
-		t.Fatal("Deploy.Credentials: expected error for missing deploy key, got nil")
-	} else {
-		if !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
-			t.Fatalf("Deploy.Credentials: expected ErrPrincipalNotAuthorized for missing deploy key, got %v", err)
-		}
+	// Local registry requires no authentication — Credentials should succeed after Provision.
+	if _, err := plat.Deploy().Credentials(ctx); err != nil {
+		t.Fatalf("Deploy.Credentials after Provision: unexpected error: %v", err)
 	}
 
-	token, err := plat.Tokens().CreateDeployToken(ctx)
+	token, err := plat.Tokens().CreateDeployToken(ctx, "localhost/test-repo")
 	if err != nil {
 		t.Fatalf("CreateDeployToken after Provision: %v", err)
 	}

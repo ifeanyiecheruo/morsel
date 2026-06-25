@@ -1,0 +1,12 @@
+type: object
+required: [token, registry]
+properties:
+  token:
+    description: Short-lived deploy token scoped to this repository. Use as Bearer token for subsequent deploy API calls.
+    type: string
+  registry:
+    description: URL of the container registry to push images to.
+    type: string
+  registry_token:
+    description: Base64-encoded Docker auth config for the registry. Absent on platforms with unauthenticated registries.
+    type: string

@@ -1,0 +1,25 @@
+parameters:
+  - $ref: '../parameters.yaml#/OrgParam'
+  - $ref: '../parameters.yaml#/RepoParam'
+post:
+  operationId: prepareRepoDeploy
+  summary: Prepare a deploy run
+  description: Issues a short-lived deploy token scoped to this repository and returns the registry URL and credentials needed to push images. All information required to build, push, and deploy is returned in a single call.
+  tags: [repos]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/DeployConfig.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

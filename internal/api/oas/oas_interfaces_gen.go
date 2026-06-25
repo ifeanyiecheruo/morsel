@@ -33,6 +33,10 @@ type GetAppUtilisationRes interface {
 	getAppUtilisationRes()
 }
 
+type GetDeploymentInfoRes interface {
+	getDeploymentInfoRes()
+}
+
 type GetOperationRes interface {
 	getOperationRes()
 }
@@ -79,6 +83,10 @@ type ListRepoApprovalsRes interface {
 
 type ListReposRes interface {
 	listReposRes()
+}
+
+type PrepareRepoDeployRes interface {
+	prepareRepoDeployRes()
 }
 
 type RemoveOperatorPrincipalRes interface {

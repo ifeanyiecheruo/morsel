@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -13,74 +16,187 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/apiclient"
 )
 
-func (c *cli) appDeployCmd(org, repo *string) *cobra.Command {
-	var image string
-
+func (c *cli) appDeployCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "deploy NAME",
-		Short: "Deploy an app by name, reading config from .morsel/NAME.morsel.json",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Use:   "deploy",
+		Short: "Build and deploy all apps declared in .morsel/*.morsel.json",
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			prof, err := c.requireProfile()
 			if err != nil {
 				return err
 			}
-			name := args[0]
-			resolvedOrg, resolvedRepo, err := resolveOrgRepo(*org, *repo)
-			if err != nil {
-				return err
-			}
-
-			cfg, err := readMorselConfig(name)
-			if err != nil {
-				return err
-			}
-			if cfg == nil {
-				return fmt.Errorf(".morsel/%s.morsel.json not found — create it before deploying", name)
-			}
-			apiType, err := morselTypeToAPI(cfg.Type)
-			if err != nil {
-				return err
-			}
-
-			return c.handler.AppDeploy(cmd.Context(), prof, resolvedOrg, resolvedRepo, name, image, apiType)
+			return c.handler.AppDeploy(cmd.Context(), prof)
 		},
-	}
-	cmd.Flags().StringVar(&image, "image", "", "container image to deploy (e.g. ghcr.io/org/app:v1.0.0)")
-	if err := cmd.MarkFlagRequired("image"); err != nil {
-		panic(err)
 	}
 	return cmd
 }
 
-func (h *cliHandler) AppDeploy(ctx context.Context, prof *Profile, org, repo, name, image, appType string) error {
-	client, err := h.clientFor(prof)
+func (h *cliHandler) AppDeploy(ctx context.Context, prof *Profile) error {
+	// Authenticated client for the preparation call (uses stored operator token).
+	authClient, err := h.clientFor(prof)
 	if err != nil {
 		return err
 	}
 
-	spec := oas.AppSpec{
-		Name:  oas.NewOptString(name),
-		Type:  oas.AppSpecType(appType),
-		Image: image,
-	}
-	res, err := client.Inner().UpsertApp(ctx, &spec, oas.UpsertAppParams{Org: org, Repo: repo})
+	// Derive org/repo: try git remote origin first, fall back to local directory name.
+	org, repo, err := deployOrgRepo()
 	if err != nil {
-		return fmt.Errorf("deploy app: %w", err)
-	}
-	headers, ok := res.(*oas.AcceptedOperationHeaders)
-	if !ok {
-		return fmt.Errorf("unexpected response: %T", res)
+		return err
 	}
 
-	opID := headers.Response.OperationID
-	fmt.Printf("Deploying %s/%s/%s (operation %s)...\n", org, repo, name, opID)
-	return h.waitForOperation(ctx, client, org, repo, name, opID)
+	// Single call to prepare the deploy: issues a repo-scoped deploy token and
+	// returns the registry URL (and optional registry credentials).
+	res, err := authClient.Inner().PrepareRepoDeploy(ctx, oas.PrepareRepoDeployParams{Org: org, Repo: repo})
+	if err != nil {
+		return fmt.Errorf("prepare deploy: %w", err)
+	}
+	session, ok := res.(*oas.DeployConfig)
+	if !ok {
+		return fmt.Errorf("prepare deploy: unexpected response type %T", res)
+	}
+
+	// Build a deploy client scoped to this repo using the returned deploy token.
+	deployClient, err := apiclient.New(prof.APIURL, session.Token)
+	if err != nil {
+		return fmt.Errorf("build deploy client: %w", err)
+	}
+
+	apps, err := discoverApps()
+	if err != nil {
+		return err
+	}
+	if len(apps) == 0 {
+		return fmt.Errorf("no .morsel.json files found in .morsel/ — create one before deploying")
+	}
+
+	sha := gitCurrentSHA()
+	shortSHA := sha
+	if len(shortSHA) > 7 {
+		shortSHA = shortSHA[:7]
+	}
+
+	type deployResult struct {
+		name    string
+		image   string
+		elapsed time.Duration
+		err     error
+	}
+	results := make([]deployResult, len(apps))
+
+	var wg sync.WaitGroup
+	for i, app := range apps {
+		wg.Add(1)
+		go func(idx int, cfg morselConfig) {
+			defer wg.Done()
+			start := time.Now()
+			r := deployResult{name: cfg.Name}
+			r.image, r.err = buildPushDeploy(ctx, deployClient, org, repo, cfg, session.Registry, shortSHA)
+			r.elapsed = time.Since(start)
+			results[idx] = r
+		}(i, app)
+	}
+	wg.Wait()
+
+	var failCount int
+	for _, r := range results {
+		label := r.name
+		if label == "" {
+			label = repo
+		}
+		if r.err != nil {
+			failCount++
+			fmt.Printf("  ✗ %-20s deploy failed — %v\n", label, r.err)
+		} else {
+			fmt.Printf("  ✓ %-20s deployed %s  (%s)\n", label, r.image, r.elapsed.Round(time.Second))
+		}
+	}
+
+	if failCount > 0 {
+		return fmt.Errorf("%d app(s) failed to deploy", failCount)
+	}
+	return nil
 }
 
-// waitForOperation polls an operation until it reaches a terminal state,
-// printing progress on each poll.
-func (h *cliHandler) waitForOperation(ctx context.Context, client *apiclient.Client, org, repo, name, opID string) error {
+// deployOrgRepo returns the org and repo for the deploy target.
+// Tries git remote origin first; falls back to the local directory name.
+func deployOrgRepo() (string, string, error) {
+	if org, repo, err := gitRemoteOrgRepo(); err == nil {
+		return org, repo, nil
+	}
+	return localOrgRepo()
+}
+
+// buildPushDeploy builds the container image, pushes it to the registry,
+// and calls the deploy API for a single app. Returns the pushed image reference.
+func buildPushDeploy(ctx context.Context, client *apiclient.Client, org, repo string, cfg morselConfig, registry, shortSHA string) (string, error) {
+	dockerfile := cfg.Dockerfile
+	if dockerfile == "" {
+		dockerfile = "Dockerfile"
+	}
+
+	pushRef := registry + "/" + appImagePath(repo, cfg.Name, shortSHA)
+
+	buildCmd := exec.CommandContext(ctx, "docker", "build", "-t", pushRef, "-f", dockerfile, ".")
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
+	if err := buildCmd.Run(); err != nil {
+		return "", fmt.Errorf("docker build: %w", err)
+	}
+
+	pushCmd := exec.CommandContext(ctx, "docker", "push", pushRef)
+	pushCmd.Stdout = os.Stdout
+	pushCmd.Stderr = os.Stderr
+	if err := pushCmd.Run(); err != nil {
+		return "", fmt.Errorf("docker push: %w", err)
+	}
+
+	apiType, err := morselTypeToAPI(cfg.Type)
+	if err != nil {
+		return "", err
+	}
+	spec := oas.AppSpec{
+		Type:  oas.AppSpecType(apiType),
+		Image: pushRef,
+	}
+	if cfg.Name != "" {
+		spec.Name = oas.NewOptString(cfg.Name)
+	}
+	if cfg.Schedule != "" {
+		spec.Schedule = oas.NewOptString(cfg.Schedule)
+	}
+	if len(cfg.Env) > 0 {
+		spec.Env = oas.NewOptAppSpecEnv(oas.AppSpecEnv(cfg.Env))
+	}
+
+	deployRes, err := client.Inner().UpsertApp(ctx, &spec, oas.UpsertAppParams{Org: org, Repo: repo})
+	if err != nil {
+		return "", fmt.Errorf("deploy app: %w", err)
+	}
+	headers, ok := deployRes.(*oas.AcceptedOperationHeaders)
+	if !ok {
+		return "", fmt.Errorf("deploy: unexpected response type %T", deployRes)
+	}
+
+	if err := pollOperation(ctx, client, org, repo, cfg.Name, headers.Response.OperationID); err != nil {
+		return "", err
+	}
+	return pushRef, nil
+}
+
+// appImagePath builds the registry-relative image path for an app.
+func appImagePath(repo, appName, shortSHA string) string {
+	path := repo
+	if appName != "" {
+		path += "/" + appName
+	}
+	if shortSHA != "" {
+		path += ":" + shortSHA
+	}
+	return path
+}
+
+// pollOperation polls an operation until it reaches a terminal state.
+func pollOperation(ctx context.Context, client *apiclient.Client, org, repo, name, opID string) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -97,7 +213,6 @@ func (h *cliHandler) waitForOperation(ctx context.Context, client *apiclient.Cli
 		if !ok {
 			return fmt.Errorf("unexpected poll response: %T", res)
 		}
-		fmt.Printf("  %s\n", op.Progress)
 		switch op.Status {
 		case oas.OperationStatusComplete:
 			return nil
@@ -110,16 +225,35 @@ func (h *cliHandler) waitForOperation(ctx context.Context, client *apiclient.Cli
 	}
 }
 
-// morselConfig is the minimal subset of .morsel.json used by the deploy command.
+// morselConfig is the per-app config read from .morsel/{name}.morsel.json.
 type morselConfig struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name       string            `json:"name"`
+	Type       string            `json:"type"`
+	Dockerfile string            `json:"dockerfile"`
+	Schedule   string            `json:"schedule"`
+	Env        map[string]string `json:"env"`
 }
 
-// readMorselConfig reads .morsel/{name}.morsel.json; returns nil if the file
-// does not exist.
-func readMorselConfig(name string) (*morselConfig, error) {
-	path := ".morsel/" + name + ".morsel.json"
+// discoverApps scans .morsel/*.morsel.json and returns all declared apps.
+func discoverApps() ([]morselConfig, error) {
+	entries, err := filepath.Glob(".morsel/*.morsel.json")
+	if err != nil {
+		return nil, fmt.Errorf("scan .morsel/: %w", err)
+	}
+	apps := make([]morselConfig, 0, len(entries))
+	for _, path := range entries {
+		cfg, err := readMorselConfigFromPath(path)
+		if err != nil {
+			return nil, err
+		}
+		if cfg != nil {
+			apps = append(apps, *cfg)
+		}
+	}
+	return apps, nil
+}
+
+func readMorselConfigFromPath(path string) (*morselConfig, error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil, nil

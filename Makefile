@@ -152,7 +152,9 @@ install-tools: ## Install prerequisites
 
 .PHONY: cluster-up
 cluster-up: _ensure-podman-machine ## Create a local kind cluster for development (override: CLUSTER_NAME=morsel-dev)
-	$(KIND_PROVIDER) kind create cluster --name $(CLUSTER_NAME)
+	$(KIND_PROVIDER) kind get clusters 2>/dev/null | grep -qx $(CLUSTER_NAME) \
+		&& echo "cluster $(CLUSTER_NAME) already exists, skipping" \
+		|| $(KIND_PROVIDER) kind create cluster --name $(CLUSTER_NAME)
 
 .PHONY: cluster-down
 cluster-down: ## Delete the local kind cluster (override: CLUSTER_NAME=morsel-dev)

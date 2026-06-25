@@ -24,7 +24,7 @@
 | [F05](005-feature-app-lifecycle-api.md) | App Lifecycle: API Layer | ✅ done | F03b |
 | [F06](006-feature-kubernetes-manifest-apply.md) | Kubernetes Manifest Apply | ✅ done | F05 |
 | [F07](007-feature-bootstrap-local-platform.md) | Bootstrap: LocalPlatform | ✅ done | F02, F03 |
-| [F08](008-feature-local-platform-deploy-path.md) | LocalPlatform Deploy Path | ⬜ not started | F03, F05, F06, F07 |
+| [F08](008-feature-local-platform-deploy-path.md) | LocalPlatform Deploy Path | ✅ done | F03, F05, F06, F07 |
 | [F09](009-feature-networking.md) | Networking | ⬜ not started | F06, F07 |
 | [F10](010-feature-blob-service.md) | Blob Service | ⬜ not started | F07 |
 | [F11](011-feature-database-service.md) | Database Service | ⬜ not started | F06, F07 |

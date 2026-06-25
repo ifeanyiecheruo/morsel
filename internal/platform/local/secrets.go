@@ -247,7 +247,7 @@ var _ platform.Tokens = (*localTokens)(nil)
 
 func (lt *localTokens) GetAmbientToken(_ context.Context) (string, error) { return "", nil }
 
-func (lt *localTokens) CreateDeployToken(ctx context.Context) (string, error) {
+func (lt *localTokens) CreateDeployToken(ctx context.Context, repository string) (string, error) {
 	keys, err := lt.secrets.EnsureDeploySigningKey(ctx)
 	if err != nil {
 		return "", fmt.Errorf("ensure deploy signing key: %w", err)
@@ -256,7 +256,7 @@ func (lt *localTokens) CreateDeployToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("deploy signing key not provisioned")
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"repository": "localhost/local",
+		"repository": repository,
 	})
 	return tok.SignedString(keys[0])
 }

@@ -44,5 +44,5 @@ func (h *cliHandler) AppDelete(ctx context.Context, prof *Profile, org, repo, na
 
 	opID := headers.Response.OperationID
 	fmt.Printf("Deleting %s/%s/%s (operation %s)...\n", org, repo, name, opID)
-	return h.waitForOperation(ctx, client, org, repo, name, opID)
+	return pollOperation(ctx, client, org, repo, name, opID)
 }

@@ -10,21 +10,11 @@ import (
 // Profile holds the persisted authentication and connection state for one named profile.
 // The JSON field names match the profile file schema in docs/specs/components/cli.md.
 type Profile struct {
-	Platform              string `json:"platform"`
 	APIURL                string `json:"api_url"`
 	AccessToken           string `json:"access_token"`
 	AccessTokenExpiresAt  string `json:"access_token_expires_at"`
 	RefreshToken          string `json:"refresh_token"`
 	RefreshTokenExpiresAt string `json:"refresh_token_expires_at"`
-
-	// LocalPlatform-only fields
-	Kubeconfig    string `json:"kubeconfig,omitempty"`
-	Kubecontext   string `json:"kubecontext,omitempty"`
-	ClusterServer string `json:"cluster_server,omitempty"`
-
-	// GCPPlatform-only fields
-	Project string `json:"project,omitempty"`
-	Region  string `json:"region,omitempty"`
 }
 
 func readProfile(name string) (*Profile, error) {

@@ -91,6 +91,15 @@ func (UnimplementedHandler) GetAppUtilisation(ctx context.Context, params GetApp
 	return r, ht.ErrNotImplemented
 }
 
+// GetDeploymentInfo implements getDeploymentInfo operation.
+//
+// Returns parameters fixed at bootstrap time for the lifetime of this deployment.
+//
+// GET /api/operator/deployment
+func (UnimplementedHandler) GetDeploymentInfo(ctx context.Context) (r GetDeploymentInfoRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetHealthz implements getHealthz operation.
 //
 // Returns 200 when the API server is up and able to handle requests. Does not check downstream
@@ -213,6 +222,17 @@ func (UnimplementedHandler) ListRepoApprovals(ctx context.Context, params ListRe
 //
 // GET /api/repos
 func (UnimplementedHandler) ListRepos(ctx context.Context, params ListReposParams) (r ListReposRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// PrepareRepoDeploy implements prepareRepoDeploy operation.
+//
+// Issues a short-lived deploy token scoped to this repository and returns the registry URL and
+// credentials needed to push images. All information required to build, push, and deploy is returned
+// in a single call.
+//
+// POST /api/repos/{org}/{repo}/deploy
+func (UnimplementedHandler) PrepareRepoDeploy(ctx context.Context, params PrepareRepoDeployParams) (r PrepareRepoDeployRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

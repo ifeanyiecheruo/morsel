@@ -6,10 +6,25 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/store"
 )
+
+const saNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+
+// Namespace returns the Kubernetes namespace this service is running in.
+// Inside a pod Kubernetes injects the namespace into the service-account file,
+// so the value is fixed for the lifetime of the deployment. Outside a pod
+// (e.g. the local bootstrap tool itself) we fall back to the bootstrap default.
+func (lp *LocalPlatform) Namespace() string {
+	data, err := os.ReadFile(saNamespacePath)
+	if err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	return "morsel"
+}
 
 // LocalPlatform implements platform.Platform with no cloud dependencies.
 type LocalPlatform struct {

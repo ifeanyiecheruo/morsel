@@ -62,6 +62,12 @@ type Handler interface {
 	//
 	// GET /api/repos/{org}/{repo}/apps/{name}/utilisation
 	GetAppUtilisation(ctx context.Context, params GetAppUtilisationParams) (GetAppUtilisationRes, error)
+	// GetDeploymentInfo implements getDeploymentInfo operation.
+	//
+	// Returns parameters fixed at bootstrap time for the lifetime of this deployment.
+	//
+	// GET /api/operator/deployment
+	GetDeploymentInfo(ctx context.Context) (GetDeploymentInfoRes, error)
 	// GetHealthz implements getHealthz operation.
 	//
 	// Returns 200 when the API server is up and able to handle requests. Does not check downstream
@@ -148,6 +154,14 @@ type Handler interface {
 	//
 	// GET /api/repos
 	ListRepos(ctx context.Context, params ListReposParams) (ListReposRes, error)
+	// PrepareRepoDeploy implements prepareRepoDeploy operation.
+	//
+	// Issues a short-lived deploy token scoped to this repository and returns the registry URL and
+	// credentials needed to push images. All information required to build, push, and deploy is returned
+	// in a single call.
+	//
+	// POST /api/repos/{org}/{repo}/deploy
+	PrepareRepoDeploy(ctx context.Context, params PrepareRepoDeployParams) (PrepareRepoDeployRes, error)
 	// RemoveOperatorPrincipal implements removeOperatorPrincipal operation.
 	//
 	// Revokes admin UI access from the specified principal.

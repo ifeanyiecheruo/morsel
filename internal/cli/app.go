@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -19,7 +20,7 @@ func (c *cli) appCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&org, "org", "", "organisation or user owning the repo (defaults to git remote origin)")
 	cmd.PersistentFlags().StringVar(&repo, "repo", "", "repository name (defaults to git remote origin)")
 
-	cmd.AddCommand(c.appDeployCmd(&org, &repo))
+	cmd.AddCommand(c.appDeployCmd())
 	cmd.AddCommand(c.appSyncCmd(&org, &repo))
 	cmd.AddCommand(c.appListCmd(&org, &repo))
 	cmd.AddCommand(c.appGetCmd(&org, &repo))
@@ -55,6 +56,42 @@ func gitRemoteOrgRepo() (org, repo string, err error) {
 		return "", "", fmt.Errorf("cannot detect repo from git remote (pass --org and --repo explicitly): %w", err)
 	}
 	return parseRemoteURL(strings.TrimSpace(string(out)))
+}
+
+// gitRootDir returns the absolute path of the current git repository root.
+func gitRootDir() (string, error) {
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "", fmt.Errorf("not inside a git repository (git rev-parse failed): %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// gitCurrentSHA returns the full commit SHA of HEAD, or empty string on error.
+func gitCurrentSHA() string {
+	out, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// localOrgRepo derives ("localhost", "<slugified-dirname>") from the git root.
+func localOrgRepo() (org, repo string, err error) {
+	root, err := gitRootDir()
+	if err != nil {
+		return "", "", err
+	}
+	dirname := filepath.Base(root)
+	var b strings.Builder
+	for _, r := range strings.ToLower(dirname) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	return "localhost", strings.Trim(b.String(), "-"), nil
 }
 
 // parseRemoteURL handles SSH (git@host:org/repo.git) and HTTPS remote URLs.

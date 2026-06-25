@@ -29,7 +29,7 @@ type Handler interface {
 
 	// Auth-required commands — prof is pre-validated by the cli layer
 	ServiceStatus(ctx context.Context, prof *Profile) error
-	ServiceDelete(ctx context.Context, plat platform.Platform, prof *Profile) error
+	ServiceDelete(ctx context.Context, prof *Profile, kubecontext, namespace string) error
 	ServiceUpgradeRetry(ctx context.Context, prof *Profile) error
 	OperatorLogout(ctx context.Context, prof *Profile) error
 	OperatorPrincipalAdd(ctx context.Context, prof *Profile, principal string) error
@@ -44,7 +44,7 @@ type Handler interface {
 	AppExemptRemove(ctx context.Context, prof *Profile, repo, app string) error
 	RepoExemptAdd(ctx context.Context, prof *Profile, repo string) error
 	RepoExemptRemove(ctx context.Context, prof *Profile, repo string) error
-	AppDeploy(ctx context.Context, prof *Profile, org, repo, name, image, appType string) error
+	AppDeploy(ctx context.Context, prof *Profile) error
 	AppList(ctx context.Context, prof *Profile, org, repo string) error
 	AppGet(ctx context.Context, prof *Profile, org, repo, name string) error
 	AppStatus(ctx context.Context, prof *Profile, org, repo, name string) error

@@ -83,6 +83,12 @@ type Invoker interface {
 	//
 	// GET /api/repos/{org}/{repo}/apps/{name}/utilisation
 	GetAppUtilisation(ctx context.Context, params GetAppUtilisationParams) (GetAppUtilisationRes, error)
+	// GetDeploymentInfo invokes getDeploymentInfo operation.
+	//
+	// Returns parameters fixed at bootstrap time for the lifetime of this deployment.
+	//
+	// GET /api/operator/deployment
+	GetDeploymentInfo(ctx context.Context) (GetDeploymentInfoRes, error)
 	// GetHealthz invokes getHealthz operation.
 	//
 	// Returns 200 when the API server is up and able to handle requests. Does not check downstream
@@ -169,6 +175,14 @@ type Invoker interface {
 	//
 	// GET /api/repos
 	ListRepos(ctx context.Context, params ListReposParams) (ListReposRes, error)
+	// PrepareRepoDeploy invokes prepareRepoDeploy operation.
+	//
+	// Issues a short-lived deploy token scoped to this repository and returns the registry URL and
+	// credentials needed to push images. All information required to build, push, and deploy is returned
+	// in a single call.
+	//
+	// POST /api/repos/{org}/{repo}/deploy
+	PrepareRepoDeploy(ctx context.Context, params PrepareRepoDeployParams) (PrepareRepoDeployRes, error)
 	// RemoveOperatorPrincipal invokes removeOperatorPrincipal operation.
 	//
 	// Revokes admin UI access from the specified principal.
@@ -1504,6 +1518,119 @@ func (c *Client) sendGetAppUtilisation(ctx context.Context, params GetAppUtilisa
 
 	stage = "DecodeResponse"
 	result, err := decodeGetAppUtilisationResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// GetDeploymentInfo invokes getDeploymentInfo operation.
+//
+// Returns parameters fixed at bootstrap time for the lifetime of this deployment.
+//
+// GET /api/operator/deployment
+func (c *Client) GetDeploymentInfo(ctx context.Context) (GetDeploymentInfoRes, error) {
+	res, err := c.sendGetDeploymentInfo(ctx)
+	return res, err
+}
+
+func (c *Client) sendGetDeploymentInfo(ctx context.Context) (res GetDeploymentInfoRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("getDeploymentInfo"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/api/operator/deployment"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, GetDeploymentInfoOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/api/operator/deployment"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, GetDeploymentInfoOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeGetDeploymentInfoResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -3232,6 +3359,159 @@ func (c *Client) sendListRepos(ctx context.Context, params ListReposParams) (res
 
 	stage = "DecodeResponse"
 	result, err := decodeListReposResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// PrepareRepoDeploy invokes prepareRepoDeploy operation.
+//
+// Issues a short-lived deploy token scoped to this repository and returns the registry URL and
+// credentials needed to push images. All information required to build, push, and deploy is returned
+// in a single call.
+//
+// POST /api/repos/{org}/{repo}/deploy
+func (c *Client) PrepareRepoDeploy(ctx context.Context, params PrepareRepoDeployParams) (PrepareRepoDeployRes, error) {
+	res, err := c.sendPrepareRepoDeploy(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendPrepareRepoDeploy(ctx context.Context, params PrepareRepoDeployParams) (res PrepareRepoDeployRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("prepareRepoDeploy"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/repos/{org}/{repo}/deploy"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, PrepareRepoDeployOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [5]string
+	pathParts[0] = "/api/repos/"
+	{
+		// Encode "org" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "org",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Org))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/"
+	{
+		// Encode "repo" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "repo",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Repo))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/deploy"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, PrepareRepoDeployOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodePrepareRepoDeployResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

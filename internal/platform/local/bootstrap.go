@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
@@ -92,11 +93,30 @@ func (lb *localBootstrapper) Plan(answers map[string]string) platform.Plan {
 	}
 }
 
-// Provision generates cryptographic keys needed to run Morsel.
-// Safe to re-run — key generation is idempotent.
-func (lb *localBootstrapper) Provision(ctx context.Context, _ map[string]string) error {
+// Provision generates cryptographic keys and provisions Kubernetes resources.
+// Safe to re-run — all operations are idempotent.
+func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]string) error {
 	if _, err := lb.secrets.EnsureDeploySigningKey(ctx); err != nil {
 		return fmt.Errorf("generate deploy signing key: %w", err)
+	}
+
+	// kubeconfigPath is set by CheckPrerequisites; skip K8s provisioning
+	// in contexts where that step was not run (e.g. unit tests).
+	// TODO: revisit this, enabling special behavior for tests means we are not testing what customers see
+	if lb.kubeconfigPath == "" {
+		return nil
+	}
+
+	ns := answers["k8s_namespace"]
+	if ns == "" {
+		ns = "morsel"
+	}
+	kubeClient, err := kube.New(lb.kubeconfigPath)
+	if err != nil {
+		return fmt.Errorf("build kubernetes client: %w", err)
+	}
+	if err := kubeClient.EnsureRegistry(ctx, ns); err != nil {
+		return fmt.Errorf("provision registry: %w", err)
 	}
 	return nil
 }

@@ -17,6 +17,7 @@ import (
 // AppPlatform is the subset of platform.Platform that API handlers are allowed
 // to consume. Bootstrap() is deliberately absent: bootstrapping is a CLI concern.
 type AppPlatform interface {
+	Namespace() string
 	Secrets() platform.Secrets
 	Tokens() platform.Tokens
 	Deploy() platform.Deployer

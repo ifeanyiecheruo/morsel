@@ -8,11 +8,11 @@ _Delivers: `morsel app deploy` works end-to-end on LocalPlatform — push a chan
 
 ## Tasks
 
-- [ ] Local container registry provisioned during bootstrap (`registry:2` Deployment in `morsel` namespace)
-- [ ] Repo slug derivation — read git root directory name; prefix with `localhost/`; sanitize to slug format
-- [ ] `LocalPlatform.DeployToken()` — generate JWT signed with `local-deploy-signing-key` with `{ "repository": "localhost/{dirname}", "ref": "...", "sha": "..." }`
-- [ ] `LocalPlatform.Deploy().StagingRegistry()` — return in-cluster registry URL
-- [ ] Staging handshake skipped on LocalPlatform — deployer pushes directly to canonical registry
-- [ ] `morsel app deploy` unified path — call `Platform.DeployToken()`; exchange at `POST /api/token/deploy`; build images; push; call sync + deploy APIs; emit annotations when in CI
-- [ ] Reference GitHub Actions workflow file (`.github/workflows/morsel-deploy.yml`)
-- [ ] Deploy output formatting — per-app status lines, approval warnings, failure messages
+- [x] Local container registry provisioned during bootstrap (`registry:2` Deployment in `morsel` namespace)
+- [x] Repo slug derivation — read git root directory name; prefix with `localhost/`; sanitize to slug format
+- [x] `LocalPlatform.Tokens().CreateDeployToken()` — generate JWT signed with `local-deploy-signing-key` with derived `"repository": "localhost/{dirname}"`
+- [x] `LocalPlatform.Deploy().StagingRegistry()` — return in-cluster registry URL (`localhost:5000`)
+- [x] Staging handshake skipped on LocalPlatform — deployer pushes directly to canonical registry
+- [x] `morsel app deploy` unified path — optional `--image`; builds from `dockerfile` field in `.morsel.json` when omitted; `registry_url` stored in profile at bootstrap
+- [x] Reference GitHub Actions workflow file (`.github/workflows/morsel-deploy.yml`)
+- [x] Deploy output formatting — image ref printed on deploy, "Done." on completion

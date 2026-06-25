@@ -62,16 +62,6 @@ func (c *cli) operatorLoginCmd() *cobra.Command {
 				return err
 			}
 
-			// Preserve bootstrap fields from any existing profile.
-			if c.profile != nil {
-				prof.Platform = c.profile.Platform
-				prof.Kubeconfig = c.profile.Kubeconfig
-				prof.Kubecontext = c.profile.Kubecontext
-				prof.ClusterServer = c.profile.ClusterServer
-				prof.Project = c.profile.Project
-				prof.Region = c.profile.Region
-			}
-
 			if err := c.handler.SaveProfile(cmd.Context(), c.profileName, prof); err != nil {
 				return err
 			}

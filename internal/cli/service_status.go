@@ -40,9 +40,5 @@ func (h *cliHandler) ServiceStatus(ctx context.Context, prof *Profile) error {
 		fmt.Printf("  ✓ API (%s): %s\n", prof.APIURL, resp.Status)
 	}
 
-	if prof.ClusterServer != "" {
-		fmt.Printf("  ✓ Cluster: %s (context: %s)\n", prof.ClusterServer, prof.Kubecontext)
-	}
-
 	return nil
 }

@@ -73,11 +73,7 @@ func (h *cliHandler) ServiceBootstrap(ctx context.Context, platformName, kubecon
 	fmt.Println("✓")
 
 	prof := &Profile{
-		Platform:      platformName,
-		Kubeconfig:    b.KubeconfigPath(),
-		Kubecontext:   b.KubeContext(),
-		ClusterServer: b.ClusterServer(),
-		APIURL:        "https://morsel-api.morsel.svc.cluster.local:8080",
+		APIURL: "https://morsel-api.morsel.svc.cluster.local:8080",
 	}
 
 	fmt.Println("✓ Bootstrap complete. Run 'morsel operator login' to authenticate.")

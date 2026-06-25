@@ -31,6 +31,7 @@ type Seeder interface {
 
 // Platform is the full server-facing interface consumed by the REST API server.
 type Platform interface {
+	Namespace() string
 	Bootstrap() Bootstrapper
 	Deploy() Deployer
 	Blobs() BlobStore
@@ -42,11 +43,12 @@ type Platform interface {
 }
 
 // CliPlatform is the CLI-facing subset. Re-exported from the public platform
-// package as platform.Platform so CLI commands only see Bootstrap, Deploy, and Secrets.
+// package as platform.Platform so CLI commands only see Bootstrap, Deploy, Secrets, and Tokens.
 type CliPlatform interface {
 	Bootstrap() Bootstrapper
 	Deploy() Deployer
 	Secrets() Secrets
+	Tokens() Tokens
 }
 
 // Secrets manages raw key material for the platform. Each key type exposes a
@@ -82,8 +84,8 @@ type Tokens interface {
 	// credentials (e.g., Workload Identity).
 	GetAmbientToken(ctx context.Context) (string, error)
 
-	// CreateDeployToken issues a signed deploy identity token for the current repo.
-	CreateDeployToken(ctx context.Context) (string, error)
+	// CreateDeployToken issues a signed deploy identity token for the given repository slug.
+	CreateDeployToken(ctx context.Context, repository string) (string, error)
 
 	// VerifyDeployToken validates a deploy identity token and returns the repo slug.
 	VerifyDeployToken(ctx context.Context, token string) (slug string, err error)

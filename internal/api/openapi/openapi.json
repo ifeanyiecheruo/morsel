@@ -565,6 +565,39 @@
         ],
         "type": "object"
       },
+      "DeployConfig": {
+        "properties": {
+          "registry": {
+            "description": "URL of the container registry to push images to.",
+            "type": "string"
+          },
+          "registry_token": {
+            "description": "Base64-encoded Docker auth config for the registry. Absent on platforms with unauthenticated registries.",
+            "type": "string"
+          },
+          "token": {
+            "description": "Short-lived deploy token scoped to this repository. Use as Bearer token for subsequent deploy API calls.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "registry"
+        ],
+        "type": "object"
+      },
+      "DeploymentInfo": {
+        "properties": {
+          "namespace": {
+            "description": "Kubernetes namespace where Morsel is installed. Set at bootstrap time and immutable.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "namespace"
+        ],
+        "type": "object"
+      },
       "ErrorDetail": {
         "description": "Structured error information attached to every non-2xx response.",
         "properties": {
@@ -2320,6 +2353,218 @@
           }
         ],
         "summary": "Platform-wide cost estimate",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/deployment": {
+      "get": {
+        "description": "Returns parameters fixed at bootstrap time for the lifetime of this deployment.",
+        "operationId": "getDeploymentInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "namespace": {
+                      "description": "Kubernetes namespace where Morsel is installed. Set at bootstrap time and immutable.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "namespace"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Immutable deployment parameters",
         "tags": [
           "operator"
         ]
@@ -7930,6 +8175,247 @@
         "summary": "Force wake a hibernated app",
         "tags": [
           "apps"
+        ]
+      }
+    },
+    "/api/repos/{org}/{repo}/deploy": {
+      "parameters": [
+        {
+          "description": "The organisation or user that owns the repo.",
+          "in": "path",
+          "name": "org",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "The repository name within the organisation.",
+          "in": "path",
+          "name": "repo",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "description": "Issues a short-lived deploy token scoped to this repository and returns the registry URL and credentials needed to push images. All information required to build, push, and deploy is returned in a single call.",
+        "operationId": "prepareRepoDeploy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "registry": {
+                      "description": "URL of the container registry to push images to.",
+                      "type": "string"
+                    },
+                    "registry_token": {
+                      "description": "Base64-encoded Docker auth config for the registry. Absent on platforms with unauthenticated registries.",
+                      "type": "string"
+                    },
+                    "token": {
+                      "description": "Short-lived deploy token scoped to this repository. Use as Bearer token for subsequent deploy API calls.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "registry"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Prepare a deploy run",
+        "tags": [
+          "repos"
         ]
       }
     },

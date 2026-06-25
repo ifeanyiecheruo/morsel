@@ -1,0 +1,22 @@
+get:
+  operationId: getDeploymentInfo
+  summary: Immutable deployment parameters
+  description: Returns parameters fixed at bootstrap time for the lifetime of this deployment.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/DeploymentInfo.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

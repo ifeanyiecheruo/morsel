@@ -38,6 +38,11 @@ components:
       $ref: './schemas/Approval.yaml'
     PlatformConfig:
       $ref: './schemas/PlatformConfig.yaml'
+    DeployConfig:
+      $ref: './schemas/DeployConfig.yaml'
+    DeploymentInfo:
+      $ref: './schemas/DeploymentInfo.yaml'
+
     OperatorPrincipals:
       $ref: './schemas/OperatorPrincipals.yaml'
     PrincipalReq:
@@ -77,6 +82,9 @@ paths:
 
   /healthz:
     $ref: './paths/healthz.yaml'
+
+  '/api/repos/{org}/{repo}/deploy':
+    $ref: './paths/deploy-config.yaml'
 
   /api/token/deploy:
     $ref: './paths/token-deploy.yaml'
@@ -143,6 +151,9 @@ paths:
 
   /api/operator/status:
     $ref: './paths/operator-status.yaml'
+
+  /api/operator/deployment:
+    $ref: './paths/operator-deployment.yaml'
 
   /api/operator/principals:
     $ref: './paths/operator-principals.yaml'

@@ -711,6 +711,68 @@ type DeleteRepoUnauthorized ErrorResponse
 
 func (*DeleteRepoUnauthorized) deleteRepoRes() {}
 
+// Ref: #
+type DeployConfig struct {
+	// Short-lived deploy token scoped to this repository. Use as Bearer token for subsequent deploy API
+	// calls.
+	Token string `json:"token"`
+	// URL of the container registry to push images to.
+	Registry string `json:"registry"`
+	// Base64-encoded Docker auth config for the registry. Absent on platforms with unauthenticated
+	// registries.
+	RegistryToken OptString `json:"registry_token"`
+}
+
+// GetToken returns the value of Token.
+func (s *DeployConfig) GetToken() string {
+	return s.Token
+}
+
+// GetRegistry returns the value of Registry.
+func (s *DeployConfig) GetRegistry() string {
+	return s.Registry
+}
+
+// GetRegistryToken returns the value of RegistryToken.
+func (s *DeployConfig) GetRegistryToken() OptString {
+	return s.RegistryToken
+}
+
+// SetToken sets the value of Token.
+func (s *DeployConfig) SetToken(val string) {
+	s.Token = val
+}
+
+// SetRegistry sets the value of Registry.
+func (s *DeployConfig) SetRegistry(val string) {
+	s.Registry = val
+}
+
+// SetRegistryToken sets the value of RegistryToken.
+func (s *DeployConfig) SetRegistryToken(val OptString) {
+	s.RegistryToken = val
+}
+
+func (*DeployConfig) prepareRepoDeployRes() {}
+
+// Ref: #
+type DeploymentInfo struct {
+	// Kubernetes namespace where Morsel is installed. Set at bootstrap time and immutable.
+	Namespace string `json:"namespace"`
+}
+
+// GetNamespace returns the value of Namespace.
+func (s *DeploymentInfo) GetNamespace() string {
+	return s.Namespace
+}
+
+// SetNamespace sets the value of Namespace.
+func (s *DeploymentInfo) SetNamespace(val string) {
+	s.Namespace = val
+}
+
+func (*DeploymentInfo) getDeploymentInfoRes() {}
+
 // Structured error information attached to every non-2xx response.
 // Ref: #
 type ErrorDetail struct {
@@ -810,6 +872,7 @@ func (*ErrorInternalServerStatusCode) getAppHistoryRes()           {}
 func (*ErrorInternalServerStatusCode) getAppRes()                  {}
 func (*ErrorInternalServerStatusCode) getAppStatusRes()            {}
 func (*ErrorInternalServerStatusCode) getAppUtilisationRes()       {}
+func (*ErrorInternalServerStatusCode) getDeploymentInfoRes()       {}
 func (*ErrorInternalServerStatusCode) getOperationRes()            {}
 func (*ErrorInternalServerStatusCode) getOperatorApprovalRes()     {}
 func (*ErrorInternalServerStatusCode) getOperatorConfigRes()       {}
@@ -822,6 +885,7 @@ func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes()   {}
 func (*ErrorInternalServerStatusCode) listOperatorPrincipalsRes()  {}
 func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()       {}
 func (*ErrorInternalServerStatusCode) listReposRes()               {}
+func (*ErrorInternalServerStatusCode) prepareRepoDeployRes()       {}
 func (*ErrorInternalServerStatusCode) removeOperatorPrincipalRes() {}
 func (*ErrorInternalServerStatusCode) syncRepoRes()                {}
 func (*ErrorInternalServerStatusCode) tokenDeployRes()             {}
@@ -985,6 +1049,14 @@ func (*GetAppUtilisationOK) getAppUtilisationRes() {}
 type GetAppUtilisationUnauthorized ErrorResponse
 
 func (*GetAppUtilisationUnauthorized) getAppUtilisationRes() {}
+
+type GetDeploymentInfoForbidden ErrorResponse
+
+func (*GetDeploymentInfoForbidden) getDeploymentInfoRes() {}
+
+type GetDeploymentInfoUnauthorized ErrorResponse
+
+func (*GetDeploymentInfoUnauthorized) getDeploymentInfoRes() {}
 
 type GetHealthzOK struct {
 	// Always "ok" when the server is healthy.
@@ -2072,6 +2144,14 @@ func (s *PlatformConfig) SetSoftLimitPct(val OptFloat64) {
 
 func (*PlatformConfig) getOperatorConfigRes()    {}
 func (*PlatformConfig) updateOperatorConfigRes() {}
+
+type PrepareRepoDeployForbidden ErrorResponse
+
+func (*PrepareRepoDeployForbidden) prepareRepoDeployRes() {}
+
+type PrepareRepoDeployUnauthorized ErrorResponse
+
+func (*PrepareRepoDeployUnauthorized) prepareRepoDeployRes() {}
 
 // Request body for adding an operator principal.
 // Ref: #

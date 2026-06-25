@@ -58,6 +58,13 @@ func (h *Handler) GetOperatorCost(ctx context.Context) (oas.GetOperatorCostRes, 
 	return nil, errNotImplemented
 }
 
+func (h *Handler) GetDeploymentInfo(ctx context.Context) (oas.GetDeploymentInfoRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	return &oas.DeploymentInfo{Namespace: h.plat.Namespace()}, nil
+}
+
 func (h *Handler) GetOperatorStatus(ctx context.Context) (oas.GetOperatorStatusRes, error) {
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
