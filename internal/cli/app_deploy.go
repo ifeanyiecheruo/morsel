@@ -14,6 +14,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
 	"github.com/ifeanyiecheruo/morsel/internal/apiclient"
+	"github.com/ifeanyiecheruo/morsel/internal/container"
 )
 
 func (c *cli) appDeployCmd() *cobra.Command {
@@ -136,18 +137,8 @@ func buildPushDeploy(ctx context.Context, client *apiclient.Client, org, repo st
 
 	pushRef := registry + "/" + appImagePath(repo, cfg.Name, shortSHA)
 
-	buildCmd := exec.CommandContext(ctx, "docker", "build", "-t", pushRef, "-f", dockerfile, ".")
-	buildCmd.Stdout = os.Stdout
-	buildCmd.Stderr = os.Stderr
-	if err := buildCmd.Run(); err != nil {
-		return "", fmt.Errorf("docker build: %w", err)
-	}
-
-	pushCmd := exec.CommandContext(ctx, "docker", "push", pushRef)
-	pushCmd.Stdout = os.Stdout
-	pushCmd.Stderr = os.Stderr
-	if err := pushCmd.Run(); err != nil {
-		return "", fmt.Errorf("docker push: %w", err)
+	if err := buildAndPush(ctx, dockerfile, pushRef, filepath.Dir(dockerfile)); err != nil {
+		return "", err
 	}
 
 	apiType, err := morselTypeToAPI(cfg.Type)
@@ -266,6 +257,20 @@ func readMorselConfigFromPath(path string) (*morselConfig, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return &cfg, nil
+}
+
+func buildAndPush(ctx context.Context, dockerfilePath, tag, buildContext string) error {
+	rt, err := container.CreateRuntime()
+	if err != nil {
+		return err
+	}
+	build := exec.CommandContext(ctx, rt.Name(), "build", "-t", tag, "-f", dockerfilePath, buildContext)
+	build.Stdout = os.Stdout
+	build.Stderr = os.Stderr
+	if err := build.Run(); err != nil {
+		return fmt.Errorf("%s build: %w", rt.Name(), err)
+	}
+	return rt.Push(ctx, tag)
 }
 
 // morselTypeToAPI maps .morsel.json type values to the API AppSpecType string.

@@ -15,7 +15,7 @@ import (
 // which returns a safe empty profile). Tests set only the hooks they care about.
 type mockCliHandler struct {
 	onLoadProfile             func(name string, ensureValid bool) (*Profile, error)
-	onServiceBootstrap        func(platformName, kubeconfig string, plat platform.Platform) (*Profile, error)
+	onServiceBootstrap        func(platformName, kubeconfig string, plat platform.Platform, dockerfile []byte, yes bool) (*Profile, error)
 	onOperatorLogin           func(apiURL, username, password string) (*Profile, error)
 	onSaveProfile             func(name string, prof *Profile) error
 	onDeleteProfile           func(name string) error
@@ -52,9 +52,9 @@ func (h *mockCliHandler) LoadProfile(_ context.Context, name string, ensureValid
 	return nil, nil
 }
 
-func (h *mockCliHandler) ServiceBootstrap(_ context.Context, platformName, kubeconfig string, plat platform.Platform) (*Profile, error) {
+func (h *mockCliHandler) ServiceBootstrap(_ context.Context, platformName, kubeconfig string, plat platform.Platform, dockerfile []byte, yes bool) (*Profile, error) {
 	if h.onServiceBootstrap != nil {
-		return h.onServiceBootstrap(platformName, kubeconfig, plat)
+		return h.onServiceBootstrap(platformName, kubeconfig, plat, dockerfile, yes)
 	}
 	return &Profile{}, nil
 }
@@ -267,7 +267,7 @@ func TestOperatorLoginUsesProfileAPIURL(t *testing.T) {
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"}); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != fakeProfile.APIURL {
@@ -285,7 +285,7 @@ func TestOperatorLoginUsesAPIURLFlag(t *testing.T) {
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--username", "a@b.com", "--password", "x"}); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--username", "a@b.com", "--password", "x"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != want {
@@ -302,7 +302,7 @@ func TestOperatorLoginPassesUsernameToHandler(t *testing.T) {
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--username", "alice@example.com", "--password", "x"}); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--username", "alice@example.com", "--password", "x"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotUsername != "alice@example.com" {
@@ -313,7 +313,7 @@ func TestOperatorLoginPassesUsernameToHandler(t *testing.T) {
 func TestOperatorLoginFailsWithoutAPIURLWhenNoProfile(t *testing.T) {
 	// onLoadProfile is nil → LoadProfile returns (nil, nil) → c.profile is nil, no --api-url → error.
 	mock := &mockCliHandler{}
-	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"})
+	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"}, nil)
 	if err == nil {
 		t.Fatal("expected error when no profile and no --api-url, got nil")
 	}
@@ -324,7 +324,7 @@ func TestOperatorLoginFailsWithEmptyAPIURLInProfile(t *testing.T) {
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(&Profile{APIURL: ""}),
 	}
-	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"})
+	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"}, nil)
 	if err == nil {
 		t.Fatal("expected error when profile has empty APIURL, got nil")
 	}
@@ -340,7 +340,7 @@ func TestOperatorLoginSucceedsWithAPIURLAndNoProfile(t *testing.T) {
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--username", "a@b.com", "--password", "x"}); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--username", "a@b.com", "--password", "x"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != want {
@@ -353,13 +353,13 @@ func TestOperatorLoginSucceedsWithAPIURLAndNoProfile(t *testing.T) {
 func TestServiceBootstrapPassesFlagsToHandler(t *testing.T) {
 	var gotPlatform, gotKubeconfig string
 	mock := &mockCliHandler{
-		onServiceBootstrap: func(platformName, kubeconfig string, _ platform.Platform) (*Profile, error) {
+		onServiceBootstrap: func(platformName, kubeconfig string, _ platform.Platform, _ []byte, _ bool) (*Profile, error) {
 			gotPlatform = platformName
 			gotKubeconfig = kubeconfig
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"service", "bootstrap", "--platform", "local", "--kubeconfig", "/tmp/kube"}); err != nil {
+	if err := run(context.Background(), mock, []string{"service", "bootstrap", "--platform", "local", "--kubeconfig", "/tmp/kube"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotPlatform != "local" {
@@ -370,15 +370,31 @@ func TestServiceBootstrapPassesFlagsToHandler(t *testing.T) {
 	}
 }
 
+func TestServiceBootstrapYesFlagPassedToHandler(t *testing.T) {
+	var gotYes bool
+	mock := &mockCliHandler{
+		onServiceBootstrap: func(_, _ string, _ platform.Platform, _ []byte, yes bool) (*Profile, error) {
+			gotYes = yes
+			return &Profile{}, nil
+		},
+	}
+	if err := run(context.Background(), mock, []string{"service", "bootstrap", "--platform", "local", "-y"}, nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !gotYes {
+		t.Error("yes: want true, got false")
+	}
+}
+
 func TestServiceBootstrapRequiresPlatformFlag(t *testing.T) {
-	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap"})
+	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap"}, nil)
 	if err == nil {
 		t.Fatal("expected error for missing --platform, got nil")
 	}
 }
 
 func TestServiceBootstrapRejectsKubeconfigForNonLocalPlatform(t *testing.T) {
-	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap", "--platform", "gcp", "--kubeconfig", "/tmp/kube"})
+	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap", "--platform", "gcp", "--kubeconfig", "/tmp/kube"}, nil)
 	if err == nil {
 		t.Fatal("expected error when --kubeconfig is used with non-local platform, got nil")
 	}
@@ -396,7 +412,7 @@ func TestAuthRequiredCommandRejectsWithoutProfile(t *testing.T) {
 		},
 		// onLoadProfile is nil → LoadProfile returns (nil, nil) → no profile set
 	}
-	err := run(context.Background(), mock, []string{"service", "status"})
+	err := run(context.Background(), mock, []string{"service", "status"}, nil)
 	if err == nil {
 		t.Fatal("expected auth error, got nil")
 	}
@@ -414,7 +430,7 @@ func TestAuthRequiredCommandCallsHandlerWithProfile(t *testing.T) {
 			return nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"service", "status"}); err != nil {
+	if err := run(context.Background(), mock, []string{"service", "status"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotProf != fakeProfile {
@@ -433,7 +449,7 @@ func TestServiceDeleteRequiresConfirmFlag(t *testing.T) {
 			return nil
 		},
 	}
-	err := run(context.Background(), mock, []string{"service", "delete"})
+	err := run(context.Background(), mock, []string{"service", "delete"}, nil)
 	if err == nil {
 		t.Fatal("expected error without --confirm, got nil")
 	}
@@ -451,7 +467,7 @@ func TestServiceDeleteCallsHandlerWithConfirm(t *testing.T) {
 			return nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"service", "delete", "--confirm"}); err != nil {
+	if err := run(context.Background(), mock, []string{"service", "delete", "--confirm"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !called {
@@ -470,7 +486,7 @@ func TestLintPassesStagedFlag(t *testing.T) {
 			return nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"lint", "--staged"}); err != nil {
+	if err := run(context.Background(), mock, []string{"lint", "--staged"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !gotStaged {
@@ -490,7 +506,7 @@ func TestLintPassesFixFlag(t *testing.T) {
 			return nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"lint", "--fix"}); err != nil {
+	if err := run(context.Background(), mock, []string{"lint", "--fix"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotStaged {
@@ -514,6 +530,7 @@ func TestTierCreatePassesFlags(t *testing.T) {
 	}
 	err := run(context.Background(), mock,
 		[]string{"operator", "tier", "create", "--name", "small", "--cpu", "0.5", "--max-apps", "3"},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -543,6 +560,7 @@ func TestAppExemptAddPassesFlags(t *testing.T) {
 	}
 	err := run(context.Background(), mock,
 		[]string{"operator", "app", "exempt", "add", "--repo", "org/myrepo", "--app", "api"},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -562,7 +580,7 @@ func TestHandlerErrorPropagates(t *testing.T) {
 	mock := &mockCliHandler{
 		onLint: func(_, _ bool) error { return sentinel },
 	}
-	err := run(context.Background(), mock, []string{"lint"})
+	err := run(context.Background(), mock, []string{"lint"}, nil)
 	if !errors.Is(err, sentinel) {
 		t.Errorf("expected sentinel error, got: %v", err)
 	}

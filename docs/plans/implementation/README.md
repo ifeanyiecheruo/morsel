@@ -8,7 +8,6 @@
 
 **Task sizing.** Each task is one PR — a focused, reviewable unit of work with passing tests. Tasks within a feature are ordered by dependency.
 
-
 ---
 
 ## Feature Index

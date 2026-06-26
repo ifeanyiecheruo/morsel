@@ -9,19 +9,22 @@ import (
 )
 
 // Execute runs the morsel CLI with the production handler against os.Args.
-func Execute(ctx context.Context) error {
-	return run(ctx, &cliHandler{}, os.Args[1:])
+// dockerfile is the embedded Dockerfile for the morsel-api image, used by
+// the `service dockerfile` subcommand.
+func Execute(ctx context.Context, dockerfile []byte) error {
+	return run(ctx, &cliHandler{}, os.Args[1:], dockerfile)
 }
 
 type cli struct {
 	profileName string
 	profile     *Profile
 	handler     Handler
+	dockerfile  []byte
 }
 
 // run builds and executes the command tree. Tests call this directly with a mock handler.
-func run(ctx context.Context, handler Handler, args []string) error {
-	c := &cli{handler: handler}
+func run(ctx context.Context, handler Handler, args []string, dockerfile []byte) error {
+	c := &cli{handler: handler, dockerfile: dockerfile}
 	root := c.buildRoot()
 	root.SetArgs(args)
 	return root.ExecuteContext(ctx)

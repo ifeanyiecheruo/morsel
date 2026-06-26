@@ -6,7 +6,7 @@ else
 EXE :=
 endif
 
-CLUSTER_NAME ?= morsel-dev
+CLUSTER_NAME ?= morsel-local
 
 # ---- Container runtime --------------------------------------------------------
 # docker takes precedence when its daemon is reachable; otherwise fall back to
@@ -149,12 +149,6 @@ install-tools: ## Install prerequisites
 	else \
 		echo "container runtime: $(CONTAINER_RUNTIME)"; \
 	fi
-
-.PHONY: cluster-up
-cluster-up: _ensure-podman-machine ## Create a local kind cluster for development (override: CLUSTER_NAME=morsel-dev)
-	$(KIND_PROVIDER) kind get clusters 2>/dev/null | grep -qx $(CLUSTER_NAME) \
-		&& echo "cluster $(CLUSTER_NAME) already exists, skipping" \
-		|| $(KIND_PROVIDER) kind create cluster --name $(CLUSTER_NAME)
 
 .PHONY: cluster-down
 cluster-down: ## Delete the local kind cluster (override: CLUSTER_NAME=morsel-dev)

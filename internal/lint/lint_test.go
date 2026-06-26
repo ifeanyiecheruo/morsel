@@ -359,28 +359,44 @@ func TestFixCanonicalFieldOrder(t *testing.T) {
 		t.Fatalf("expected 1 fixed file, got %d", len(fixed))
 	}
 	got := string(fixed[0].Content)
-	// name should appear before type which should appear before dockerfile
+	// $schema → name → type → dockerfile
+	schemaPos := indexOf(got, `"$schema"`)
 	namePos := indexOf(got, `"name"`)
 	typePos := indexOf(got, `"type"`)
 	dockerfilePos := indexOf(got, `"dockerfile"`)
-	if namePos < 0 || typePos < 0 || dockerfilePos < 0 {
+	if schemaPos < 0 || namePos < 0 || typePos < 0 || dockerfilePos < 0 {
 		t.Fatal("missing expected fields in fixed output")
 	}
-	if namePos >= typePos || typePos >= dockerfilePos {
-		t.Errorf("canonical order violated: name=%d type=%d dockerfile=%d", namePos, typePos, dockerfilePos)
+	if schemaPos >= namePos || namePos >= typePos || typePos >= dockerfilePos {
+		t.Errorf("canonical order violated: $schema=%d name=%d type=%d dockerfile=%d", schemaPos, namePos, typePos, dockerfilePos)
 	}
 }
 
 func TestFixAlreadyCanonicalNoChange(t *testing.T) {
 	l := mustNew(t)
 	// Pre-marshal a valid struct to get canonical form.
-	input := "{\n  \"type\": \"http\",\n  \"dockerfile\": \"Dockerfile\"\n}\n"
+	input := "{\n  \"$schema\": \"https://raw.githubusercontent.com/ifeanyiecheruo/morsel/v0.1.0/schemas/morsel.schema.json\",\n  \"type\": \"http\",\n  \"dockerfile\": \"Dockerfile\"\n}\n"
 	fixed, err := l.Fix([]lint.File{file(".morsel/api.morsel.json", input)})
 	if err != nil {
 		t.Fatalf("Fix: %v", err)
 	}
 	if len(fixed) != 0 {
 		t.Errorf("expected no fixed files for already-canonical input, got %d", len(fixed))
+	}
+}
+
+func TestFixAddsSchema(t *testing.T) {
+	l := mustNew(t)
+	input := "{\n  \"type\": \"http\",\n  \"dockerfile\": \"Dockerfile\"\n}\n"
+	fixed, err := l.Fix([]lint.File{file(".morsel/api.morsel.json", input)})
+	if err != nil {
+		t.Fatalf("Fix: %v", err)
+	}
+	if len(fixed) != 1 {
+		t.Fatalf("expected 1 fixed file, got %d", len(fixed))
+	}
+	if !contains(string(fixed[0].Content), `"$schema"`) {
+		t.Error("expected fixed output to include $schema")
 	}
 }
 

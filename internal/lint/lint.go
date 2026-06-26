@@ -110,6 +110,7 @@ func (l *Linter) Fix(files []File) ([]FixedFile, error) {
 // morselFile mirrors the JSON structure. Field order here defines the canonical
 // output order produced by Fix.
 type morselFile struct {
+	Schema      string       `json:"$schema,omitempty"`
 	Name        string       `json:"name,omitempty"`
 	Type        string       `json:"type,omitempty"`
 	Dockerfile  string       `json:"dockerfile,omitempty"`
@@ -244,6 +245,9 @@ func fixFile(file File) ([]byte, bool, error) {
 	var mf morselFile
 	if err := dec.Decode(&mf); err != nil {
 		return nil, false, err
+	}
+	if mf.Schema == "" {
+		mf.Schema = "https://raw.githubusercontent.com/ifeanyiecheruo/morsel/main/schemas/morsel.schema.json"
 	}
 	corrected, err := json.MarshalIndent(mf, "", "  ")
 	if err != nil {

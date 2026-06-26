@@ -97,10 +97,12 @@ type Tokens interface {
 
 // Bootstrapper provisions all platform resources needed to run Morsel.
 type Bootstrapper interface {
-	// CheckPrerequisites validates that the platform is reachable before the wizard starts.
+	// CheckPrerequisites validates (and for kind, creates) the cluster before provisioning.
+	// answers must contain at least the provider-selection prompt keys so the implementation
+	// can decide whether it needs to create infrastructure (e.g. a kind cluster).
 	// kubeconfig is the path to the kubeconfig file; empty string uses the platform default.
 	// Populates the values returned by KubeconfigPath, KubeContext, and ClusterServer.
-	CheckPrerequisites(ctx context.Context, kubeconfig string) error
+	CheckPrerequisites(ctx context.Context, kubeconfig string, answers map[string]string) error
 
 	// KubeconfigPath returns the resolved kubeconfig path used during CheckPrerequisites.
 	KubeconfigPath() string
@@ -111,6 +113,11 @@ type Bootstrapper interface {
 	// ClusterServer returns the Kubernetes API server URL resolved during CheckPrerequisites.
 	ClusterServer() string
 
+	// APIURL returns the external URL at which the morsel-api is reachable
+	// after provisioning. This is platform-specific (e.g. localhost:8080 for
+	// kind, a cloud load-balancer URL for GCP) and is saved to the CLI profile.
+	APIURL() string
+
 	// Prompts returns the wizard questions the platform needs answered before provisioning.
 	Prompts() []Prompt
 
@@ -118,7 +125,8 @@ type Bootstrapper interface {
 	Plan(answers map[string]string) Plan
 
 	// Provision performs full platform provisioning idempotently. Safe to re-run on upgrade.
-	Provision(ctx context.Context, answers map[string]string) error
+	// dockerfile is the embedded Dockerfile bytes for building the control-plane image;
+	Provision(ctx context.Context, answers map[string]string, dockerfile []byte) error
 }
 
 // Deployer provides registry and credential information needed for a deploy run.
@@ -165,6 +173,7 @@ type Prompt struct {
 	Default     string
 	Required    bool
 	Secret      bool               // mask input in terminal
+	Choices     []string           // when set, input must be one of these values
 	Validate    func(string) error // optional inline validation; not serialised
 }
 

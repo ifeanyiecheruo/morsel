@@ -12,7 +12,7 @@ import (
 
 func main() {
 	ctx := ctxlog.With(context.Background(), slog.Default())
-	if err := cli.Execute(ctx); err != nil {
+	if err := cli.Execute(ctx, apiServerDockerfile); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}

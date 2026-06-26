@@ -27,11 +27,12 @@ const (
 	limitRangeName     = "morsel-limits"
 	networkPolicyName  = "morsel-netpol"
 
-	registryName     = "registry"
-	registryPort     = int32(5000)
-	registryImage    = "registry:2"
-	registryPortName = "registry"
-	registrySvcName  = "registry"
+	registryName         = "registry"
+	registryPort         = int32(5000)
+	registryImage        = "registry:2"
+	registryPortName     = "registry"
+	registrySvcName      = "registry"
+	registryKubeNodePort = int32(30050) // must match container.registryNodePort
 )
 
 // smallTierQuota is hardcoded until F14 introduces dynamic tier configuration.
@@ -377,6 +378,7 @@ func (c *Client) applyRegistryService(ctx context.Context, namespace string) err
 		Name:       registryPortName,
 		Port:       registryPort,
 		TargetPort: intstr.FromInt32(registryPort),
+		NodePort:   registryKubeNodePort,
 	}
 	labels := map[string]string{"morsel.io/component": registryName}
 	desired := &corev1.Service{
@@ -386,7 +388,7 @@ func (c *Client) applyRegistryService(ctx context.Context, namespace string) err
 			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
-			Type:     corev1.ServiceTypeLoadBalancer,
+			Type:     corev1.ServiceTypeNodePort,
 			Selector: map[string]string{"morsel.io/component": registryName},
 			Ports:    []corev1.ServicePort{port},
 		},

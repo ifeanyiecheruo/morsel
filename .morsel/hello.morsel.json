@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ifeanyiecheruo/morsel/main/schemas/morsel.schema.json",
+  "name": "hello",
+  "type": "http",
+  "dockerfile": "apps/hello/Dockerfile"
+}

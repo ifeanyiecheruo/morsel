@@ -1,0 +1,20 @@
+{
+  "name": "hello",
+  "version": "1.0.0",
+  "description": "Hello world web app",
+  "license": "MIT",
+  "author": {
+    "name": "Ifeanyi Echeruo",
+    "email": "ifeanyi.echeruo@outlook.com",
+    "url": "http://ifeanyi.echeruo.net/"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  }
+}

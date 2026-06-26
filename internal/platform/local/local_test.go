@@ -164,7 +164,7 @@ func TestBootstrapPromptsReturnsExpectedKeys(t *testing.T) {
 	for _, p := range prompts {
 		keys[p.Key] = true
 	}
-	for _, want := range []string{"github_org", "domain", "k8s_namespace"} {
+	for _, want := range []string{"k8s_namespace", "k8s_provider"} {
 		if !keys[want] {
 			t.Errorf("Bootstrap.Prompts: missing prompt key %q", want)
 		}
@@ -185,10 +185,9 @@ func TestBootstrapPlanReturnsResources(t *testing.T) {
 func TestBootstrapProvisionWritesConfigAndKey(t *testing.T) {
 	plat := platWithTempHome(t)
 	answers := map[string]string{
-		"github_org": "my-org",
-		"domain":     "morsel.localhost",
+		"k8s_provider": "kind",
 	}
-	if err := plat.Bootstrap().Provision(ctx, answers); err != nil {
+	if err := plat.Bootstrap().Provision(ctx, answers, nil); err != nil {
 		t.Fatalf("Bootstrap.Provision: unexpected error: %v", err)
 	}
 	// Local registry requires no authentication — Credentials should succeed after Provision.
@@ -207,17 +206,17 @@ func TestBootstrapProvisionWritesConfigAndKey(t *testing.T) {
 
 func TestBootstrapProvisionIsIdempotent(t *testing.T) {
 	plat := platWithTempHome(t)
-	answers := map[string]string{"github_org": "my-org", "domain": "morsel.localhost"}
-	if err := plat.Bootstrap().Provision(ctx, answers); err != nil {
+	answers := map[string]string{"k8s_provider": "kind"}
+	if err := plat.Bootstrap().Provision(ctx, answers, nil); err != nil {
 		t.Fatalf("first Provision: %v", err)
 	}
-	if err := plat.Bootstrap().Provision(ctx, answers); err != nil {
+	if err := plat.Bootstrap().Provision(ctx, answers, nil); err != nil {
 		t.Fatalf("second Provision (idempotent): %v", err)
 	}
 }
 
 func TestDeployCredentialsNotImplemented(t *testing.T) {
-	plat := local.New(nil)
+	plat := platWithTempHome(t)
 	if _, err := plat.Deploy().Credentials(ctx); !errors.Is(err, platform.ErrNotImplemented) {
 		t.Errorf("Deploy.Credentials: err = %v, want ErrNotImplemented", err)
 	}

@@ -40,10 +40,20 @@ func New(s *store.Store) *LocalPlatform {
 	return &LocalPlatform{secrets: sec, tok: tok, store: s}
 }
 
+// localDataDir returns the directory used to store local platform state.
+// Inside a pod it reads MORSEL_LOCAL_DATA_DIR so the bootstrap code can
+// mount a shared volume at a known path without relying on the home directory.
+func localDataDir() string {
+	if dir := os.Getenv("MORSEL_LOCAL_DATA_DIR"); dir != "" {
+		return dir
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".morsel", "local")
+}
+
 // DBPath returns the path to the SQLite database for the local platform.
 func DBPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".morsel", "local", "morsel.db")
+	return filepath.Join(localDataDir(), "morsel.db")
 }
 
 func (lp *LocalPlatform) Bootstrap() platform.Bootstrapper {

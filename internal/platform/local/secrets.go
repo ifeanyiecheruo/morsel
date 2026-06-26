@@ -27,9 +27,8 @@ type localFileSecretStore struct {
 }
 
 func newLocalFileSecretStore() *localFileSecretStore {
-	home, _ := os.UserHomeDir()
 	return &localFileSecretStore{
-		path: filepath.Join(home, ".morsel", "local", "secrets.json"),
+		path: filepath.Join(localDataDir(), "secrets.json"),
 	}
 }
 
