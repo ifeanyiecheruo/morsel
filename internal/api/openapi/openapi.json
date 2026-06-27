@@ -496,6 +496,10 @@
             "description": "Unique name for the app within its repo.",
             "type": "string"
           },
+          "private": {
+            "description": "If true, the app is reachable only within the cluster VPC. Applies to http type only. Defaults to false.",
+            "type": "boolean"
+          },
           "schedule": {
             "description": "Cron schedule expression (e.g. \"0 * * * *\"). Required for type: cron, ignored otherwise.",
             "type": "string"
@@ -3611,6 +3615,38 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "certs": {
+                      "description": "Certificate health summary. Only populated when one or more certificates require attention.",
+                      "properties": {
+                        "expiring_soon": {
+                          "description": "Domains whose TLS certificate expires within 30 days.",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "failed": {
+                          "description": "Domains whose TLS certificate provisioning or renewal has failed.",
+                          "items": {
+                            "properties": {
+                              "domain": {
+                                "type": "string"
+                              },
+                              "error": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "domain",
+                              "error"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "healthy": {
                       "description": "True if all critical platform components are operational.",
                       "type": "boolean"
@@ -5197,6 +5233,10 @@
                   "name": {
                     "description": "Unique name for the app within its repo.",
                     "type": "string"
+                  },
+                  "private": {
+                    "description": "If true, the app is reachable only within the cluster VPC. Applies to http type only. Defaults to false.",
+                    "type": "boolean"
                   },
                   "schedule": {
                     "description": "Cron schedule expression (e.g. \"0 * * * *\"). Required for type: cron, ignored otherwise.",
@@ -8467,6 +8507,10 @@
                         "name": {
                           "description": "Unique name for the app within its repo.",
                           "type": "string"
+                        },
+                        "private": {
+                          "description": "If true, the app is reachable only within the cluster VPC. Applies to http type only. Defaults to false.",
+                          "type": "boolean"
                         },
                         "schedule": {
                           "description": "Cron schedule expression (e.g. \"0 * * * *\"). Required for type: cron, ignored otherwise.",

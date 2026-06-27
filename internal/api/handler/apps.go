@@ -60,12 +60,15 @@ func (h *Handler) UpsertApp(ctx context.Context, spec *oas.AppSpec, params oas.U
 		env = map[string]string(spec.Env.Value)
 	}
 	manifest := kube.AppManifest{
-		Namespace: ns,
-		AppName:   name,
-		Type:      string(spec.Type),
-		Image:     spec.Image,
-		Env:       env,
-		Schedule:  spec.Schedule.Or(""),
+		Namespace:  ns,
+		AppName:    name,
+		Type:       string(spec.Type),
+		Image:      spec.Image,
+		Env:        env,
+		Schedule:   spec.Schedule.Or(""),
+		Private:    spec.Private.Or(false),
+		BaseDomain: h.plat.BaseDomain(),
+		GatewayNS:  h.plat.Namespace(),
 	}
 	lastHealthy := ""
 	if app.ImageLastHealthy.Valid {
@@ -168,17 +171,34 @@ func (h *Handler) DeleteApp(ctx context.Context, params oas.DeleteAppParams) (oa
 	if _, err := h.store.CreateOperation(ctx, opID, slug, params.Name, "delete"); err != nil {
 		return nil, fmt.Errorf("create operation: %w", err)
 	}
-	// Kubernetes namespace teardown is not yet implemented; fail the operation
-	// rather than reporting false success.
-	if err := h.store.FailOperation(ctx, opID, "kubernetes namespace teardown is not yet implemented"); err != nil {
-		return nil, fmt.Errorf("fail operation: %w", err)
-	}
+
+	ns := appNamespace(params.Org, params.Repo, params.Name)
+	go h.runDelete(context.WithoutCancel(ctx), opID, app.ID, ns)
 
 	return &oas.AcceptedOperationHeaders{
 		Location:   operationLocation(params.Org, params.Repo, params.Name, opID),
 		RetryAfter: oas.NewOptInt(int(retryAfterDeploy.Seconds())),
 		Response:   oas.AcceptedOperation{OperationID: opID},
 	}, nil
+}
+
+func (h *Handler) runDelete(ctx context.Context, opID string, appID int64, namespace string) {
+	logger := ctxlog.From(ctx).With("op", opID, "namespace", namespace)
+
+	if err := h.store.StartOperation(ctx, opID); err != nil {
+		logger.Error("start delete operation", "err", err)
+	}
+
+	if err := h.deployer.Delete(ctx, namespace); err != nil {
+		logger.Error("delete kubernetes resources", "err", err)
+		_ = h.store.FailOperation(ctx, opID, err.Error())
+		return
+	}
+
+	_ = h.store.UpdateAppStatus(ctx, appID, "deleted")
+	if err := h.store.SucceedOperation(ctx, opID); err != nil {
+		logger.Error("succeed delete operation", "err", err)
+	}
 }
 
 func (h *Handler) GetAppStatus(ctx context.Context, params oas.GetAppStatusParams) (oas.GetAppStatusRes, error) {

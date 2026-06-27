@@ -32,6 +32,7 @@ type Seeder interface {
 // Platform is the full server-facing interface consumed by the REST API server.
 type Platform interface {
 	Namespace() string
+	BaseDomain() string
 	Bootstrap() Bootstrapper
 	Deploy() Deployer
 	Blobs() BlobStore

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api"
 	"github.com/ifeanyiecheruo/morsel/internal/api/handler"
@@ -22,9 +23,13 @@ import (
 type fakeDeployer struct{}
 
 func (fakeDeployer) Apply(_ context.Context, _ kube.AppManifest) error        { return nil }
+func (fakeDeployer) Delete(_ context.Context, _ string) error                 { return nil }
 func (fakeDeployer) WatchDeploymentRollout(_ context.Context, _ string) error { return nil }
 func (fakeDeployer) RollbackDeployment(_ context.Context, _, _ string) error  { return nil }
 func (fakeDeployer) AppStatus(_ context.Context, _, _ string) string          { return "running" }
+func (fakeDeployer) GetTLSCertExpiry(_ context.Context, _, _ string) (*time.Time, error) {
+	return nil, nil
+}
 
 var _ handler.Deployer = fakeDeployer{}
 

@@ -257,6 +257,9 @@ type AppSpec struct {
 	Image string `json:"image"`
 	// Environment variables injected into the container at runtime.
 	Env OptAppSpecEnv `json:"env"`
+	// If true, the app is reachable only within the cluster VPC. Applies to http type only. Defaults to
+	// false.
+	Private OptBool `json:"private"`
 	// Cron schedule expression (e.g. "0 * * * *"). Required for type: cron, ignored otherwise.
 	Schedule OptString `json:"schedule"`
 }
@@ -279,6 +282,11 @@ func (s *AppSpec) GetImage() string {
 // GetEnv returns the value of Env.
 func (s *AppSpec) GetEnv() OptAppSpecEnv {
 	return s.Env
+}
+
+// GetPrivate returns the value of Private.
+func (s *AppSpec) GetPrivate() OptBool {
+	return s.Private
 }
 
 // GetSchedule returns the value of Schedule.
@@ -304,6 +312,11 @@ func (s *AppSpec) SetImage(val string) {
 // SetEnv sets the value of Env.
 func (s *AppSpec) SetEnv(val OptAppSpecEnv) {
 	s.Env = val
+}
+
+// SetPrivate sets the value of Private.
+func (s *AppSpec) SetPrivate(val OptBool) {
+	s.Private = val
 }
 
 // SetSchedule sets the value of Schedule.
@@ -1180,6 +1193,8 @@ type GetOperatorStatusOK struct {
 	PendingApprovals OptInt `json:"pending_approvals"`
 	// Total number of apps currently running across all repos.
 	RunningApps OptInt `json:"running_apps"`
+	// Certificate health summary. Only populated when one or more certificates require attention.
+	Certs OptGetOperatorStatusOKCerts `json:"certs"`
 }
 
 // GetHealthy returns the value of Healthy.
@@ -1197,6 +1212,11 @@ func (s *GetOperatorStatusOK) GetRunningApps() OptInt {
 	return s.RunningApps
 }
 
+// GetCerts returns the value of Certs.
+func (s *GetOperatorStatusOK) GetCerts() OptGetOperatorStatusOKCerts {
+	return s.Certs
+}
+
 // SetHealthy sets the value of Healthy.
 func (s *GetOperatorStatusOK) SetHealthy(val OptBool) {
 	s.Healthy = val
@@ -1212,7 +1232,65 @@ func (s *GetOperatorStatusOK) SetRunningApps(val OptInt) {
 	s.RunningApps = val
 }
 
+// SetCerts sets the value of Certs.
+func (s *GetOperatorStatusOK) SetCerts(val OptGetOperatorStatusOKCerts) {
+	s.Certs = val
+}
+
 func (*GetOperatorStatusOK) getOperatorStatusRes() {}
+
+// Certificate health summary. Only populated when one or more certificates require attention.
+type GetOperatorStatusOKCerts struct {
+	// Domains whose TLS certificate expires within 30 days.
+	ExpiringSoon []string `json:"expiring_soon"`
+	// Domains whose TLS certificate provisioning or renewal has failed.
+	Failed []GetOperatorStatusOKCertsFailedItem `json:"failed"`
+}
+
+// GetExpiringSoon returns the value of ExpiringSoon.
+func (s *GetOperatorStatusOKCerts) GetExpiringSoon() []string {
+	return s.ExpiringSoon
+}
+
+// GetFailed returns the value of Failed.
+func (s *GetOperatorStatusOKCerts) GetFailed() []GetOperatorStatusOKCertsFailedItem {
+	return s.Failed
+}
+
+// SetExpiringSoon sets the value of ExpiringSoon.
+func (s *GetOperatorStatusOKCerts) SetExpiringSoon(val []string) {
+	s.ExpiringSoon = val
+}
+
+// SetFailed sets the value of Failed.
+func (s *GetOperatorStatusOKCerts) SetFailed(val []GetOperatorStatusOKCertsFailedItem) {
+	s.Failed = val
+}
+
+type GetOperatorStatusOKCertsFailedItem struct {
+	Domain string `json:"domain"`
+	Error  string `json:"error"`
+}
+
+// GetDomain returns the value of Domain.
+func (s *GetOperatorStatusOKCertsFailedItem) GetDomain() string {
+	return s.Domain
+}
+
+// GetError returns the value of Error.
+func (s *GetOperatorStatusOKCertsFailedItem) GetError() string {
+	return s.Error
+}
+
+// SetDomain sets the value of Domain.
+func (s *GetOperatorStatusOKCertsFailedItem) SetDomain(val string) {
+	s.Domain = val
+}
+
+// SetError sets the value of Error.
+func (s *GetOperatorStatusOKCertsFailedItem) SetError(val string) {
+	s.Error = val
+}
 
 type GetOperatorStatusUnauthorized ErrorResponse
 
@@ -1675,6 +1753,52 @@ func (o OptFloat64) Get() (v float64, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptFloat64) Or(d float64) float64 {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptGetOperatorStatusOKCerts returns new OptGetOperatorStatusOKCerts with value set to v.
+func NewOptGetOperatorStatusOKCerts(v GetOperatorStatusOKCerts) OptGetOperatorStatusOKCerts {
+	return OptGetOperatorStatusOKCerts{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptGetOperatorStatusOKCerts is optional GetOperatorStatusOKCerts.
+type OptGetOperatorStatusOKCerts struct {
+	Value GetOperatorStatusOKCerts
+	Set   bool
+}
+
+// IsSet returns true if OptGetOperatorStatusOKCerts was set.
+func (o OptGetOperatorStatusOKCerts) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptGetOperatorStatusOKCerts) Reset() {
+	var v GetOperatorStatusOKCerts
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptGetOperatorStatusOKCerts) SetTo(v GetOperatorStatusOKCerts) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptGetOperatorStatusOKCerts) Get() (v GetOperatorStatusOKCerts, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptGetOperatorStatusOKCerts) Or(d GetOperatorStatusOKCerts) GetOperatorStatusOKCerts {
 	if v, ok := o.Get(); ok {
 		return v
 	}

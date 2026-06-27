@@ -38,6 +38,8 @@ func main() {
 	plat := initializePlatform(ctx, logger, *platformName, s)
 	kubeClient := initializeKube(logger, *kubeconfigPath)
 
+	go runCertRenewal(ctx, plat, kubeClient, logger)
+
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		logger.Error("listen error", "err", err)
@@ -115,6 +117,45 @@ func initializePlatform(ctx context.Context, logger *slog.Logger, platformName s
 		}
 	}
 	return plat
+}
+
+func runCertRenewal(ctx context.Context, plat platform.Platform, kubeClient *kube.Client, logger *slog.Logger) {
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			checkAndRenewCert(ctx, plat, kubeClient, logger)
+		}
+	}
+}
+
+func checkAndRenewCert(ctx context.Context, plat platform.Platform, kubeClient *kube.Client, logger *slog.Logger) {
+	ns := plat.Namespace()
+	expiry, err := kubeClient.GetTLSCertExpiry(ctx, ns, kube.MorselTLSSecret)
+	if err != nil {
+		logger.Error("check cert expiry", "err", err)
+		return
+	}
+	if expiry == nil {
+		return
+	}
+	if time.Until(*expiry) >= 30*24*time.Hour {
+		return
+	}
+	logger.Info("renewing tls cert", "expires", *expiry)
+	cert, err := plat.Certs().Renew(ctx, plat.BaseDomain(), 30*24*time.Hour)
+	if err != nil {
+		logger.Error("renew tls cert", "err", err)
+		return
+	}
+	if err := kubeClient.StoreTLSSecret(ctx, ns, kube.MorselTLSSecret, cert); err != nil {
+		logger.Error("store renewed tls cert", "err", err)
+		return
+	}
+	logger.Info("tls cert renewed")
 }
 
 func initializeKube(logger *slog.Logger, kubeconfigPath string) *kube.Client {

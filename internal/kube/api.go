@@ -94,6 +94,11 @@ func (c *Client) applyAPIRBAC(ctx context.Context, ns string) error {
 				Resources: []string{"networkpolicies"},
 				Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
 			},
+			{
+				APIGroups: []string{"gateway.networking.k8s.io"},
+				Resources: []string{"gatewayclasses", "gateways", "httproutes"},
+				Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
+			},
 		},
 	}
 	existing, err := c.cs.RbacV1().ClusterRoles().Get(ctx, apiName, metav1.GetOptions{})

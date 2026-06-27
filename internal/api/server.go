@@ -18,6 +18,7 @@ import (
 // to consume. Bootstrap() is deliberately absent: bootstrapping is a CLI concern.
 type AppPlatform interface {
 	Namespace() string
+	BaseDomain() string
 	Secrets() platform.Secrets
 	Tokens() platform.Tokens
 	Deploy() platform.Deployer

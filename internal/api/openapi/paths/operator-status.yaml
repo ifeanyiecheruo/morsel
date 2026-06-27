@@ -22,6 +22,26 @@ get:
               running_apps:
                 description: Total number of apps currently running across all repos.
                 type: integer
+              certs:
+                description: Certificate health summary. Only populated when one or more certificates require attention.
+                type: object
+                properties:
+                  expiring_soon:
+                    description: Domains whose TLS certificate expires within 30 days.
+                    type: array
+                    items:
+                      type: string
+                  failed:
+                    description: Domains whose TLS certificate provisioning or renewal has failed.
+                    type: array
+                    items:
+                      type: object
+                      required: [domain, error]
+                      properties:
+                        domain:
+                          type: string
+                        error:
+                          type: string
     '401':
       $ref: '../responses.yaml#/ErrorUnauthorized'
     '403':

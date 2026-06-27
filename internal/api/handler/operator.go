@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ifeanyiecheruo/morsel/internal/api/oas"
+	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
 // ── Operator stubs ────────────────────────────────────────────────────────────
@@ -69,7 +71,19 @@ func (h *Handler) GetOperatorStatus(ctx context.Context) (oas.GetOperatorStatusR
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
-	return nil, errNotImplemented
+
+	expiry, err := h.deployer.GetTLSCertExpiry(ctx, h.plat.Namespace(), kube.MorselTLSSecret)
+	if err != nil {
+		return nil, fmt.Errorf("get tls cert expiry: %w", err)
+	}
+
+	resp := &oas.GetOperatorStatusOK{}
+	if expiry != nil && time.Until(*expiry) < 30*24*time.Hour {
+		resp.Certs = oas.NewOptGetOperatorStatusOKCerts(oas.GetOperatorStatusOKCerts{
+			ExpiringSoon: []string{"*." + h.plat.BaseDomain()},
+		})
+	}
+	return resp, nil
 }
 
 // ── Operator principals ───────────────────────────────────────────────────────

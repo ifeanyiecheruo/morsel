@@ -14,6 +14,9 @@ import (
 
 const saNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
+// BaseDomain returns the base domain for app URLs on the local platform.
+func (lp *LocalPlatform) BaseDomain() string { return LocalBaseDomain }
+
 // Namespace returns the Kubernetes namespace this service is running in.
 // Inside a pod Kubernetes injects the namespace into the service-account file,
 // so the value is fixed for the lifetime of the deployment. Outside a pod

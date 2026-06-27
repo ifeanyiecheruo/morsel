@@ -158,6 +158,9 @@ func buildPushDeploy(ctx context.Context, client *apiclient.Client, org, repo st
 	if len(cfg.Env) > 0 {
 		spec.Env = oas.NewOptAppSpecEnv(oas.AppSpecEnv(cfg.Env))
 	}
+	if cfg.Private {
+		spec.Private = oas.NewOptBool(true)
+	}
 
 	deployRes, err := client.Inner().UpsertApp(ctx, &spec, oas.UpsertAppParams{Org: org, Repo: repo})
 	if err != nil {
@@ -223,6 +226,7 @@ type morselConfig struct {
 	Dockerfile string            `json:"dockerfile"`
 	Schedule   string            `json:"schedule"`
 	Env        map[string]string `json:"env"`
+	Private    bool              `json:"private"`
 }
 
 // discoverApps scans .morsel/*.morsel.json and returns all declared apps.

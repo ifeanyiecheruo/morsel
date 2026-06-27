@@ -636,6 +636,12 @@ func (s *AppSpec) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.Private.Set {
+			e.FieldStart("private")
+			s.Private.Encode(e)
+		}
+	}
+	{
 		if s.Schedule.Set {
 			e.FieldStart("schedule")
 			s.Schedule.Encode(e)
@@ -643,12 +649,13 @@ func (s *AppSpec) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfAppSpec = [5]string{
+var jsonFieldsNameOfAppSpec = [6]string{
 	0: "name",
 	1: "type",
 	2: "image",
 	3: "env",
-	4: "schedule",
+	4: "private",
+	5: "schedule",
 }
 
 // Decode decodes AppSpec from json.
@@ -701,6 +708,16 @@ func (s *AppSpec) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"env\"")
+			}
+		case "private":
+			if err := func() error {
+				s.Private.Reset()
+				if err := s.Private.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"private\"")
 			}
 		case "schedule":
 			if err := func() error {
@@ -3911,12 +3928,19 @@ func (s *GetOperatorStatusOK) encodeFields(e *jx.Encoder) {
 			s.RunningApps.Encode(e)
 		}
 	}
+	{
+		if s.Certs.Set {
+			e.FieldStart("certs")
+			s.Certs.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfGetOperatorStatusOK = [3]string{
+var jsonFieldsNameOfGetOperatorStatusOK = [4]string{
 	0: "healthy",
 	1: "pending_approvals",
 	2: "running_apps",
+	3: "certs",
 }
 
 // Decode decodes GetOperatorStatusOK from json.
@@ -3957,6 +3981,16 @@ func (s *GetOperatorStatusOK) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"running_apps\"")
 			}
+		case "certs":
+			if err := func() error {
+				s.Certs.Reset()
+				if err := s.Certs.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"certs\"")
+			}
 		default:
 			return d.Skip()
 		}
@@ -3977,6 +4011,223 @@ func (s *GetOperatorStatusOK) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *GetOperatorStatusOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *GetOperatorStatusOKCerts) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *GetOperatorStatusOKCerts) encodeFields(e *jx.Encoder) {
+	{
+		if s.ExpiringSoon != nil {
+			e.FieldStart("expiring_soon")
+			e.ArrStart()
+			for _, elem := range s.ExpiringSoon {
+				e.Str(elem)
+			}
+			e.ArrEnd()
+		}
+	}
+	{
+		if s.Failed != nil {
+			e.FieldStart("failed")
+			e.ArrStart()
+			for _, elem := range s.Failed {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+}
+
+var jsonFieldsNameOfGetOperatorStatusOKCerts = [2]string{
+	0: "expiring_soon",
+	1: "failed",
+}
+
+// Decode decodes GetOperatorStatusOKCerts from json.
+func (s *GetOperatorStatusOKCerts) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode GetOperatorStatusOKCerts to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "expiring_soon":
+			if err := func() error {
+				s.ExpiringSoon = make([]string, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem string
+					v, err := d.Str()
+					elem = string(v)
+					if err != nil {
+						return err
+					}
+					s.ExpiringSoon = append(s.ExpiringSoon, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"expiring_soon\"")
+			}
+		case "failed":
+			if err := func() error {
+				s.Failed = make([]GetOperatorStatusOKCertsFailedItem, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem GetOperatorStatusOKCertsFailedItem
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Failed = append(s.Failed, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"failed\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode GetOperatorStatusOKCerts")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *GetOperatorStatusOKCerts) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *GetOperatorStatusOKCerts) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *GetOperatorStatusOKCertsFailedItem) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *GetOperatorStatusOKCertsFailedItem) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("domain")
+		e.Str(s.Domain)
+	}
+	{
+		e.FieldStart("error")
+		e.Str(s.Error)
+	}
+}
+
+var jsonFieldsNameOfGetOperatorStatusOKCertsFailedItem = [2]string{
+	0: "domain",
+	1: "error",
+}
+
+// Decode decodes GetOperatorStatusOKCertsFailedItem from json.
+func (s *GetOperatorStatusOKCertsFailedItem) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode GetOperatorStatusOKCertsFailedItem to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "domain":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.Domain = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"domain\"")
+			}
+		case "error":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Str()
+				s.Error = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"error\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode GetOperatorStatusOKCertsFailedItem")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000011,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfGetOperatorStatusOKCertsFailedItem) {
+					name = jsonFieldsNameOfGetOperatorStatusOKCertsFailedItem[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *GetOperatorStatusOKCertsFailedItem) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *GetOperatorStatusOKCertsFailedItem) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -5266,6 +5517,39 @@ func (s OptFloat64) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptFloat64) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes GetOperatorStatusOKCerts as json.
+func (o OptGetOperatorStatusOKCerts) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes GetOperatorStatusOKCerts from json.
+func (o *OptGetOperatorStatusOKCerts) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptGetOperatorStatusOKCerts to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptGetOperatorStatusOKCerts) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptGetOperatorStatusOKCerts) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
+
+const envoyGatewayInstallURL = "https://github.com/envoyproxy/gateway/releases/download/v1.4.1/install.yaml"
 
 const (
 	// apiImage is the local tag used for the morsel-api image built during bootstrap.
@@ -179,7 +182,65 @@ func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]s
 		return fmt.Errorf("morsel-api did not become healthy: %w", err)
 	}
 
+	fmt.Println("Installing Envoy Gateway…")
+	if err := ensureEnvoyGateway(ctx, kubeClient, lb.kubeconfigPath); err != nil {
+		return fmt.Errorf("install envoy gateway: %w", err)
+	}
+
+	fmt.Println("Provisioning TLS certificate…")
+	cert, err := (&localCertProvider{}).Provision(ctx, LocalBaseDomain)
+	if err != nil {
+		return fmt.Errorf("provision tls cert: %w", err)
+	}
+	if err := kubeClient.StoreTLSSecret(ctx, ns, kube.MorselTLSSecret, cert); err != nil {
+		return fmt.Errorf("store tls secret: %w", err)
+	}
+
+	fmt.Println("Provisioning gateway classes and gateways…")
+	if err := kubeClient.EnsureGatewayClasses(ctx); err != nil {
+		return fmt.Errorf("provision gateway classes: %w", err)
+	}
+	if err := kubeClient.EnsureGateways(ctx, ns, kube.MorselTLSSecret); err != nil {
+		return fmt.Errorf("provision gateways: %w", err)
+	}
+
 	return nil
+}
+
+// ensureEnvoyGateway installs Envoy Gateway (which bundles Gateway API CRDs) into
+// the cluster using kubectl, then waits for the CRDs to be established. Idempotent.
+func ensureEnvoyGateway(ctx context.Context, kubeClient *kube.Client, kubeconfigPath string) error {
+	if kubeClient.GatewayAPICRDsInstalled(ctx) {
+		return nil
+	}
+	kubectlPath, err := exec.LookPath("kubectl")
+	if err != nil {
+		return fmt.Errorf(
+			"kubectl not found in PATH — install kubectl to enable Envoy Gateway provisioning\n" +
+				"See: https://kubernetes.io/docs/tasks/tools/",
+		)
+	}
+	cmd := exec.CommandContext(ctx, kubectlPath, "apply", "--server-side", "--force-conflicts", "-f", envoyGatewayInstallURL, "--kubeconfig", kubeconfigPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("kubectl apply envoy gateway: %w", err)
+	}
+	// Wait for the Gateway API CRDs to be established.
+	deadline := time.Now().Add(2 * time.Minute)
+	for {
+		if kubeClient.GatewayAPICRDsInstalled(ctx) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("gateway api crds not established after 2 minutes")
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
 }
 
 // findRepoRoot walks up from the current working directory until it finds a

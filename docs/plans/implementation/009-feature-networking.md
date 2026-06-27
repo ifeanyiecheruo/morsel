@@ -8,12 +8,12 @@ _Delivers: HTTP apps get stable URLs with TLS; HTTPS works in-browser._
 
 ## Tasks
 
-- [ ] Gateway class + Gateway resource provisioned during `LocalPlatform.Bootstrap().Provision()`
-- [ ] `HTTPRoute` apply on deploy — route subdomain to app Service
-- [ ] `HTTPRoute` routing decision — external Gateway class for `private: false`; internal for `private: true`
-- [ ] `LocalPlatform.DNS()` — no-op; `*.morsel.localhost` resolves natively in modern browsers
-- [ ] `LocalPlatform.Certs()` — generate self-signed wildcard cert for `*.morsel.localhost` at bootstrap; store in K8s Secret
-- [ ] Cert storage helper — write `*tls.Certificate` to K8s Secret in app namespace
-- [ ] Certificate renewal background goroutine — check expiry daily; renew 30 days before expiry
-- [ ] Certificate alert in `GET /api/operator/status` — expiring soon, failed
-- [ ] `HTTPRoute` delete on app deletion
+- [x] Gateway class + Gateway resource provisioned during `LocalPlatform.Bootstrap().Provision()`
+- [x] `HTTPRoute` apply on deploy — route subdomain to app Service
+- [x] `HTTPRoute` routing decision — external Gateway class for `private: false`; internal for `private: true`
+- [x] `LocalPlatform.DNS()` — no-op; `*.morsel.localhost` resolves natively in modern browsers
+- [x] `LocalPlatform.Certs()` — generate self-signed wildcard cert for `*.morsel.localhost` at bootstrap; store in K8s Secret
+- [x] Cert storage helper — write `*tls.Certificate` to K8s Secret in app namespace
+- [x] Certificate renewal background goroutine — check expiry daily; renew 30 days before expiry
+- [x] Certificate alert in `GET /api/operator/status` — expiring soon, failed
+- [x] `HTTPRoute` delete on app deletion

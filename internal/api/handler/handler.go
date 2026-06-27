@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/ogen-go/ogen/ogenerrors"
 
@@ -20,15 +21,18 @@ import (
 // Deployer is the subset of kube.Client methods used by the handler.
 type Deployer interface {
 	Apply(ctx context.Context, m kube.AppManifest) error
+	Delete(ctx context.Context, namespace string) error
 	WatchDeploymentRollout(ctx context.Context, namespace string) error
 	RollbackDeployment(ctx context.Context, namespace, lastHealthyImage string) error
 	AppStatus(ctx context.Context, namespace, appType string) string
+	GetTLSCertExpiry(ctx context.Context, namespace, secretName string) (*time.Time, error)
 }
 
 // AppPlatform is the subset of platform.Platform that API handlers may consume.
 // Expanded as stub methods are implemented.
 type AppPlatform interface {
 	Namespace() string
+	BaseDomain() string
 	Secrets() platform.Secrets
 	Tokens() platform.Tokens
 	Deploy() platform.Deployer

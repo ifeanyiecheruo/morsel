@@ -46,12 +46,15 @@ var smallTierQuota = corev1.ResourceList{
 
 // AppManifest describes the Kubernetes resources to apply for a single app.
 type AppManifest struct {
-	Namespace string
-	AppName   string // used in pod labels
-	Type      string // "http", "worker", or "cron"
-	Image     string
-	Env       map[string]string
-	Schedule  string // cron expression; only used when Type is "cron"
+	Namespace  string
+	AppName    string // used in pod labels
+	Type       string // "http", "worker", or "cron"
+	Image      string
+	Env        map[string]string
+	Schedule   string // cron expression; only used when Type is "cron"
+	Private    bool   // if true, route through internal gateway class
+	BaseDomain string // e.g. "morsel.localhost"; empty disables HTTPRoute provisioning
+	GatewayNS  string // namespace where the Gateway resources live (e.g. "morsel")
 }
 
 // Apply is idempotent; safe to call on every deploy.
@@ -81,7 +84,45 @@ func (c *Client) Apply(ctx context.Context, m AppManifest) error {
 			return fmt.Errorf("deployment: %w", err)
 		}
 	}
+	if m.Type == "http" && m.BaseDomain != "" {
+		if err := c.ApplyAppService(ctx, m.Namespace, m.AppName); err != nil {
+			return fmt.Errorf("app service: %w", err)
+		}
+		host := appHostname(m.Namespace, m.BaseDomain)
+		gatewayNS := m.GatewayNS
+		if gatewayNS == "" {
+			gatewayNS = morselNamespace
+		}
+		gatewayName := GatewayExternal
+		if m.Private {
+			gatewayName = GatewayInternal
+		}
+		if err := c.ApplyHTTPRoute(ctx, m.Namespace, host, gatewayNS, gatewayName); err != nil {
+			return fmt.Errorf("httproute: %w", err)
+		}
+	}
 	return nil
+}
+
+// Delete removes all Kubernetes resources for an app: the HTTPRoute, Service,
+// and the namespace itself (which cascades to Deployment/CronJob and other resources).
+func (c *Client) Delete(ctx context.Context, namespace string) error {
+	if err := c.DeleteHTTPRoute(ctx, namespace); err != nil {
+		return fmt.Errorf("delete httproute: %w", err)
+	}
+	if err := c.DeleteAppService(ctx, namespace); err != nil {
+		return fmt.Errorf("delete app service: %w", err)
+	}
+	if err := c.DeleteAppNamespace(ctx, namespace); err != nil {
+		return fmt.Errorf("delete namespace: %w", err)
+	}
+	return nil
+}
+
+// appHostname derives the public hostname for an app.
+// The namespace already encodes org/repo/appname in a slug-safe form.
+func appHostname(namespace, baseDomain string) string {
+	return namespace + "." + baseDomain
 }
 
 func (c *Client) ensureNamespace(ctx context.Context, name string) error {

@@ -18,6 +18,9 @@ properties:
     type: object
     additionalProperties:
       type: string
+  private:
+    description: 'If true, the app is reachable only within the cluster VPC. Applies to http type only. Defaults to false.'
+    type: boolean
   schedule:
     description: 'Cron schedule expression (e.g. "0 * * * *"). Required for type: cron, ignored otherwise.'
     type: string
