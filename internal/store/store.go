@@ -42,14 +42,12 @@ func (s *Store) RemovePrincipal(ctx context.Context, username string) error {
 	return s.q.DeletePrincipal(ctx, username)
 }
 
-// PrincipalExists reports whether the given username is a registered operator.
 func (s *Store) PrincipalExists(ctx context.Context, username string) (bool, error) {
 	return s.q.PrincipalExists(ctx, username)
 }
 
 // ── Refresh tokens ───────────────────────────────────────────────────────────
 
-// InsertRefreshToken stores a new refresh token record.
 func (s *Store) InsertRefreshToken(ctx context.Context, id, tokenHash, subject, role string, expiresAt time.Time) error {
 	return s.q.InsertRefreshToken(ctx, dbqueries.InsertRefreshTokenParams{
 		ID:        id,
@@ -61,12 +59,10 @@ func (s *Store) InsertRefreshToken(ctx context.Context, id, tokenHash, subject, 
 	})
 }
 
-// GetRefreshTokenByHash looks up a refresh token by its hash.
 func (s *Store) GetRefreshTokenByHash(ctx context.Context, hash string) (RefreshToken, error) {
 	return s.q.GetRefreshTokenByHash(ctx, hash)
 }
 
-// RotateRefreshToken replaces the hash and expiry on an existing token record.
 func (s *Store) RotateRefreshToken(ctx context.Context, id, tokenHash string, expiresAt time.Time) error {
 	_, err := s.q.RotateRefreshToken(ctx, dbqueries.RotateRefreshTokenParams{
 		ID:        id,
@@ -162,7 +158,6 @@ func (s *Store) GetOperation(ctx context.Context, id string) (Operation, error) 
 	return s.q.GetOperation(ctx, id)
 }
 
-// CreateOperation creates a new pending operation record.
 func (s *Store) CreateOperation(ctx context.Context, id, repoSlug, appName, kind string) (Operation, error) {
 	return s.q.CreateOperation(ctx, dbqueries.CreateOperationParams{
 		ID:       id,
@@ -172,7 +167,6 @@ func (s *Store) CreateOperation(ctx context.Context, id, repoSlug, appName, kind
 	})
 }
 
-// StartOperation marks an operation as running.
 func (s *Store) StartOperation(ctx context.Context, id string) error {
 	return s.q.UpdateOperationStatus(ctx, dbqueries.UpdateOperationStatusParams{
 		ID:     id,
@@ -181,7 +175,6 @@ func (s *Store) StartOperation(ctx context.Context, id string) error {
 	})
 }
 
-// SucceedOperation marks an operation as succeeded.
 func (s *Store) SucceedOperation(ctx context.Context, id string) error {
 	return s.q.UpdateOperationStatus(ctx, dbqueries.UpdateOperationStatusParams{
 		ID:     id,
@@ -190,7 +183,6 @@ func (s *Store) SucceedOperation(ctx context.Context, id string) error {
 	})
 }
 
-// FailOperation marks an operation as failed with the given error message.
 func (s *Store) FailOperation(ctx context.Context, id, message string) error {
 	return s.q.UpdateOperationStatus(ctx, dbqueries.UpdateOperationStatusParams{
 		ID:     id,

@@ -15,8 +15,6 @@ type Client struct {
 	token string
 }
 
-// New constructs a Client for the given server URL authenticated with the
-// provided access token.
 func New(serverURL, accessToken string) (*Client, error) {
 	c := &Client{token: accessToken}
 	inner, err := oas.NewClient(serverURL, c)
@@ -32,7 +30,6 @@ func (c *Client) BearerAuth(_ context.Context, _ oas.OperationName) (oas.BearerA
 	return oas.BearerAuth{Token: c.token}, nil
 }
 
-// Inner returns the underlying ogen Client for calling generated API methods directly.
 func (c *Client) Inner() *oas.Client { return c.inner }
 
 // compile-time interface check.

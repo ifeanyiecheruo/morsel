@@ -1,4 +1,4 @@
-package middleware
+package middleware_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+
+	"github.com/ifeanyiecheruo/morsel/internal/api/middleware"
 )
 
 type capturedRecord struct {
@@ -44,7 +46,7 @@ func TestLogRequestsRecordsFields(t *testing.T) {
 	inner := http.HandlerFunc(func(resp http.ResponseWriter, _ *http.Request) {
 		resp.WriteHeader(http.StatusCreated)
 	})
-	mux := InjectLogger(logger, LogRequests(inner))
+	mux := middleware.InjectLogger(logger, middleware.LogRequests(inner))
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/things", nil))
@@ -79,7 +81,7 @@ func TestLogRequestsDefaultsStatusTo200(t *testing.T) {
 	inner := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		// write no explicit status — implicit 200
 	})
-	InjectLogger(logger, LogRequests(inner)).ServeHTTP(
+	middleware.InjectLogger(logger, middleware.LogRequests(inner)).ServeHTTP(
 		httptest.NewRecorder(),
 		httptest.NewRequest(http.MethodGet, "/healthz", nil),
 	)

@@ -10,7 +10,8 @@ import (
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 )
 
-// newOperationID returns a random "op_<hex>" string suitable for use as an operation ID.
+const retryAfterDeploy = 5 * time.Second
+
 func newOperationID() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -34,12 +35,10 @@ func appNamespace(org, repo, name string) string {
 	return base + "--" + r.Replace(name)
 }
 
-// operationLocation builds the URL path for polling an operation.
 func operationLocation(org, repo, name, opID string) string {
 	return "/api/repos/" + org + "/" + repo + "/apps/" + name + "/operations/" + opID
 }
 
-// dbOperationToOAS converts a DB operation row to the OAS Operation type.
 // DB statuses "pending"/"running" map to API "pending"; "succeeded" maps to "complete".
 func dbOperationToOAS(op dbqueries.Operation) oas.Operation {
 	status := oas.OperationStatusPending
@@ -91,7 +90,6 @@ func progressMessage(op dbqueries.Operation) string {
 	}
 }
 
-// dbAppToOAS converts a DB app row to the OAS App type.
 func dbAppToOAS(app dbqueries.App) oas.App {
 	out := oas.App{
 		Type:      oas.AppType(app.Type),
@@ -111,7 +109,6 @@ func dbAppToOAS(app dbqueries.App) oas.App {
 	return out
 }
 
-// dbRepoToOAS converts a DB repo row to the OAS Repo type with an app count.
 func dbRepoToOAS(repo dbqueries.Repo, appCount int64) oas.Repo {
 	return oas.Repo{
 		Slug:      repo.Slug,
@@ -120,6 +117,3 @@ func dbRepoToOAS(repo dbqueries.Repo, appCount int64) oas.Repo {
 		CreatedAt: oas.NewOptDateTime(repo.CreatedAt),
 	}
 }
-
-// retryAfterDeploy is the recommended poll interval for deploy operations.
-const retryAfterDeploy = 5 * time.Second

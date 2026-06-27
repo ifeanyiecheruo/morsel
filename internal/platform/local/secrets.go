@@ -24,6 +24,11 @@ type SecretStore interface {
 	Delete(ctx context.Context, name string) error
 }
 
+const (
+	signingKeyName       = "morsel-signing-keys"
+	deploySigningKeyName = "local-deploy-signing-keys"
+)
+
 // ── kube-backed secret store ─────────────────────────────────────────────────
 
 // kubeSecretStore persists secrets as Kubernetes Opaque Secrets in the control-plane namespace.
@@ -74,11 +79,6 @@ func (ks *kubeSecretStore) Delete(ctx context.Context, name string) error {
 
 // ── platform.Secrets implementation ─────────────────────────────────────────
 
-const (
-	signingKeyName       = "morsel-signing-keys"
-	deploySigningKeyName = "local-deploy-signing-keys"
-)
-
 // localSecrets implements platform.Secrets (key management only).
 type localSecrets struct {
 	store SecretStore
@@ -110,7 +110,6 @@ func (ls *localSecrets) setKeyArray(ctx context.Context, name string, keys [][]b
 	return ls.store.Set(ctx, name, raw)
 }
 
-// appendNewKey generates a fresh key, appends it to base, persists, and returns the result.
 func (ls *localSecrets) appendNewKey(ctx context.Context, name string, base [][]byte) ([][]byte, error) {
 	key, err := tokens.GenerateKey()
 	if err != nil {
