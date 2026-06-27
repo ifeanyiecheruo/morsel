@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,9 +15,44 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
+	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/platform/local"
 	"github.com/ifeanyiecheruo/morsel/internal/store"
 )
+
+// memSecretStore is a thread-safe in-memory SecretStore for tests.
+type memSecretStore struct {
+	mu   sync.Mutex
+	data map[string][]byte
+}
+
+func newMemSecretStore() *memSecretStore {
+	return &memSecretStore{data: make(map[string][]byte)}
+}
+
+func (m *memSecretStore) Get(_ context.Context, name string) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	v, ok := m.data[name]
+	if !ok {
+		return nil, platform.ErrSecretNotFound
+	}
+	return v, nil
+}
+
+func (m *memSecretStore) Set(_ context.Context, name string, value []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.data[name] = value
+	return nil
+}
+
+func (m *memSecretStore) Delete(_ context.Context, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.data, name)
+	return nil
+}
 
 // fakeDeployer satisfies handler.Deployer and immediately succeeds every
 // operation, allowing tests to verify API contracts without a real cluster.
@@ -49,9 +85,6 @@ func newTestMux(t *testing.T) http.Handler {
 // testSetup creates a platform backed by an in-memory DB and the API mux.
 func testSetup(t *testing.T) (*local.LocalPlatform, *store.Store, http.Handler) {
 	t.Helper()
-	tmp := t.TempDir()
-	t.Setenv("USERPROFILE", tmp)
-	t.Setenv("HOME", tmp)
 
 	database, err := db.Open(context.Background(), ":memory:")
 	if err != nil {
@@ -63,10 +96,7 @@ func testSetup(t *testing.T) (*local.LocalPlatform, *store.Store, http.Handler) 
 	}
 
 	s := store.New(dbqueries.New(database))
-	plat := local.New(s)
-	if err := plat.Secrets().Migrate(context.Background()); err != nil {
-		t.Fatalf("secret migration: %v", err)
-	}
+	plat := local.NewWithSecretStore(s, newMemSecretStore())
 	mux := api.NewMux(context.Background(), plat, s, &fakeDeployer{})
 	return plat, s, mux
 }

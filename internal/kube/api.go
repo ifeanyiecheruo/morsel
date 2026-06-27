@@ -135,6 +135,53 @@ func (c *Client) applyAPIRBAC(ctx context.Context, ns string) error {
 	} else if err != nil {
 		return fmt.Errorf("cluster role binding: %w", err)
 	}
+
+	// Role grants access to secrets in the control-plane namespace only.
+	// Using a namespaced Role (not ClusterRole) limits scope to ns.
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{Name: apiName, Namespace: ns},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"secrets"},
+				Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
+			},
+		},
+	}
+	existingRole, err := c.cs.RbacV1().Roles(ns).Get(ctx, apiName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		if _, err = c.cs.RbacV1().Roles(ns).Create(ctx, role, metav1.CreateOptions{}); err != nil {
+			return fmt.Errorf("secrets role: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("secrets role: %w", err)
+	} else {
+		existingRole.Rules = role.Rules
+		if _, err = c.cs.RbacV1().Roles(ns).Update(ctx, existingRole, metav1.UpdateOptions{}); err != nil {
+			return fmt.Errorf("secrets role: %w", err)
+		}
+	}
+
+	// RoleBinding wires the morsel-api service account to the secrets Role.
+	rb := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: apiName, Namespace: ns},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     apiName,
+		},
+		Subjects: []rbacv1.Subject{
+			{Kind: "ServiceAccount", Name: apiServiceAccountName, Namespace: ns},
+		},
+	}
+	_, err = c.cs.RbacV1().RoleBindings(ns).Get(ctx, apiName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		if _, err = c.cs.RbacV1().RoleBindings(ns).Create(ctx, rb, metav1.CreateOptions{}); err != nil {
+			return fmt.Errorf("secrets role binding: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("secrets role binding: %w", err)
+	}
 	return nil
 }
 

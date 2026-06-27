@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
@@ -16,8 +17,42 @@ import (
 
 var ctx = ctxlog.With(context.Background(), slog.Default())
 
+// memSecretStore is a thread-safe in-memory SecretStore for tests.
+type memSecretStore struct {
+	mu   sync.Mutex
+	data map[string][]byte
+}
+
+func newMemSecretStore() *memSecretStore {
+	return &memSecretStore{data: make(map[string][]byte)}
+}
+
+func (m *memSecretStore) Get(_ context.Context, name string) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	v, ok := m.data[name]
+	if !ok {
+		return nil, platform.ErrSecretNotFound
+	}
+	return v, nil
+}
+
+func (m *memSecretStore) Set(_ context.Context, name string, value []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.data[name] = value
+	return nil
+}
+
+func (m *memSecretStore) Delete(_ context.Context, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.data, name)
+	return nil
+}
+
 func TestGetAmbientTokenReturnsEmpty(t *testing.T) {
-	plat := local.New(nil)
+	plat := local.NewWithSecretStore(nil, newMemSecretStore())
 	token, err := plat.Tokens().GetAmbientToken(ctx)
 	if err != nil {
 		t.Fatalf("GetAmbientToken: unexpected error: %v", err)
@@ -28,7 +63,7 @@ func TestGetAmbientTokenReturnsEmpty(t *testing.T) {
 }
 
 func TestVerifyDeployTokenRejectsInvalidToken(t *testing.T) {
-	plat := platWithTempHome(t)
+	plat := platWithSecrets(t)
 	_, err := plat.Tokens().VerifyDeployToken(ctx, "not-a-valid-token")
 	if err == nil {
 		t.Error("VerifyDeployToken: expected error for invalid token, got nil")
@@ -36,7 +71,7 @@ func TestVerifyDeployTokenRejectsInvalidToken(t *testing.T) {
 }
 
 func TestDeployTokenRoundTrip(t *testing.T) {
-	plat := platWithTempHome(t)
+	plat := platWithSecrets(t)
 
 	token, err := plat.Tokens().CreateDeployToken(ctx, "localhost/test-repo")
 	if err != nil {
@@ -51,23 +86,16 @@ func TestDeployTokenRoundTrip(t *testing.T) {
 	}
 }
 
-// platWithTempHome creates a LocalPlatform (no store) whose secrets file points
-// at a temporary directory so tests never touch ~/.morsel/local/secrets.json.
-func platWithTempHome(t *testing.T) *local.LocalPlatform {
+// platWithSecrets returns a LocalPlatform (no DB store) backed by a fresh in-memory SecretStore.
+func platWithSecrets(t *testing.T) *local.LocalPlatform {
 	t.Helper()
-	tmp := t.TempDir()
-	t.Setenv("USERPROFILE", tmp) // Windows
-	t.Setenv("HOME", tmp)        // Linux / macOS
-	return local.New(nil)
+	return local.NewWithSecretStore(nil, newMemSecretStore())
 }
 
 // platWithStore creates a LocalPlatform backed by an in-memory SQLite store for
 // tests that exercise principal validation or SeedDefaults.
 func platWithStore(t *testing.T) (*local.LocalPlatform, *store.Store) {
 	t.Helper()
-	tmp := t.TempDir()
-	t.Setenv("USERPROFILE", tmp) // Windows
-	t.Setenv("HOME", tmp)        // Linux / macOS
 
 	database, err := db.Open(ctx, ":memory:")
 	if err != nil {
@@ -80,25 +108,25 @@ func platWithStore(t *testing.T) (*local.LocalPlatform, *store.Store) {
 	}
 
 	s := store.New(dbqueries.New(database))
-	return local.New(s), s
+	return local.NewWithSecretStore(s, newMemSecretStore()), s
 }
 
 func TestDNSCreateRecordIsNoop(t *testing.T) {
-	plat := local.New(nil)
+	plat := local.NewWithSecretStore(nil, newMemSecretStore())
 	if err := plat.DNS().CreateRecord(ctx, "zone", "name", "A", "1.2.3.4", 60); err != nil {
 		t.Errorf("CreateRecord: unexpected error: %v", err)
 	}
 }
 
 func TestDNSDeleteRecordIsNoop(t *testing.T) {
-	plat := local.New(nil)
+	plat := local.NewWithSecretStore(nil, newMemSecretStore())
 	if err := plat.DNS().DeleteRecord(ctx, "zone", "name", "A"); err != nil {
 		t.Errorf("DeleteRecord: unexpected error: %v", err)
 	}
 }
 
 func TestDNSRecordExistsReturnsFalse(t *testing.T) {
-	plat := local.New(nil)
+	plat := local.NewWithSecretStore(nil, newMemSecretStore())
 	exists, err := plat.DNS().RecordExists(ctx, "zone", "name", "A")
 	if err != nil {
 		t.Fatalf("RecordExists: unexpected error: %v", err)
@@ -109,7 +137,7 @@ func TestDNSRecordExistsReturnsFalse(t *testing.T) {
 }
 
 func TestPricesFetchedAtIsSet(t *testing.T) {
-	plat := local.New(nil)
+	plat := local.NewWithSecretStore(nil, newMemSecretStore())
 	prices, err := plat.Pricing().Prices(ctx)
 	if err != nil {
 		t.Fatalf("Prices: unexpected error: %v", err)
@@ -155,7 +183,7 @@ func TestSeedDefaultsIsNoOpWhenAlreadySet(t *testing.T) {
 }
 
 func TestBootstrapPromptsReturnsExpectedKeys(t *testing.T) {
-	plat := local.New(nil)
+	plat := local.NewWithSecretStore(nil, newMemSecretStore())
 	prompts := plat.Bootstrap().Prompts()
 	if len(prompts) == 0 {
 		t.Fatal("Bootstrap.Prompts: returned no prompts")
@@ -172,7 +200,7 @@ func TestBootstrapPromptsReturnsExpectedKeys(t *testing.T) {
 }
 
 func TestBootstrapPlanReturnsResources(t *testing.T) {
-	plat := local.New(nil)
+	plat := local.NewWithSecretStore(nil, newMemSecretStore())
 	plan := plat.Bootstrap().Plan(map[string]string{})
 	if plan.Summary == "" {
 		t.Error("Bootstrap.Plan: empty summary")
@@ -182,30 +210,27 @@ func TestBootstrapPlanReturnsResources(t *testing.T) {
 	}
 }
 
-func TestBootstrapProvisionWritesConfigAndKey(t *testing.T) {
-	plat := platWithTempHome(t)
+func TestBootstrapProvisionAndDeployTokenRoundTrip(t *testing.T) {
+	plat := platWithSecrets(t)
 	answers := map[string]string{
 		"k8s_provider": "kind",
 	}
 	if err := plat.Bootstrap().Provision(ctx, answers, nil); err != nil {
 		t.Fatalf("Bootstrap.Provision: unexpected error: %v", err)
 	}
-	// Local registry requires no authentication — Credentials should succeed after Provision.
-	if _, err := plat.Deploy().Credentials(ctx); err != nil {
-		t.Fatalf("Deploy.Credentials after Provision: unexpected error: %v", err)
-	}
 
+	// Keys are generated lazily — CreateDeployToken provisions them on first call.
 	token, err := plat.Tokens().CreateDeployToken(ctx, "localhost/test-repo")
 	if err != nil {
-		t.Fatalf("CreateDeployToken after Provision: %v", err)
+		t.Fatalf("CreateDeployToken: %v", err)
 	}
 	if _, err := plat.Tokens().VerifyDeployToken(ctx, token); err != nil {
-		t.Errorf("VerifyDeployToken after Provision: %v", err)
+		t.Errorf("VerifyDeployToken: %v", err)
 	}
 }
 
 func TestBootstrapProvisionIsIdempotent(t *testing.T) {
-	plat := platWithTempHome(t)
+	plat := platWithSecrets(t)
 	answers := map[string]string{"k8s_provider": "kind"}
 	if err := plat.Bootstrap().Provision(ctx, answers, nil); err != nil {
 		t.Fatalf("first Provision: %v", err)
@@ -215,15 +240,8 @@ func TestBootstrapProvisionIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestDeployCredentialsNotImplemented(t *testing.T) {
-	plat := platWithTempHome(t)
-	if _, err := plat.Deploy().Credentials(ctx); !errors.Is(err, platform.ErrNotImplemented) {
-		t.Errorf("Deploy.Credentials: err = %v, want ErrNotImplemented", err)
-	}
-}
-
 func TestBlobsGetNotImplemented(t *testing.T) {
-	plat := local.New(nil)
+	plat := local.NewWithSecretStore(nil, newMemSecretStore())
 	if _, err := plat.Blobs().Get(ctx, "bucket", "key"); !errors.Is(err, platform.ErrNotImplemented) {
 		t.Errorf("Blobs.Get: err = %v, want ErrNotImplemented", err)
 	}

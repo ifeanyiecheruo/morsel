@@ -2,99 +2,74 @@ package local
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/tokens"
 )
 
-// ── file-backed secret store ─────────────────────────────────────────────────
-
-// localFileSecretStore persists secrets as a JSON map at ~/.morsel/local/secrets.json.
-// Values are base64-encoded to handle arbitrary byte payloads.
-type localFileSecretStore struct {
-	mu   sync.Mutex
-	path string
+// SecretStore is the low-level storage backend for raw secret bytes.
+// The production implementation writes to Kubernetes Opaque Secrets;
+// tests may supply an in-memory implementation instead.
+type SecretStore interface {
+	Get(ctx context.Context, name string) ([]byte, error)
+	Set(ctx context.Context, name string, value []byte) error
+	Delete(ctx context.Context, name string) error
 }
 
-func newLocalFileSecretStore() *localFileSecretStore {
-	return &localFileSecretStore{
-		path: filepath.Join(localDataDir(), "secrets.json"),
-	}
+// ── kube-backed secret store ─────────────────────────────────────────────────
+
+// kubeSecretStore persists secrets as Kubernetes Opaque Secrets in the control-plane namespace.
+// The kube client is built lazily on first access using the in-cluster service-account config.
+type kubeSecretStore struct {
+	once  sync.Once
+	kc    *kube.Client
+	kcErr error
+	ns    string
 }
 
-func (fs *localFileSecretStore) get(_ context.Context, name string) ([]byte, error) {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-	data, err := fs.load()
+func newKubeSecretStore(ns string) *kubeSecretStore {
+	return &kubeSecretStore{ns: ns}
+}
+
+func (ks *kubeSecretStore) client() (*kube.Client, error) {
+	ks.once.Do(func() { ks.kc, ks.kcErr = kube.NewInCluster() })
+	return ks.kc, ks.kcErr
+}
+
+func (ks *kubeSecretStore) Get(ctx context.Context, name string) ([]byte, error) {
+	kc, err := ks.client()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("secret store requires in-cluster kubernetes access: %w", err)
 	}
-	encoded, ok := data[name]
-	if !ok {
+	data, err := kc.GetOpaqueSecret(ctx, ks.ns, name)
+	if errors.Is(err, kube.ErrSecretNotFound) {
 		return nil, platform.ErrSecretNotFound
 	}
-	return base64.StdEncoding.DecodeString(encoded)
+	return data, err
 }
 
-func (fs *localFileSecretStore) set(_ context.Context, name string, value []byte) error {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-	data, err := fs.load()
-	if err != nil && !errors.Is(err, platform.ErrSecretNotFound) {
-		return err
-	}
-	if data == nil {
-		data = make(map[string]string)
-	}
-	data[name] = base64.StdEncoding.EncodeToString(value)
-	return fs.save(data)
-}
-
-func (fs *localFileSecretStore) delete(_ context.Context, name string) error {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-	data, err := fs.load()
+func (ks *kubeSecretStore) Set(ctx context.Context, name string, value []byte) error {
+	kc, err := ks.client()
 	if err != nil {
-		return err
+		return fmt.Errorf("secret store requires in-cluster kubernetes access: %w", err)
 	}
-	delete(data, name)
-	return fs.save(data)
+	return kc.SetOpaqueSecret(ctx, ks.ns, name, value)
 }
 
-func (fs *localFileSecretStore) load() (map[string]string, error) {
-	raw, err := os.ReadFile(fs.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return make(map[string]string), nil
-	}
+func (ks *kubeSecretStore) Delete(ctx context.Context, name string) error {
+	kc, err := ks.client()
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("secret store requires in-cluster kubernetes access: %w", err)
 	}
-	var data map[string]string
-	if err := json.Unmarshal(raw, &data); err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
-func (fs *localFileSecretStore) save(data map[string]string) error {
-	if err := os.MkdirAll(filepath.Dir(fs.path), 0700); err != nil {
-		return err
-	}
-	raw, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(fs.path, raw, 0600)
+	return kc.DeleteOpaqueSecret(ctx, ks.ns, name)
 }
 
 // ── platform.Secrets implementation ─────────────────────────────────────────
@@ -106,14 +81,14 @@ const (
 
 // localSecrets implements platform.Secrets (key management only).
 type localSecrets struct {
-	fileStore *localFileSecretStore
+	store SecretStore
 }
 
 var _ platform.Secrets = (*localSecrets)(nil)
 
 // getKeyArray reads a stored key array. Returns nil if the key is absent.
 func (ls *localSecrets) getKeyArray(ctx context.Context, name string) ([][]byte, error) {
-	raw, err := ls.fileStore.get(ctx, name)
+	raw, err := ls.store.Get(ctx, name)
 	if errors.Is(err, platform.ErrSecretNotFound) {
 		return nil, nil
 	}
@@ -132,7 +107,7 @@ func (ls *localSecrets) setKeyArray(ctx context.Context, name string, keys [][]b
 	if err != nil {
 		return fmt.Errorf("marshal key array %q: %w", name, err)
 	}
-	return ls.fileStore.set(ctx, name, raw)
+	return ls.store.Set(ctx, name, raw)
 }
 
 // appendNewKey generates a fresh key, appends it to base, persists, and returns the result.
@@ -182,7 +157,7 @@ func (ls *localSecrets) RotateSigningKey(ctx context.Context) ([][]byte, error) 
 }
 
 func (ls *localSecrets) DeleteSigningKey(ctx context.Context) error {
-	err := ls.fileStore.delete(ctx, signingKeyName)
+	err := ls.store.Delete(ctx, signingKeyName)
 	if errors.Is(err, platform.ErrSecretNotFound) {
 		return nil
 	}
@@ -222,7 +197,7 @@ func (ls *localSecrets) RotateDeploySigningKey(ctx context.Context) ([][]byte, e
 }
 
 func (ls *localSecrets) DeleteDeploySigningKey(ctx context.Context) error {
-	err := ls.fileStore.delete(ctx, deploySigningKeyName)
+	err := ls.store.Delete(ctx, deploySigningKeyName)
 	if errors.Is(err, platform.ErrSecretNotFound) {
 		return nil
 	}
@@ -230,7 +205,13 @@ func (ls *localSecrets) DeleteDeploySigningKey(ctx context.Context) error {
 }
 
 func (ls *localSecrets) Migrate(ctx context.Context) error {
-	return runFileMigrations(ctx, ls.fileStore)
+	if _, err := ls.EnsureSigningKey(ctx); err != nil {
+		return fmt.Errorf("ensure signing key: %w", err)
+	}
+	if _, err := ls.EnsureDeploySigningKey(ctx); err != nil {
+		return fmt.Errorf("ensure deploy signing key: %w", err)
+	}
+	return nil
 }
 
 // ── platform.Tokens implementation ──────────────────────────────────────────

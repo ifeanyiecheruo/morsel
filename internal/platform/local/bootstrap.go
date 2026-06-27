@@ -26,7 +26,6 @@ const (
 )
 
 type localBootstrapper struct {
-	secrets        *localSecrets
 	kubeconfigPath string
 	kubeContext    string
 	clusterServer  string
@@ -134,13 +133,11 @@ func (lb *localBootstrapper) Plan(answers map[string]string) platform.Plan {
 	}
 }
 
-// Provision generates cryptographic keys and provisions Kubernetes resources.
+// Provision provisions Kubernetes resources for the morsel control plane.
 // Safe to re-run — all operations are idempotent.
+// Cryptographic keys are generated lazily by the morsel-api on first use,
+// not during bootstrap.
 func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]string, dockerfile []byte) error {
-	if _, err := lb.secrets.EnsureDeploySigningKey(ctx); err != nil {
-		return fmt.Errorf("generate deploy signing key: %w", err)
-	}
-
 	// kubeconfigPath and cluster are set by CheckPrerequisites; skip K8s
 	// provisioning in contexts where that step was not run (e.g. unit tests).
 	if lb.kubeconfigPath == "" {

@@ -17,11 +17,13 @@ const saNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace
 // BaseDomain returns the base domain for app URLs on the local platform.
 func (lp *LocalPlatform) BaseDomain() string { return LocalBaseDomain }
 
-// Namespace returns the Kubernetes namespace this service is running in.
-// Inside a pod Kubernetes injects the namespace into the service-account file,
-// so the value is fixed for the lifetime of the deployment. Outside a pod
-// (e.g. the local bootstrap tool itself) we fall back to the bootstrap default.
-func (lp *LocalPlatform) Namespace() string {
+// Namespace returns the Kubernetes namespace this service is running in,
+// read from the service-account projection that Kubernetes injects into every pod.
+func (lp *LocalPlatform) Namespace() string { return controlPlaneNamespace() }
+
+// controlPlaneNamespace reads the pod's namespace from the service-account
+// projection when running in-cluster, and falls back to "morsel" otherwise.
+func controlPlaneNamespace() string {
 	data, err := os.ReadFile(saNamespacePath)
 	if err == nil {
 		return strings.TrimSpace(string(data))
@@ -36,9 +38,17 @@ type LocalPlatform struct {
 	store   *store.Store
 }
 
+// New creates a LocalPlatform. The kube client for secret storage is built
+// lazily on first secret access using the in-cluster service-account config;
+// the morsel-api always runs in-cluster so this never fails in production.
 func New(s *store.Store) *LocalPlatform {
-	fileStore := newLocalFileSecretStore()
-	sec := &localSecrets{fileStore: fileStore}
+	return NewWithSecretStore(s, newKubeSecretStore(controlPlaneNamespace()))
+}
+
+// NewWithSecretStore creates a LocalPlatform with an explicit SecretStore backend.
+// Intended for tests that need to run without a live Kubernetes cluster.
+func NewWithSecretStore(s *store.Store, ss SecretStore) *LocalPlatform {
+	sec := &localSecrets{store: ss}
 	tok := &localTokens{secrets: sec, store: s}
 	return &LocalPlatform{secrets: sec, tok: tok, store: s}
 }
@@ -60,9 +70,9 @@ func DBPath() string {
 }
 
 func (lp *LocalPlatform) Bootstrap() platform.Bootstrapper {
-	return &localBootstrapper{secrets: lp.secrets}
+	return &localBootstrapper{}
 }
-func (lp *LocalPlatform) Deploy() platform.Deployer         { return &localDeployer{secrets: lp.secrets} }
+func (lp *LocalPlatform) Deploy() platform.Deployer         { return &localDeployer{} }
 func (lp *LocalPlatform) Blobs() platform.BlobStore         { return &localBlobStore{} }
 func (lp *LocalPlatform) Secrets() platform.Secrets         { return lp.secrets }
 func (lp *LocalPlatform) Tokens() platform.Tokens           { return lp.tok }
