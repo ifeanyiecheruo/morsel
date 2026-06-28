@@ -64,6 +64,7 @@ func (h *Handler) UpsertApp(ctx context.Context, spec *server.AppSpec, params se
 		AppName:    name,
 		Type:       string(spec.Type),
 		Image:      spec.Image,
+		Port:       int32(spec.Port.Or(0)),
 		Env:        env,
 		Schedule:   spec.Schedule.Or(""),
 		Private:    spec.Private.Or(false),

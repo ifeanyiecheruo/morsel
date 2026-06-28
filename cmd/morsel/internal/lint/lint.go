@@ -114,6 +114,7 @@ type morselFile struct {
 	Name        string       `json:"name,omitempty"`
 	Type        string       `json:"type,omitempty"`
 	Dockerfile  string       `json:"dockerfile,omitempty"`
+	Port        *int         `json:"port,omitempty"`
 	Private     *bool        `json:"private,omitempty"`
 	Tier        string       `json:"tier,omitempty"`
 	IdleAfter   string       `json:"idle_after,omitempty"`
@@ -181,6 +182,9 @@ func semanticDiags(path string, mf *morselFile) []Diagnostic {
 
 	switch mf.Type {
 	case "worker":
+		if mf.Port != nil {
+			warn(`port is not applicable to type "worker" and will be ignored`)
+		}
 		if mf.Private != nil {
 			warn(`private is not applicable to type "worker" and will be ignored`)
 		}
@@ -200,6 +204,9 @@ func semanticDiags(path string, mf *morselFile) []Diagnostic {
 			warn(`retries is not applicable to type "worker" and will be ignored`)
 		}
 	case "cronjob":
+		if mf.Port != nil {
+			warn(`port is not applicable to type "cronjob" and will be ignored`)
+		}
 		if mf.Private != nil {
 			warn(`private is not applicable to type "cronjob" and will be ignored`)
 		}

@@ -50,6 +50,7 @@ type AppManifest struct {
 	AppName    string // used in pod labels
 	Type       string // "http", "worker", or "cron"
 	Image      string
+	Port       int32 // container port; 0 means use appServicePort default
 	Env        map[string]string
 	Schedule   string // cron expression; only used when Type is "cron"
 	Private    bool   // if true, route through internal gateway class
@@ -68,7 +69,7 @@ func (c *Client) Apply(ctx context.Context, m AppManifest) error {
 	if err := c.applyLimitRange(ctx, m.Namespace); err != nil {
 		return fmt.Errorf("limit range: %w", err)
 	}
-	if err := c.applyNetworkPolicy(ctx, m.Namespace); err != nil {
+	if err := c.applyNetworkPolicy(ctx, m.Namespace, resolvePort(m)); err != nil {
 		return fmt.Errorf("network policy: %w", err)
 	}
 	if err := c.applyServiceAccount(ctx, m.Namespace); err != nil {
@@ -85,7 +86,8 @@ func (c *Client) Apply(ctx context.Context, m AppManifest) error {
 		}
 	}
 	if m.Type == "http" && m.BaseDomain != "" {
-		if err := c.ApplyAppService(ctx, m.Namespace, m.AppName); err != nil {
+		port := resolvePort(m)
+		if err := c.ApplyAppService(ctx, m.Namespace, m.AppName, port); err != nil {
 			return fmt.Errorf("app service: %w", err)
 		}
 		host := appHostname(m.Namespace, m.BaseDomain)
@@ -97,7 +99,7 @@ func (c *Client) Apply(ctx context.Context, m AppManifest) error {
 		if m.Private {
 			gatewayName = GatewayInternal
 		}
-		if err := c.ApplyHTTPRoute(ctx, m.Namespace, host, gatewayNS, gatewayName); err != nil {
+		if err := c.ApplyHTTPRoute(ctx, m.Namespace, host, gatewayNS, gatewayName, port); err != nil {
 			return fmt.Errorf("httproute: %w", err)
 		}
 	}
@@ -197,7 +199,7 @@ func (c *Client) applyLimitRange(ctx context.Context, namespace string) error {
 
 // applyNetworkPolicy allows ingress from same-namespace pods and the morsel
 // gateway; all other ingress is denied, blocking cross-sidecar access.
-func (c *Client) applyNetworkPolicy(ctx context.Context, namespace string) error {
+func (c *Client) applyNetworkPolicy(ctx context.Context, namespace string, port int32) error {
 	protocolTCP := corev1.ProtocolTCP
 	desired := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: networkPolicyName, Namespace: namespace},
@@ -212,7 +214,7 @@ func (c *Client) applyNetworkPolicy(ctx context.Context, namespace string) error
 					},
 				},
 				{
-					// Allow ingress from the morsel control-plane namespace on port 8080.
+					// Allow ingress from the morsel control-plane namespace on the app port.
 					From: []networkingv1.NetworkPolicyPeer{
 						{
 							NamespaceSelector: &metav1.LabelSelector{
@@ -223,7 +225,7 @@ func (c *Client) applyNetworkPolicy(ctx context.Context, namespace string) error
 						},
 					},
 					Ports: []networkingv1.NetworkPolicyPort{
-						{Protocol: &protocolTCP, Port: &intstr.IntOrString{IntVal: 8080}},
+						{Protocol: &protocolTCP, Port: &intstr.IntOrString{IntVal: port}},
 					},
 				},
 			},
@@ -277,7 +279,7 @@ func (c *Client) applyDeployment(ctx context.Context, m AppManifest) error {
 						{
 							Name:  containerName,
 							Image: m.Image,
-							Env:   envVars(m.Env),
+							Env:   envVars(m.Env, resolvePort(m)),
 						},
 					},
 				},
@@ -322,7 +324,7 @@ func (c *Client) applyCronJob(ctx context.Context, m AppManifest) error {
 								{
 									Name:  containerName,
 									Image: m.Image,
-									Env:   envVars(m.Env),
+									Env:   envVars(m.Env, 0),
 								},
 							},
 						},
@@ -344,11 +346,11 @@ func (c *Client) applyCronJob(ctx context.Context, m AppManifest) error {
 	return err
 }
 
-func envVars(env map[string]string) []corev1.EnvVar {
-	if len(env) == 0 {
-		return nil
+func envVars(env map[string]string, port int32) []corev1.EnvVar {
+	out := make([]corev1.EnvVar, 0, len(env)+1)
+	if port > 0 {
+		out = append(out, corev1.EnvVar{Name: "PORT", Value: fmt.Sprintf("%d", port)})
 	}
-	out := make([]corev1.EnvVar, 0, len(env))
 	for k, v := range env {
 		out = append(out, corev1.EnvVar{Name: k, Value: v})
 	}

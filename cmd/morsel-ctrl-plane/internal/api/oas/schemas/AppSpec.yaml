@@ -18,6 +18,11 @@ properties:
     type: object
     additionalProperties:
       type: string
+  port:
+    description: 'Port the container listens on. Applies to http type only. Defaults to 8080.'
+    type: integer
+    minimum: 1
+    maximum: 65535
   private:
     description: 'If true, the app is reachable only within the cluster VPC. Applies to http type only. Defaults to false.'
     type: boolean

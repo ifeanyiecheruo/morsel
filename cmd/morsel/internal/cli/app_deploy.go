@@ -158,6 +158,9 @@ func buildPushDeploy(ctx context.Context, client *client.Client, org, repo strin
 	if len(cfg.Env) > 0 {
 		spec.Env = oas.NewOptAppSpecEnv(oas.AppSpecEnv(cfg.Env))
 	}
+	if cfg.Port != 0 {
+		spec.Port = oas.NewOptInt(cfg.Port)
+	}
 	if cfg.Private {
 		spec.Private = oas.NewOptBool(true)
 	}
@@ -224,6 +227,7 @@ type morselConfig struct {
 	Name       string            `json:"name"`
 	Type       string            `json:"type"`
 	Dockerfile string            `json:"dockerfile"`
+	Port       int               `json:"port"`
 	Schedule   string            `json:"schedule"`
 	Env        map[string]string `json:"env"`
 	Private    bool              `json:"private"`

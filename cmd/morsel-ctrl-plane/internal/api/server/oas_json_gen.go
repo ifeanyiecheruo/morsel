@@ -636,6 +636,12 @@ func (s *AppSpec) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.Port.Set {
+			e.FieldStart("port")
+			s.Port.Encode(e)
+		}
+	}
+	{
 		if s.Private.Set {
 			e.FieldStart("private")
 			s.Private.Encode(e)
@@ -649,13 +655,14 @@ func (s *AppSpec) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfAppSpec = [6]string{
+var jsonFieldsNameOfAppSpec = [7]string{
 	0: "name",
 	1: "type",
 	2: "image",
 	3: "env",
-	4: "private",
-	5: "schedule",
+	4: "port",
+	5: "private",
+	6: "schedule",
 }
 
 // Decode decodes AppSpec from json.
@@ -708,6 +715,16 @@ func (s *AppSpec) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"env\"")
+			}
+		case "port":
+			if err := func() error {
+				s.Port.Reset()
+				if err := s.Port.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"port\"")
 			}
 		case "private":
 			if err := func() error {

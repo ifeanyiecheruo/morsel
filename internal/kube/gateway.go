@@ -36,6 +36,14 @@ const (
 	MorselTLSSecret = "morsel-tls"
 )
 
+// resolvePort returns m.Port if set, otherwise the platform default (appServicePort).
+func resolvePort(m AppManifest) int32 {
+	if m.Port > 0 {
+		return m.Port
+	}
+	return appServicePort
+}
+
 // GatewayAPICRDsInstalled reports whether the Gateway API CRDs are registered
 // in the cluster. Returns false when the gw client is nil (e.g. in tests).
 func (c *Client) GatewayAPICRDsInstalled(ctx context.Context) bool {
@@ -137,7 +145,7 @@ func (c *Client) applyGateway(ctx context.Context, ns, name, className, tlsSecre
 }
 
 // ApplyAppService creates or updates the Kubernetes Service that exposes an HTTP app.
-func (c *Client) ApplyAppService(ctx context.Context, namespace, appName string) error {
+func (c *Client) ApplyAppService(ctx context.Context, namespace, appName string, port int32) error {
 	labels := map[string]string{"morsel.io/app": appName}
 	desired := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -150,7 +158,7 @@ func (c *Client) ApplyAppService(ctx context.Context, namespace, appName string)
 			Ports: []corev1.ServicePort{
 				{
 					Name: "http",
-					Port: appServicePort,
+					Port: port,
 				},
 			},
 		},
@@ -172,11 +180,11 @@ func (c *Client) ApplyAppService(ctx context.Context, namespace, appName string)
 // ApplyHTTPRoute creates or updates an HTTPRoute that routes host to the app Service.
 // gatewayNS/gatewayName identify the parent Gateway; the backend Service is always
 // in the same namespace as the route.
-func (c *Client) ApplyHTTPRoute(ctx context.Context, namespace, host, gatewayNS, gatewayName string) error {
+func (c *Client) ApplyHTTPRoute(ctx context.Context, namespace, host, gatewayNS, gatewayName string, port int32) error {
 	gwNS := gatewayv1.Namespace(gatewayNS)
 	appNS := gatewayv1.Namespace(namespace)
 	hostName := gatewayv1.Hostname(host)
-	port := gatewayv1.PortNumber(appServicePort)
+	gwPort := gatewayv1.PortNumber(port)
 	route := &gatewayv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      httprouteName,
@@ -201,7 +209,7 @@ func (c *Client) ApplyHTTPRoute(ctx context.Context, namespace, host, gatewayNS,
 								BackendObjectReference: gatewayv1.BackendObjectReference{
 									Name:      gatewayv1.ObjectName(appServiceName),
 									Namespace: &appNS,
-									Port:      &port,
+									Port:      &gwPort,
 								},
 							},
 						},

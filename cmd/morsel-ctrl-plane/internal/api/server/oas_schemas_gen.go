@@ -257,6 +257,8 @@ type AppSpec struct {
 	Image string `json:"image"`
 	// Environment variables injected into the container at runtime.
 	Env OptAppSpecEnv `json:"env"`
+	// Port the container listens on. Applies to http type only. Defaults to 8080.
+	Port OptInt `json:"port"`
 	// If true, the app is reachable only within the cluster VPC. Applies to http type only. Defaults to
 	// false.
 	Private OptBool `json:"private"`
@@ -282,6 +284,11 @@ func (s *AppSpec) GetImage() string {
 // GetEnv returns the value of Env.
 func (s *AppSpec) GetEnv() OptAppSpecEnv {
 	return s.Env
+}
+
+// GetPort returns the value of Port.
+func (s *AppSpec) GetPort() OptInt {
+	return s.Port
 }
 
 // GetPrivate returns the value of Private.
@@ -312,6 +319,11 @@ func (s *AppSpec) SetImage(val string) {
 // SetEnv sets the value of Env.
 func (s *AppSpec) SetEnv(val OptAppSpecEnv) {
 	s.Env = val
+}
+
+// SetPort sets the value of Port.
+func (s *AppSpec) SetPort(val OptInt) {
+	s.Port = val
 }
 
 // SetPrivate sets the value of Private.

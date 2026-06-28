@@ -27,6 +27,12 @@
       "description": "Path to the Dockerfile relative to the repository root. Build context is always the repo root.",
       "minLength": 1
     },
+    "port": {
+      "type": "integer",
+      "description": "Port the container listens on. Required for http type.",
+      "minimum": 1,
+      "maximum": 65535
+    },
     "private": {
       "type": "boolean",
       "description": "If true, the app is reachable only within the cluster VPC. Applies to http type only.",
@@ -122,10 +128,24 @@
       }
     }
   },
-  "if": {
-    "properties": { "type": { "const": "cronjob" } }
-  },
-  "then": {
-    "required": ["type", "dockerfile", "schedule", "timeout"]
-  }
+  "allOf": [
+    {
+      "if": {
+        "properties": { "type": { "const": "http" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["type", "dockerfile", "port"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "type": { "const": "cronjob" } },
+        "required": ["type"]
+      },
+      "then": {
+        "required": ["type", "dockerfile", "schedule", "timeout"]
+      }
+    }
+  ]
 }

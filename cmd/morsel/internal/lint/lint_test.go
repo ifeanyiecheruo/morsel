@@ -63,7 +63,7 @@ func TestNewSucceeds(t *testing.T) {
 func TestLintValidHTTPFile(t *testing.T) {
 	l := mustNew(t)
 	diags := l.Lint([]lint.File{
-		file(".morsel/api.morsel.json", `{"type":"http","dockerfile":"Dockerfile"}`),
+		file(".morsel/api.morsel.json", `{"type":"http","dockerfile":"Dockerfile","port":8080}`),
 	})
 	if len(diags) != 0 {
 		t.Errorf("expected no diagnostics, got %d: %v", len(diags), diags)
@@ -95,7 +95,7 @@ func TestLintValidHTTPFileAllFields(t *testing.T) {
 	diags := l.Lint([]lint.File{
 		file(".morsel/api.morsel.json", `{
 			"name":"api","type":"http","dockerfile":"api/Dockerfile",
-			"private":false,"tier":"small","idle_after":"24h",
+			"port":8080,"private":false,"tier":"small","idle_after":"24h",
 			"health_check":{"path":"/healthz","timeout":"5m"},
 			"persistence":{"database":{"permanent":true},"storage":{"permanent":false}}
 		}`),
@@ -148,6 +148,16 @@ func TestLintInvalidTypeValue(t *testing.T) {
 	})
 	if countBySeverity(diags, lint.Error) == 0 {
 		t.Error("expected error for invalid type value")
+	}
+}
+
+func TestLintHTTPMissingPort(t *testing.T) {
+	l := mustNew(t)
+	diags := l.Lint([]lint.File{
+		file(".morsel/api.morsel.json", `{"type":"http","dockerfile":"Dockerfile"}`),
+	})
+	if countBySeverity(diags, lint.Error) == 0 {
+		t.Error("expected error for http missing port")
 	}
 }
 
@@ -261,7 +271,7 @@ func TestLintHTTPRetriesWarning(t *testing.T) {
 func TestLintPermanentDatabaseWarning(t *testing.T) {
 	l := mustNew(t)
 	diags := l.Lint([]lint.File{
-		file(".morsel/api.morsel.json", `{"type":"http","dockerfile":"Dockerfile","persistence":{"database":{"permanent":true}}}`),
+		file(".morsel/api.morsel.json", `{"type":"http","dockerfile":"Dockerfile","port":8080,"persistence":{"database":{"permanent":true}}}`),
 	})
 	if !hasMessage(diags, "persistence.database.permanent") {
 		t.Error("expected warning about persistence.database.permanent:true")
@@ -274,7 +284,7 @@ func TestLintPermanentDatabaseWarning(t *testing.T) {
 func TestLintPermanentFalseNoWarning(t *testing.T) {
 	l := mustNew(t)
 	diags := l.Lint([]lint.File{
-		file(".morsel/api.morsel.json", `{"type":"http","dockerfile":"Dockerfile","persistence":{"database":{"permanent":false}}}`),
+		file(".morsel/api.morsel.json", `{"type":"http","dockerfile":"Dockerfile","port":8080,"persistence":{"database":{"permanent":false}}}`),
 	})
 	if hasMessage(diags, "permanent") {
 		t.Error("expected no warning for permanent:false")
@@ -286,8 +296,8 @@ func TestLintPermanentFalseNoWarning(t *testing.T) {
 func TestLintDuplicateNameAcrossFiles(t *testing.T) {
 	l := mustNew(t)
 	diags := l.Lint([]lint.File{
-		file(".morsel/a.morsel.json", `{"name":"api","type":"http","dockerfile":"Dockerfile"}`),
-		file(".morsel/b.morsel.json", `{"name":"api","type":"http","dockerfile":"Dockerfile"}`),
+		file(".morsel/a.morsel.json", `{"name":"api","type":"http","dockerfile":"Dockerfile","port":8080}`),
+		file(".morsel/b.morsel.json", `{"name":"api","type":"http","dockerfile":"Dockerfile","port":8080}`),
 	})
 	if countBySeverity(diags, lint.Error) == 0 {
 		t.Error("expected error for duplicate name")
@@ -300,7 +310,7 @@ func TestLintDuplicateNameAcrossFiles(t *testing.T) {
 func TestLintUniqueNamesNoError(t *testing.T) {
 	l := mustNew(t)
 	diags := l.Lint([]lint.File{
-		file(".morsel/a.morsel.json", `{"name":"api","type":"http","dockerfile":"Dockerfile"}`),
+		file(".morsel/a.morsel.json", `{"name":"api","type":"http","dockerfile":"Dockerfile","port":8080}`),
 		file(".morsel/b.morsel.json", `{"name":"worker","type":"worker","dockerfile":"Dockerfile"}`),
 	})
 	if countBySeverity(diags, lint.Error) != 0 {
@@ -312,7 +322,7 @@ func TestLintUnnamedFilesNoUniquenessError(t *testing.T) {
 	l := mustNew(t)
 	// Files without a name field are not checked for uniqueness.
 	diags := l.Lint([]lint.File{
-		file(".morsel/a.morsel.json", `{"type":"http","dockerfile":"Dockerfile"}`),
+		file(".morsel/a.morsel.json", `{"type":"http","dockerfile":"Dockerfile","port":8080}`),
 		file(".morsel/b.morsel.json", `{"type":"worker","dockerfile":"Dockerfile"}`),
 	})
 	if countBySeverity(diags, lint.Error) != 0 {
