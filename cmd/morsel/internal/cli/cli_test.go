@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platform"
 )
 
 // --- Test doubles ---

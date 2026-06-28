@@ -1,4 +1,6 @@
-package localboot
+// Package selfcert generates self-signed TLS certificates for the local platform.
+// It is shared between the CLI bootstrap flow and the control-plane cert provider.
+package selfcert
 
 import (
 	"crypto/ecdsa"

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platform"
 )
 
 func TestConsolePrompter_Ask_CollectsAnswers(t *testing.T) {

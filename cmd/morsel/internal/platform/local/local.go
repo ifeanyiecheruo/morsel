@@ -1,4 +1,4 @@
-package localboot
+package local
 
 import (
 	"context"
@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ifeanyiecheruo/morsel/internal/container"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/container"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/selfcert"
 )
 
 const envoyGatewayInstallURL = "https://github.com/envoyproxy/gateway/releases/download/v1.4.1/install.yaml"
@@ -31,6 +32,11 @@ type localBootstrapper struct {
 	clusterServer  string
 	cluster        container.Cluster
 	repoRoot       string
+}
+
+// New returns a new local platform bootstrapper.
+func New() *localBootstrapper {
+	return &localBootstrapper{}
 }
 
 // CheckPrerequisites ensures the target cluster exists and is reachable.
@@ -185,7 +191,7 @@ func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]s
 	}
 
 	fmt.Println("Provisioning TLS certificate…")
-	cert, err := GenerateSelfSignedWildcard(LocalBaseDomain, 365*24*time.Hour)
+	cert, err := selfcert.GenerateSelfSignedWildcard(selfcert.LocalBaseDomain, 365*24*time.Hour)
 	if err != nil {
 		return fmt.Errorf("provision tls cert: %w", err)
 	}

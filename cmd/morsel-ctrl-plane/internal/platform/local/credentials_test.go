@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 func TestValidateOperatorCredentialAcceptsKnownPrincipal(t *testing.T) {

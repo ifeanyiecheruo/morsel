@@ -6,9 +6,9 @@ package platforms
 import (
 	"fmt"
 
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform/local"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 // Create constructs the Platform implementation for the given name.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 )
 
 type localBlobStore struct{}

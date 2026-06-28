@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ifeanyiecheruo/morsel/internal/localboot"
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platforms"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ func (c *cli) serviceBootstrapCmd() *cobra.Command {
 		Use:   "bootstrap",
 		Short: "Install or upgrade the platform",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			b, err := localboot.New(platformFlag)
+			b, err := platforms.New(platformFlag)
 			if err != nil {
 				return fmt.Errorf("unknown platform %q: %w", platformFlag, err)
 			}

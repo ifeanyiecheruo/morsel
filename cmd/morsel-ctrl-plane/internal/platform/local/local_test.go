@@ -9,10 +9,10 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform/local"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 var ctx = ctxlog.With(context.Background(), slog.Default())
@@ -179,64 +179,6 @@ func TestSeedDefaultsIsNoOpWhenAlreadySet(t *testing.T) {
 	// The default principal must NOT have been injected.
 	if _, err := plat.Tokens().ValidateOperatorCredential(ctx, "operator@example.com", ""); !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
 		t.Errorf("expected ErrPrincipalNotAuthorized for default principal after SeedDefaults no-op, got %v", err)
-	}
-}
-
-func TestBootstrapPromptsReturnsExpectedKeys(t *testing.T) {
-	plat := local.NewWithSecretStore(nil, newMemSecretStore())
-	prompts := plat.Bootstrap().Prompts()
-	if len(prompts) == 0 {
-		t.Fatal("Bootstrap.Prompts: returned no prompts")
-	}
-	keys := make(map[string]bool, len(prompts))
-	for _, p := range prompts {
-		keys[p.Key] = true
-	}
-	for _, want := range []string{"k8s_namespace", "k8s_provider"} {
-		if !keys[want] {
-			t.Errorf("Bootstrap.Prompts: missing prompt key %q", want)
-		}
-	}
-}
-
-func TestBootstrapPlanReturnsResources(t *testing.T) {
-	plat := local.NewWithSecretStore(nil, newMemSecretStore())
-	plan := plat.Bootstrap().Plan(map[string]string{})
-	if plan.Summary == "" {
-		t.Error("Bootstrap.Plan: empty summary")
-	}
-	if len(plan.Resources) == 0 {
-		t.Error("Bootstrap.Plan: no resources listed")
-	}
-}
-
-func TestBootstrapProvisionAndDeployTokenRoundTrip(t *testing.T) {
-	plat := platWithSecrets(t)
-	answers := map[string]string{
-		"k8s_provider": "kind",
-	}
-	if err := plat.Bootstrap().Provision(ctx, answers, nil); err != nil {
-		t.Fatalf("Bootstrap.Provision: unexpected error: %v", err)
-	}
-
-	// Keys are generated lazily — CreateDeployToken provisions them on first call.
-	token, err := plat.Tokens().CreateDeployToken(ctx, "localhost/test-repo")
-	if err != nil {
-		t.Fatalf("CreateDeployToken: %v", err)
-	}
-	if _, err := plat.Tokens().VerifyDeployToken(ctx, token); err != nil {
-		t.Errorf("VerifyDeployToken: %v", err)
-	}
-}
-
-func TestBootstrapProvisionIsIdempotent(t *testing.T) {
-	plat := platWithSecrets(t)
-	answers := map[string]string{"k8s_provider": "kind"}
-	if err := plat.Bootstrap().Provision(ctx, answers, nil); err != nil {
-		t.Fatalf("first Provision: %v", err)
-	}
-	if err := plat.Bootstrap().Provision(ctx, answers, nil); err != nil {
-		t.Fatalf("second Provision (idempotent): %v", err)
 	}
 }
 

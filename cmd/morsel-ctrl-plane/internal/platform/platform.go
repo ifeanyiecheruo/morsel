@@ -1,6 +1,6 @@
-// Package platform defines the server-facing platform interface and all
-// supporting types. The exported public platform package re-exports a
-// CLI-facing subset (CliPlatform) via type aliases.
+// Package platform defines the control-plane-facing platform interface and all
+// supporting types. It is consumed by the REST API server and the local platform
+// implementation; the CLI has its own bootstrap-only interface in cmd/morsel.
 package platform
 
 import (
@@ -29,11 +29,10 @@ type Seeder interface {
 	SeedDefaults(ctx context.Context) error
 }
 
-// Platform is the full server-facing interface consumed by the REST API server.
+// Platform is the full control-plane-facing interface consumed by the REST API server.
 type Platform interface {
 	Namespace() string
 	BaseDomain() string
-	Bootstrap() Bootstrapper
 	Deploy() Deployer
 	Blobs() BlobStore
 	Secrets() Secrets
@@ -41,15 +40,6 @@ type Platform interface {
 	DNS() DNSProvider
 	Certs() CertProvider
 	Pricing() PricingProvider
-}
-
-// CliPlatform is the CLI-facing subset. Re-exported from the public platform
-// package as platform.Platform so CLI commands only see Bootstrap, Deploy, Secrets, and Tokens.
-type CliPlatform interface {
-	Bootstrap() Bootstrapper
-	Deploy() Deployer
-	Secrets() Secrets
-	Tokens() Tokens
 }
 
 // Secrets manages raw key material for the platform. Each key type exposes a
@@ -96,40 +86,6 @@ type Tokens interface {
 	ValidateOperatorCredential(ctx context.Context, username, password string) (subject string, err error)
 }
 
-// Bootstrapper provisions all platform resources needed to run Morsel.
-type Bootstrapper interface {
-	// CheckPrerequisites validates (and for kind, creates) the cluster before provisioning.
-	// answers must contain at least the provider-selection prompt keys so the implementation
-	// can decide whether it needs to create infrastructure (e.g. a kind cluster).
-	// kubeconfig is the path to the kubeconfig file; empty string uses the platform default.
-	// Populates the values returned by KubeconfigPath, KubeContext, and ClusterServer.
-	CheckPrerequisites(ctx context.Context, kubeconfig string, answers map[string]string) error
-
-	// KubeconfigPath returns the resolved kubeconfig path used during CheckPrerequisites.
-	KubeconfigPath() string
-
-	// KubeContext returns the active kubeconfig context name resolved during CheckPrerequisites.
-	KubeContext() string
-
-	// ClusterServer returns the Kubernetes API server URL resolved during CheckPrerequisites.
-	ClusterServer() string
-
-	// APIURL returns the external URL at which the morsel-api is reachable
-	// after provisioning. This is platform-specific (e.g. localhost:8080 for
-	// kind, a cloud load-balancer URL for GCP) and is saved to the CLI profile.
-	APIURL() string
-
-	// Prompts returns the wizard questions the platform needs answered before provisioning.
-	Prompts() []Prompt
-
-	// Plan describes what will be created and estimated costs given the operator's answers.
-	Plan(answers map[string]string) Plan
-
-	// Provision performs full platform provisioning idempotently. Safe to re-run on upgrade.
-	// dockerfile is the embedded Dockerfile bytes for building the control-plane image;
-	Provision(ctx context.Context, answers map[string]string, dockerfile []byte) error
-}
-
 // Deployer provides registry and credential information needed for a deploy run.
 type Deployer interface {
 	// Credentials returns the Morsel token and registry auth needed for a deploy.
@@ -164,31 +120,6 @@ type CertProvider interface {
 // PricingProvider fetches current list prices from the platform billing API.
 type PricingProvider interface {
 	Prices(ctx context.Context) (Prices, error)
-}
-
-// Prompt is a single wizard question presented to the operator during bootstrap.
-type Prompt struct {
-	Key         string
-	Label       string
-	Description string
-	Default     string
-	Required    bool
-	Secret      bool               // mask input in terminal
-	Choices     []string           // when set, input must be one of these values
-	Validate    func(string) error // optional inline validation; not serialised
-}
-
-// Plan describes what will be created and estimated costs before operator confirmation.
-type Plan struct {
-	Summary   string
-	Resources []Resource
-}
-
-// Resource is one provisioned item in a bootstrap Plan.
-type Resource struct {
-	Name            string
-	Description     string
-	EstimatedCostMo float64
 }
 
 // DeployCredentials is the result of a successful deploy token exchange.

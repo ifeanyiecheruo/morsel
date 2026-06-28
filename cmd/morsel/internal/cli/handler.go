@@ -7,7 +7,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/client"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/client/oas"
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platform"
 )
 
 // Handler defines the business logic behind each CLI command.

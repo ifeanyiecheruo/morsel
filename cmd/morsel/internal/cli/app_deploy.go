@@ -14,7 +14,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/client"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/client/oas"
-	"github.com/ifeanyiecheruo/morsel/internal/container"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/container"
 )
 
 func (c *cli) appDeployCmd() *cobra.Command {

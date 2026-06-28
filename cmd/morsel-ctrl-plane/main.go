@@ -15,11 +15,11 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
 )
 
 func main() {

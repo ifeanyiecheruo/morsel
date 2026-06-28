@@ -8,15 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
-	"github.com/ifeanyiecheruo/morsel/internal/localboot"
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/selfcert"
 )
 
 const saNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
 // BaseDomain returns the base domain for app URLs on the local platform.
-func (lp *LocalPlatform) BaseDomain() string { return localboot.LocalBaseDomain }
+func (lp *LocalPlatform) BaseDomain() string { return selfcert.LocalBaseDomain }
 
 // Namespace returns the Kubernetes namespace this service is running in,
 // read from the service-account projection that Kubernetes injects into every pod.
@@ -70,10 +70,6 @@ func DBPath() string {
 	return filepath.Join(localDataDir(), "morsel.db")
 }
 
-func (lp *LocalPlatform) Bootstrap() platform.Bootstrapper {
-	b, _ := localboot.New("local")
-	return b
-}
 func (lp *LocalPlatform) Deploy() platform.Deployer         { return &localDeployer{} }
 func (lp *LocalPlatform) Blobs() platform.BlobStore         { return &localBlobStore{} }
 func (lp *LocalPlatform) Secrets() platform.Secrets         { return lp.secrets }
@@ -98,4 +94,5 @@ func (lp *LocalPlatform) SeedDefaults(ctx context.Context) error {
 	return lp.store.AddPrincipal(ctx, "operator@example.com")
 }
 
+var _ platform.Platform = (*LocalPlatform)(nil)
 var _ platform.Seeder = (*LocalPlatform)(nil)

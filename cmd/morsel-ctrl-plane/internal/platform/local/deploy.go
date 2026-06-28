@@ -3,7 +3,7 @@ package local
 import (
 	"context"
 
-	"github.com/ifeanyiecheruo/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 )
 
 // localRegistryURL is the address of the in-cluster registry:2 provisioned during

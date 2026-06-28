@@ -1,4 +1,4 @@
-package localboot
+package local
 
 import (
 	"context"
