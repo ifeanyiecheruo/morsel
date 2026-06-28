@@ -1,5 +1,5 @@
 go.sum linguist-generated=true -diff
-internal/api/oas/*_gen.go linguist-generated=true -diff
+internal/oas/*_gen.go linguist-generated=true -diff
 internal/db/queries/*.sql.go linguist-generated=true -diff
 internal/db/queries/db.go linguist-generated=true -diff
 internal/db/queries/models.go linguist-generated=true -diff

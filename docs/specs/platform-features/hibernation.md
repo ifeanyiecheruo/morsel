@@ -44,13 +44,13 @@ Developers control their own cold-start tradeoff: a shorter threshold saves more
 
 ### Idle Detection
 
-The Morsel API watcher goroutine runs on a configurable tick interval (default 60 seconds). At each tick it reads the total HTTP request count for each app from Envoy Gateway's Prometheus metrics endpoint. If the count has increased since the previous tick, the app's `last_active_at` timestamp in SQLite is updated to now. An app is considered idle when `now − last_active_at` exceeds its `idle_after` threshold.
+The control plane watcher goroutine runs on a configurable tick interval (default 60 seconds). At each tick it reads the total HTTP request count for each app from Envoy Gateway's Prometheus metrics endpoint. If the count has increased since the previous tick, the app's `last_active_at` timestamp in SQLite is updated to now. An app is considered idle when `now − last_active_at` exceeds its `idle_after` threshold.
 
 Precision is one tick interval — an app that receives its last request just after a tick may remain running for up to `idle_after + tick_interval` before hibernating. This is acceptable; the idle threshold is measured in hours.
 
 ### Scale to Zero
 
-When idle threshold is exceeded, the Morsel API issues a `scale to 0` command via `client-go`. Kubernetes terminates the pod. The platform gateway entry for the app is updated to route to the wake-on-request proxy instead of the (now absent) pod.
+When idle threshold is exceeded, the control plane issues a `scale to 0` command via `client-go`. Kubernetes terminates the pod. The platform gateway entry for the app is updated to route to the wake-on-request proxy instead of the (now absent) pod.
 
 ### Wake on Request
 
@@ -58,9 +58,9 @@ When a request arrives for a hibernated HTTP app:
 
 1. Platform gateway routes the request to the wake-on-request proxy
 2. The proxy reads the `Host` header to identify the target app, and holds the TCP connection open
-3. The proxy calls the Morsel API internal wake endpoint (`POST /internal/wake/{namespace}/{name}`)
-4. The Morsel API scales the Deployment to 1, watches until the readiness probe passes, then updates the `HTTPRoute` back to the app's Service — the wake endpoint is synchronous and returns only when the app is ready
-5. The Morsel API returns the app's in-cluster Service address in the wake response
+3. The proxy calls the control plane internal wake endpoint (`POST /internal/wake/{namespace}/{name}`)
+4. The control plane scales the Deployment to 1, watches until the readiness probe passes, then updates the `HTTPRoute` back to the app's Service — the wake endpoint is synchronous and returns only when the app is ready
+5. The control plane returns the app's in-cluster Service address in the wake response
 6. The proxy forwards the held request directly to the Service address (bypassing the gateway for this first request)
 7. The pod responds; the proxy passes the response back to the original caller
 8. Subsequent requests route directly to the app's Service via the restored `HTTPRoute` — the proxy is no longer in the path
@@ -79,7 +79,7 @@ The wake-on-request proxy is a shared lightweight Deployment running in the `mor
 
 ### Routing
 
-When an app hibernates, its `HTTPRoute` is updated to point to the wake-proxy Service. On wake completion, the Morsel API restores the `HTTPRoute` to the app's own Service. The proxy is only in the request path while an app is in the process of waking.
+When an app hibernates, its `HTTPRoute` is updated to point to the wake-proxy Service. On wake completion, the control plane restores the `HTTPRoute` to the app's own Service. The proxy is only in the request path while an app is in the process of waking.
 
 ### Deployment
 
@@ -88,9 +88,9 @@ When an app hibernates, its `HTTPRoute` is updated to point to the wake-proxy Se
 | Namespace | `morsel-services` |
 | Replicas | 1 |
 | RBAC | Read-only on Pods in app namespaces (to verify readiness watch result) |
-| Auth to Morsel API internal API | Shared token stored in a `morsel-services` Kubernetes Secret |
+| Auth to control plane internal API | Shared token stored in a `morsel-services` Kubernetes Secret |
 
-The internal wake endpoint (`POST /internal/wake/{namespace}/{name}`) is cluster-internal only — bound to `127.0.0.1` or reachable only within the cluster via `NetworkPolicy`. It is not part of the public Morsel API.
+The internal wake endpoint (`POST /internal/wake/{namespace}/{name}`) is cluster-internal only — bound to `127.0.0.1` or reachable only within the cluster via `NetworkPolicy`. It is not part of the public control plane.
 
 ### Connection Timeout
 
@@ -167,12 +167,12 @@ At the platform level, hibernation is the primary mechanism for keeping the Kube
 
 ## Component Contributions
 
-### Morsel API
-Owns the watcher goroutine, idle detection, scale-to-zero via `client-go`, the internal wake endpoint, `HTTPRoute` updates on hibernate and wake, and wake_timeout enforcement. See [components/morsel-api.md — Hibernation](../components/morsel-api.md).
+### Control Plane
+Owns the watcher goroutine, idle detection, scale-to-zero via `client-go`, the internal wake endpoint, `HTTPRoute` updates on hibernate and wake, and wake_timeout enforcement. See [components/control-plane.md — Hibernation](../components/control-plane.md).
 
 ### Wake Proxy
 
-Shared Deployment in `morsel-services`. Holds inbound TCP connections for hibernated apps, calls the Morsel API internal wake endpoint, and forwards the buffered request once the app is ready. Has no direct write access to Kubernetes — all scale and route operations are delegated to the Morsel API.
+Shared Deployment in `morsel-services`. Holds inbound TCP connections for hibernated apps, calls the control plane internal wake endpoint, and forwards the buffered request once the app is ready. Has no direct write access to Kubernetes — all scale and route operations are delegated to the control plane.
 
 ### Queue Service
 Reports per-queue `idle` status including self-consume detection. See [components/queue-service.md — Hibernation](../components/queue-service.md).

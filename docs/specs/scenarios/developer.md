@@ -238,7 +238,7 @@ Developers care about: fast deploys, predictable URLs, working persistence, and 
 **What happens:**
 1. Browser sends request to `https://my-app.my-repo.apps.example.com`
 2. Platform gateway routes to the wake-on-request proxy
-3. Proxy holds the request and triggers scale-to-1 via the Morsel API
+3. Proxy holds the request and triggers scale-to-1 via the control plane
 4. Pod starts (typically 5–15 seconds)
 5. Proxy forwards the held request to the now-running pod
 6. Browser receives the response — no special handling required

@@ -165,9 +165,9 @@ There is no "cancelled" state. If a developer changes their mind and removes the
 
 ## Component Contributions
 
-### Morsel API
+### Control Plane
 
-Owns the approval data model, approval creation on protected field changes, reconciliation on approval, and all approval API endpoints. See [components/morsel-api.md — Approvals](../components/morsel-api.md).
+Owns the approval data model, approval creation on protected field changes, reconciliation on approval, and all approval API endpoints. See [components/control-plane.md — Approvals](../components/control-plane.md).
 
 ### Admin UI
 

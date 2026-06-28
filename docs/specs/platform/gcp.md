@@ -33,7 +33,7 @@ GCS state bucket
               │     ├── morsel-bootstrap-config
               │     ├── morsel-notification-config
               │     └── morsel-cloudflare-token  (if Cloudflare DNS selected)
-              ├── Morsel API Deployment + PersistentVolumeClaim
+              ├── control plane Deployment + PersistentVolumeClaim
               ├── Blob service Deployment + PersistentVolumeClaim
               ├── Queue service Deployment
               ├── Shared Postgres Deployment + PersistentVolumeClaim
@@ -76,7 +76,7 @@ All GCS traffic uses Private Google Access — no public internet egress from th
 
 ### SecretStore — Secret Manager
 
-Secrets are stored in GCP Secret Manager in the Morsel project. The Morsel API reads secrets at startup via its ambient Workload Identity.
+Secrets are stored in GCP Secret Manager in the Morsel project. The control plane reads secrets at startup via its ambient Workload Identity.
 
 Platform secrets:
 | Secret name | Contents |
@@ -86,7 +86,7 @@ Platform secrets:
 | `morsel-notification-config` | Notification email address |
 | `morsel-cloudflare-token` | Cloudflare API token (if Cloudflare DNS selected) |
 
-No secret versions are managed by Morsel — the current version is always used. Rotation of the signing key requires a brief Morsel API restart.
+No secret versions are managed by Morsel — the current version is always used. Rotation of the signing key requires a brief control plane restart.
 
 ### CredentialProvider — Workload Identity
 
@@ -94,7 +94,7 @@ The `CredentialProvider.AmbientToken()` method returns a short-lived GCP access 
 
 ### DNSProvider — Cloud DNS
 
-DNS records managed via the GCP Cloud DNS API. The Morsel API authenticates via its ambient Workload Identity service account, which holds `dns.resourceRecordSets.*` roles on the Morsel project's DNS zone.
+DNS records managed via the GCP Cloud DNS API. The control plane authenticates via its ambient Workload Identity service account, which holds `dns.resourceRecordSets.*` roles on the Morsel project's DNS zone.
 
 `DNSProvider.CreateRecord()` creates an A record pointing the app's subdomain to the GKE load balancer IP. `DeleteRecord()` removes it on app deletion.
 
@@ -116,28 +116,28 @@ On certificate provisioning:
 5. Store certificate and private key in Kubernetes Secret in app namespace
 6. Remove `_acme-challenge` TXT record
 
-Renewal runs 30 days before expiry via a background goroutine in the Morsel API.
+Renewal runs 30 days before expiry via a background goroutine in the control plane.
 
 ---
 
 ## Workload Identity Federation
 
-WIF allows the Morsel API pod to access GCP services without storing any long-lived secret. Developer CI runners do not use WIF directly.
+WIF allows the control plane pod to access GCP services without storing any long-lived secret. Developer CI runners do not use WIF directly.
 
 **Configuration provisioned at bootstrap:**
 - WIF Identity Pool: `morsel-github-pool`
 - WIF Provider: `morsel-github-provider` (bound to the GKE cluster's Kubernetes service account)
 - Service account: `morsel-api-sa` — granted `artifactregistry.writer` on staging and canonical repos
 
-**Flow (Morsel API → GCP):**
+**Flow (control plane → GCP):**
 ```
-Morsel API pod
+control plane pod
   → presents Kubernetes service account token (ambient, no config required)
   → GKE Workload Identity exchanges it for a short-lived GCP access token for morsel-api-sa
   → uses token to access Artifact Registry, GCS, Secret Manager, Cloud DNS
 ```
 
-**Developer CI registry access** is brokered by the Morsel API. When a CI runner exchanges its GitHub OIDC token at `POST /api/token/deploy`, the Morsel API uses its own `morsel-api-sa` credentials to generate short-lived staging registry push credentials scoped to that caller's path, and returns them alongside the Morsel token. The CI runner never holds GCP credentials.
+**Developer CI registry access** is brokered by the control plane. When a CI runner exchanges its GitHub OIDC token at `POST /api/token/deploy`, the control plane uses its own `morsel-api-sa` credentials to generate short-lived staging registry push credentials scoped to that caller's path, and returns them alongside the Morsel token. The CI runner never holds GCP credentials.
 
 `GCPPlatform.DeployToken()` reads the GitHub OIDC token from the GitHub Actions environment. `GCPPlatform.ValidateDeployToken(token)` fetches GitHub's JWKS (public endpoint, cached), validates the JWT signature, and extracts the `repository` claim. See [platform-features/authentication.md — Deploy Auth Flow](../platform-features/authentication.md).
 
@@ -161,7 +161,7 @@ No service account holds `Editor`, `Owner`, or any project-level primitive role.
 
 The GKE cluster subnet is configured with Private Google Access enabled. All traffic from GKE to GCP APIs (Artifact Registry, GCS, Cloud DNS, Secret Manager) routes through Google's internal network. GCP API endpoints are not reachable from the public internet.
 
-GitHub Actions workflows run on GitHub-hosted runners and make outbound HTTPS connections to the Morsel API only. The Morsel API makes all GCP API calls on their behalf from within the cluster — no GCP traffic originates from CI runners.
+GitHub Actions workflows run on GitHub-hosted runners and make outbound HTTPS connections to the control plane only. The control plane makes all GCP API calls on their behalf from within the cluster — no GCP traffic originates from CI runners.
 
 ---
 
@@ -169,7 +169,7 @@ GitHub Actions workflows run on GitHub-hosted runners and make outbound HTTPS co
 
 The admin UI is protected by GCP IAP. IAP is provisioned at bootstrap with an OAuth client and the operator's principal list. Operators authenticate with their Google account — no separate password.
 
-When an authenticated request reaches the Morsel API, IAP injects a signed `X-Goog-IAP-JWT-Assertion` header. The `POST /api/token/oidc` handler calls `GCPPlatform.ValidateOperatorToken(ctx, r)`, which reads and verifies that header using Google's public JWKS, then returns the operator's email as the subject. The handler issues a Morsel access token and refresh token from there — no GCP-specific logic in the handler itself.
+When an authenticated request reaches the control plane, IAP injects a signed `X-Goog-IAP-JWT-Assertion` header. The `POST /api/token/oidc` handler calls `GCPPlatform.ValidateOperatorToken(ctx, r)`, which reads and verifies that header using Google's public JWKS, then returns the operator's email as the subject. The handler issues a Morsel access token and refresh token from there — no GCP-specific logic in the handler itself.
 
 IAP is the most GCP-specific concern in the platform that is not covered by the `Platform` interface. If portability to another cloud is needed, Cloudflare Access is the recommended replacement — it is cloud-agnostic and supports the same Google identity provider.
 

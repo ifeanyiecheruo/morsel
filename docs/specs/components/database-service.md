@@ -83,7 +83,7 @@ These are PGBouncer conventions mapped to real per-app credentials by the sideca
 
 ### Per-App Provisioning
 
-When an app first declares `persistence.database`, the Morsel API provisions:
+When an app first declares `persistence.database`, the control plane provisions:
 
 1. A Postgres database named `{repo-slug}-{app-name}`
 2. A Postgres user named `{repo-slug}-{app-name}` with a generated password
@@ -95,7 +95,7 @@ On re-deploy, if the database already exists, nothing changes. Provisioning is i
 
 ### PGBouncer Sidecar
 
-PGBouncer runs as a sidecar container in the app pod — same pod, same network namespace. The app's `database.morsel.internal` connection resolves to the cluster-wide Postgres service, but the Morsel API also injects `127.0.0.1 database.morsel.internal` into the pod's `/etc/hosts` (or uses a loopback alias) so that the app actually hits the local PGBouncer first.
+PGBouncer runs as a sidecar container in the app pod — same pod, same network namespace. The app's `database.morsel.internal` connection resolves to the cluster-wide Postgres service, but the control plane also injects `127.0.0.1 database.morsel.internal` into the pod's `/etc/hosts` (or uses a loopback alias) so that the app actually hits the local PGBouncer first.
 
 PGBouncer:
 - Listens on port 5432
@@ -113,7 +113,7 @@ Additionally, Kubernetes NetworkPolicy prevents pod-to-pod sidecar access. A dev
 
 ### Storage Quota
 
-Database storage limits are advisory. The Morsel API tracks declared allocations per tier and blocks deploy requests that would exceed the tier's database storage limit. However, per-database enforcement at the Postgres level is not possible on a shared instance — Postgres does not support tablespace-level quotas per database in a practical way.
+Database storage limits are advisory. The control plane tracks declared allocations per tier and blocks deploy requests that would exceed the tier's database storage limit. However, per-database enforcement at the Postgres level is not possible on a shared instance — Postgres does not support tablespace-level quotas per database in a practical way.
 
 Apps that exceed their database storage limit continue to operate until the operator takes action. The admin UI surfaces databases approaching their advisory limit.
 
@@ -179,10 +179,10 @@ Scaling the Postgres instance vertically (larger Kubernetes node) is the primary
 When an app is hibernated (scaled to 0), the PGBouncer sidecar is removed along with the app pod. The Postgres database and all data are retained. On wake, the sidecar is recreated with the same credentials from the Kubernetes Secret. No database reconnection logic is required from the app. See [platform-features/hibernation.md](../platform-features/hibernation.md).
 
 ### Cost Controls
-Advisory database storage limits are enforced at the Morsel API tier-change layer. The database service component (Postgres + PGBouncer) has no active role in quota enforcement — it is a passive data store from the quota perspective. See [platform-features/cost-controls.md](../platform-features/cost-controls.md).
+Advisory database storage limits are enforced at the control plane tier-change layer. The database service component (Postgres + PGBouncer) has no active role in quota enforcement — it is a passive data store from the quota perspective. See [platform-features/cost-controls.md](../platform-features/cost-controls.md).
 
 ### Persistence
-The database service is the backing store for app databases and queue service tables. Provisioning, permanence, grace periods, and deletion are all orchestrated by the Morsel API. See [platform-features/persistence.md](../platform-features/persistence.md).
+The database service is the backing store for app databases and queue service tables. Provisioning, permanence, grace periods, and deletion are all orchestrated by the control plane. See [platform-features/persistence.md](../platform-features/persistence.md).
 
 ---
 

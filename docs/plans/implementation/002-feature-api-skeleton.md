@@ -1,4 +1,4 @@
-# Feature 02 — Morsel API: HTTP Server Skeleton
+# Feature 02 — control plane: HTTP Server Skeleton
 
 _Delivers: running API binary; `curl /healthz` returns 200._
 
@@ -6,7 +6,7 @@ _Delivers: running API binary; `curl /healthz` returns 200._
 
 ## Tasks
 
-- [x] `cmd/morsel-api/main.go` — HTTP server with graceful shutdown on SIGTERM
+- [x] `cmd/morsel-ctrl-plane/main.go` — HTTP server with graceful shutdown on SIGTERM
 - [x] Structured error middleware — all responses follow `{"error": "code", "message": "...", "details": {...}}` shape per `conventions/rest.md`
 - [x] `GET /healthz` — returns `{"status": "ok"}`
 - [x] SQLite connection pool with WAL mode enabled

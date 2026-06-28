@@ -63,7 +63,7 @@ Manages the running platform on a part-time basis. The role may rotate. No Kuber
    ✓ Workload Identity Federation configured
    ✓ IAM bindings applied
    ✓ Secret Manager provisioned
-   ✓ Morsel API installed
+   ✓ control plane installed
    ✓ Admin UI installed
    ✓ Identity-Aware Proxy configured
    ✓ Operator access granted
@@ -119,7 +119,7 @@ Manages the running platform on a part-time basis. The role may rotate. No Kuber
 
 3. Click "Promote to Standard" and confirm.
 
-**What happens:** The Morsel API updates the repo's quota tier. The `ResourceQuota` in the repo's Kubernetes namespaces is updated immediately. The developer can deploy additional apps on their next push.
+**What happens:** The control plane updates the repo's quota tier. The `ResourceQuota` in the repo's Kubernetes namespaces is updated immediately. The developer can deploy additional apps on their next push.
 
 **Time:** Under 2 minutes including review.
 
@@ -220,7 +220,7 @@ Manages the running platform on a part-time basis. The role may rotate. No Kuber
 
 4. Rolling upgrade proceeds:
    ```
-   ✓ Morsel API upgraded
+   ✓ control plane upgraded
    ✓ Blob service upgraded
    ✓ Queue service upgraded
    ✓ Database service upgraded
@@ -279,7 +279,7 @@ morsel service status
 **Output:**
 ```
 Cluster:        healthy
-Morsel API:     healthy
+control plane:     healthy
 Failed deploys: 2 in last 24h
 Certificates:   all valid
 Pending approvals: 14

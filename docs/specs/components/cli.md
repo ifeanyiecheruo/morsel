@@ -1,4 +1,4 @@
-Up: [Index](../README.md) · Prev: [Morsel API](morsel-api.md) · Next: [Blob Service](blob-service.md)
+Up: [Index](../README.md) · Prev: [Control Plane](control-plane.md) · Next: [Blob Service](blob-service.md)
 
 ---
 
@@ -42,7 +42,7 @@ Operator machine
 └──────────────────────────────────────────────────────────────────┘
          │                         │
          ▼                         ▼
-   Cloud APIs                Morsel API
+   Cloud APIs                Control Plane
    (bootstrap only)          (operator, deploy)
 ```
 
@@ -65,7 +65,7 @@ morsel [--profile <name>] service status
 morsel [--profile <name>] service delete
 morsel [--profile <name>] service upgrade retry
 
-# Operator management (operator, communicates with Morsel API)
+# Operator management (operator, communicates with control plane)
 morsel [--profile <name>] operator login
 morsel [--profile <name>] operator logout
 
@@ -166,7 +166,7 @@ Resources are created in dependency order with friendly progress output. Raw API
 ✓ Platform identity federation configured
 ✓ IAM bindings applied
 ✓ Platform secret store provisioned
-✓ Morsel API installed
+✓ Control plane installed
 ✓ Admin UI installed
 ✓ Operator authentication gateway configured
 ✓ Operator access granted
@@ -330,11 +330,11 @@ Owns the platform OAuth browser flow, profile file lifecycle, silent token refre
 Owns `morsel app deploy` — the reference deploy implementation for both local and CI contexts. Calls `Platform.DeployToken()` to abstract credential differences. See [platform-features/deployment.md](../platform-features/deployment.md).
 
 ### Networking (bootstrap-time)
-During `service bootstrap`, provisions the platform gateway classes and configures the DNS provider connection, then waits for the initial TLS certificate. Post-bootstrap, networking is managed entirely by the Morsel API.
+During `service bootstrap`, provisions the platform gateway classes and configures the DNS provider connection, then waits for the initial TLS certificate. Post-bootstrap, networking is managed entirely by the control plane.
 
 ### Approvals
 Surfaces approval warnings in `morsel app deploy` terminal output. Polls reconciliation operations on approval. No approval management — that is the operator's domain via the admin UI.
 
 ---
 
-Up: [Index](../README.md) · Prev: [Morsel API](morsel-api.md) · Next: [Blob Service](blob-service.md)
+Up: [Index](../README.md) · Prev: [Control Plane](control-plane.md) · Next: [Blob Service](blob-service.md)

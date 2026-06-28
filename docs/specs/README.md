@@ -56,7 +56,7 @@ Read in order:
 
 1. **[security-model.md](security-model.md)** (14 min) — core constraints, threat model, and attack scenarios
 2. **[platform/gcp.md](platform/gcp.md)** (6 min) — or other cloud platform; IAM, WIF, authentication details
-3. **[components/morsel-api.md](components/morsel-api.md#security)** — Security section covers API-level auth and RBAC
+3. **[components/control-plane.md](components/control-plane.md#security)** — Security section covers API-level auth and RBAC
 4. **[platform-features/authentication.md](platform-features/authentication.md)** (6 min) — token model and exchange flows
 
 #### "I Need to Understand a Specific Component"
@@ -65,7 +65,7 @@ Example: understand how database provisioning works
 
 1. Read **[platform-features/persistence.md](platform-features/persistence.md)** — gives the feature-level overview
 2. Read **[components/database-service.md](components/database-service.md)** — implementation details
-3. Read the **Platform Feature Support — Persistence** section in **[components/morsel-api.md](components/morsel-api.md#persistence)** — how Morsel API orchestrates it
+3. Read the **Platform Feature Support — Persistence** section in **[components/control-plane.md](components/control-plane.md#persistence)** — how control plane orchestrates it
 
 ---
 
@@ -79,14 +79,14 @@ Example: understand how database provisioning works
 For example, to understand hibernation end-to-end:
 - Start with [platform-features/hibernation.md](platform-features/hibernation.md)
 - Then read the "Hibernation support" sections in:
-  - [components/morsel-api.md](components/morsel-api.md#hibernation)
+  - [components/control-plane.md](components/control-plane.md#hibernation)
   - [components/queue-service.md](components/queue-service.md#hibernation)
   - [components/admin-ui.md](components/admin-ui.md#hibernation)
 
 **Conventions vs. Components:** 
 
 - **Conventions** are design patterns and agreements that apply across the entire platform (e.g., "all resources belong to one app", "errors are always structured JSON")
-- **Components** are the technical pieces that implement Morsel (Morsel API, blob service, database service, etc.)
+- **Components** are the technical pieces that implement Morsel (control plane, blob service, database service, etc.)
 - **Platform-features** are the user-visible capabilities (hibernation, quotas, approvals, etc.)
 
 ---
@@ -94,10 +94,10 @@ For example, to understand hibernation end-to-end:
 ## Common Questions
 
 **Q: Where do I find the REST API reference?**
-A: [components/morsel-api.md — Functionality](components/morsel-api.md#functionality) lists all endpoints with descriptions.
+A: [components/control-plane.md — Functionality](components/control-plane.md#functionality) lists all endpoints with descriptions.
 
 **Q: How do I understand the deploy flow?**
-A: Read [platform-features/deployment.md](platform-features/deployment.md) for the conceptual flow, then [components/morsel-api.md — Deployment](components/morsel-api.md#deployment) for implementation details.
+A: Read [platform-features/deployment.md](platform-features/deployment.md) for the conceptual flow, then [components/control-plane.md — Deployment](components/control-plane.md#deployment) for implementation details.
 
 **Q: Where is security documented?**
 A: [security-model.md](security-model.md) covers the threat model and architectural constraints. Cloud-specific security is in [platform/gcp.md](platform/gcp.md).
@@ -106,7 +106,7 @@ A: [security-model.md](security-model.md) covers the threat model and architectu
 A: [conventions/resource-model.md](conventions/resource-model.md) explains the model. [platform-features/deployment.md](platform-features/deployment.md) covers app declarations and file placement. [platform-features/persistence.md](platform-features/persistence.md) describes the persistence feature.
 
 **Q: What happens when an app is deleted?**
-A: [conventions/permanence.md](conventions/permanence.md) covers the lifecycle and grace periods. [components/morsel-api.md — Persistence](components/morsel-api.md#persistence) describes the implementation.
+A: [conventions/permanence.md](conventions/permanence.md) covers the lifecycle and grace periods. [components/control-plane.md — Persistence](components/control-plane.md#persistence) describes the implementation.
 
 **Q: How do I bootstrap the platform?**
 A: [scenarios/operator.md — Scenario 1](scenarios/operator.md#scenario-1--initial-platform-setup) walks through the setup. [components/cli.md](components/cli.md) describes the `morsel` CLI. [platform/gcp.md](platform/gcp.md) or [platform/local.md](platform/local.md) cover the cloud-specific details.
@@ -120,7 +120,7 @@ Documents are heavily cross-referenced. Use them to jump between levels of detai
 - In a component doc and want to understand the feature? Look for "Platform Feature Support" sections.
 - In a feature doc and want implementation details? Look for "Component Contributions" sections.
 - Confused by a convention? Check if it's explained in one of the convention documents.
-- Need the REST API shape? Check [components/morsel-api.md](components/morsel-api.md).
+- Need the REST API shape? Check [components/control-plane.md](components/control-plane.md).
 
 ---
 

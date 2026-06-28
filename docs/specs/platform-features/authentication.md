@@ -20,7 +20,7 @@ Morsel uses a two-token model. GitHub Actions workflows exchange a short-lived G
 |---|---|---|---|
 | Deploy identity token | Short-lived | Never stored — ephemeral in the deploy environment | Proof of which repo is deploying; platform-specific form (see below) |
 | Platform identity token | Short-lived | Never stored | Proof of operator identity for Morsel auth |
-| Morsel access token | 15 min (configurable) | In memory only — never written to disk | Bearer token for all Morsel API calls |
+| Morsel access token | 15 min (configurable) | In memory only — never written to disk | Bearer token for all control plane calls |
 | Morsel refresh token | 90 days | SQLite server-side + `~/.config/morsel/<profile>.profile.json` client-side | Silently refreshes the access token |
 
 The deploy identity token form is platform-determined: on GCPPlatform it is a GitHub OIDC JWT; on LocalPlatform it is a locally-signed JWT. In both cases it is submitted to `POST /api/token/deploy` and never persisted.
@@ -43,14 +43,14 @@ The deployer re-exchanges on every deploy run and does not need a refresh token.
 
 ## Deploy Auth Flow
 
-`morsel app deploy` always calls `Platform.DeployToken()` to obtain a deploy identity token, then submits it to `POST /api/token/deploy`. The Morsel API delegates validation to `Platform.ValidateDeployToken()`. The deploy command has no knowledge of GitHub JWKS, local signing keys, or any other platform-specific mechanism.
+`morsel app deploy` always calls `Platform.DeployToken()` to obtain a deploy identity token, then submits it to `POST /api/token/deploy`. The control plane delegates validation to `Platform.ValidateDeployToken()`. The deploy command has no knowledge of GitHub JWKS, local signing keys, or any other platform-specific mechanism.
 
 ```
 morsel app deploy
   → Platform.DeployToken() → deploy identity token
   → POST /api/token/deploy  { token: "<deploy-identity-token>" }
 
-Morsel API
+control plane
   → Platform.ValidateDeployToken(token) → repo slug
   → issues:
     - Morsel access token (10 min):
@@ -75,7 +75,7 @@ Operator runs: morsel operator login
   → CLI collects operator credential (platform-determined: email on Local, OAuth on GCP)
   → POST /api/token/oidc  (request body is platform-determined)
 
-Morsel API
+control plane
   → Platform.ValidateOperatorToken(ctx, r) → operator subject
   → checks identity against configured operator principal(s)
   → issues:
@@ -108,7 +108,7 @@ Refresh tokens are rotated on every use — the old token is invalidated and a n
 
 ## Admin UI Auth
 
-The admin UI is protected by the platform's operator authentication gateway. The gateway handles the full OAuth flow before any request reaches the admin UI or the Morsel API. The operator authenticates with their existing platform identity — no separate password.
+The admin UI is protected by the platform's operator authentication gateway. The gateway handles the full OAuth flow before any request reaches the admin UI or the control plane. The operator authenticates with their existing platform identity — no separate password.
 
 The gateway calls `POST /api/token/oidc` on behalf of the authenticated operator to obtain a Morsel token for API calls made by the UI. The handler delegates identity validation to `Platform.ValidateOperatorToken(ctx, r)`, which reads the platform-specific identity assertion (e.g., an IAP-injected header on GCP). See [platform/gcp.md](../platform/gcp.md) for GCP-specific details.
 
@@ -171,18 +171,18 @@ This revokes all refresh tokens held by that operator principal. Their access to
 | Relationship | Mechanism | Stored secret? |
 |---|---|---|
 | Deployer → staging container registry | Platform identity federation (GCPPlatform); direct push (LocalPlatform) | No |
-| Deployer → Morsel API | Deploy identity token via `POST /api/token/deploy` (platform-specific form, short-lived) | No |
-| Morsel API → container registry | Ambient cloud identity | No |
-| Morsel API → object storage | Ambient cloud identity | No |
+| Deployer → control plane | Deploy identity token via `POST /api/token/deploy` (platform-specific form, short-lived) | No |
+| control plane → container registry | Ambient cloud identity | No |
+| control plane → object storage | Ambient cloud identity | No |
 | Cluster nodes → container registry | Ambient node identity | No |
-| Operator CLI → Morsel API | Morsel refresh token (rotated on use) | Profile file only |
+| Operator CLI → control plane | Morsel refresh token (rotated on use) | Profile file only |
 
 ---
 
 ## Component Contributions
 
-### Morsel API
-Owns all token exchange endpoints, JWT signing key management, refresh token store in SQLite, and RBAC middleware. See [components/morsel-api.md — Authentication](../components/morsel-api.md).
+### Control Plane
+Owns all token exchange endpoints, JWT signing key management, refresh token store in SQLite, and RBAC middleware. See [components/control-plane.md — Authentication](../components/control-plane.md).
 
 ### CLI
 Owns the platform OAuth browser flow, profile file management, silent refresh logic, and `morsel operator login/logout`. See [components/cli.md — Authentication](../components/cli.md).

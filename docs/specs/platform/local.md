@@ -85,11 +85,11 @@ Local bootstrap provisions only what is needed within the local Kubernetes clust
 
 ```
 Local container registry (Deployment in morsel namespace)
-  └── Morsel API Deployment + PersistentVolumeClaim (SQLite)
+  └── control plane Deployment + PersistentVolumeClaim (SQLite)
         ├── Blob service Deployment + PersistentVolumeClaim (quota tracking)
         ├── Queue service Deployment
         ├── Shared Postgres Deployment + PersistentVolumeClaim
-        ├── Admin UI (static files embedded in Morsel API binary via Go embed)
+        ├── Admin UI (static files embedded in control plane binary via Go embed)
         └── Envoy Gateway (GatewayClass: morsel-external / morsel-internal)
               └── Self-signed wildcard certificate for *.morsel.localhost
 ```
@@ -133,11 +133,11 @@ No encryption at rest — local development only.
 
 The JWT is signed with `local-deploy-signing-key`, generated at bootstrap and stored in the platform SecretStore.
 
-`CredentialProvider.ValidateDeployToken(token)` validates the incoming JWT signature against `local-deploy-signing-key` and returns `localhost/{dirname}` as the repo slug. The Morsel API's `POST /api/token/deploy` handler calls this method — it contains no GitHub-specific logic. See [platform-features/authentication.md — Deploy Auth Flow](../platform-features/authentication.md).
+`CredentialProvider.ValidateDeployToken(token)` validates the incoming JWT signature against `local-deploy-signing-key` and returns `localhost/{dirname}` as the repo slug. The control plane's `POST /api/token/deploy` handler calls this method — it contains no GitHub-specific logic. See [platform-features/authentication.md — Deploy Auth Flow](../platform-features/authentication.md).
 
 `CredentialProvider.ValidateOperatorToken(ctx, r)` reads the operator's email address from the JSON request body and checks it against the `operator-principals` list in the platform SecretStore. Returns the email as the operator subject on success.
 
-`CredentialProvider.AmbientToken()` (ambient service identity, used by Morsel API itself) returns an empty string — no cloud identity is required locally.
+`CredentialProvider.AmbientToken()` (ambient service identity, used by control plane itself) returns an empty string — no cloud identity is required locally.
 
 ### DNSProvider — No-op (`*.morsel.localhost`)
 
@@ -147,7 +147,7 @@ The JWT is signed with `local-deploy-signing-key`, generated at bootstrap and st
 
 ### CertProvider — Self-Signed
 
-A wildcard self-signed certificate for `*.morsel.localhost` is generated at bootstrap time using the Go `crypto/tls` package. `CertProvider.Provision()` returns the `*tls.Certificate`; the Morsel API writes it to a Kubernetes Secret (type `kubernetes.io/tls`) in the `morsel` namespace via its existing `client-go` connection. Envoy Gateway references that Secret in its listener TLS configuration for termination.
+A wildcard self-signed certificate for `*.morsel.localhost` is generated at bootstrap time using the Go `crypto/tls` package. `CertProvider.Provision()` returns the `*tls.Certificate`; the control plane writes it to a Kubernetes Secret (type `kubernetes.io/tls`) in the `morsel` namespace via its existing `client-go` connection. Envoy Gateway references that Secret in its listener TLS configuration for termination.
 
 Browsers will show a certificate warning on first visit. Developers can add the certificate to their local trust store to suppress the warning:
 ```
@@ -186,9 +186,9 @@ The first principal is added automatically at bootstrap time using the email add
 
 ### Operator Login
 
-`morsel operator login` prompts for an email address and posts it to `POST /api/token/oidc`. The Morsel API handler calls `LocalPlatform.ValidateOperatorToken(ctx, r)`, which reads the email from the request body and checks it against the principals list. On success, it returns the email as the operator subject; the handler issues a 15-minute access token plus a 90-day refresh token.
+`morsel operator login` prompts for an email address and posts it to `POST /api/token/oidc`. The control plane handler calls `LocalPlatform.ValidateOperatorToken(ctx, r)`, which reads the email from the request body and checks it against the principals list. On success, it returns the email as the operator subject; the handler issues a 15-minute access token plus a 90-day refresh token.
 
-No password — authentication relies on local network trust (only someone who can reach the Morsel API endpoint can obtain a token).
+No password — authentication relies on local network trust (only someone who can reach the control plane endpoint can obtain a token).
 
 ```
 morsel --profile local operator login

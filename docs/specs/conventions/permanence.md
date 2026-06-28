@@ -66,7 +66,7 @@ On this deploy, the database enters the grace period and will be purged after it
 
 This two-step process is enforced at two layers:
 - `morsel lint` catches a single-step removal locally before it reaches CI
-- The Morsel API rejects a single-step removal with a `409 Conflict` response
+- The control plane rejects a single-step removal with a `409 Conflict` response
 
 ---
 

@@ -1,4 +1,4 @@
-Up: [Index](README.md) · Prev: [Networking](networking.md) · Next: [Morsel API](../components/morsel-api.md)
+Up: [Index](README.md) · Prev: [Networking](networking.md) · Next: [Control Plane](../components/control-plane.md)
 
 ---
 
@@ -74,7 +74,7 @@ These are PGBouncer conventions, not real Postgres credentials. The real per-app
 
 **Provisioning:** On first deploy with a database declaration, Morsel creates the Postgres database, user, and a `GRANT ALL` scoped to that database. A PGBouncer sidecar configuration is added to the app pod.
 
-**Storage quota:** Advisory — the Morsel API tracks declared allocations and blocks tier-exceeding requests at deploy time, but per-database enforcement at the Postgres level is not possible on a shared instance.
+**Storage quota:** Advisory — the control plane tracks declared allocations and blocks tier-exceeding requests at deploy time, but per-database enforcement at the Postgres level is not possible on a shared instance.
 
 **Durability:** Database data lives on a Kubernetes PersistentVolume. Data survives pod rescheduling but is lost if the PV is deleted. There is no automated backup. App owners are responsible for data they cannot afford to lose.
 
@@ -149,8 +149,8 @@ All persistence is fully retained during hibernation. The app's data is not affe
 
 ## Component Contributions
 
-### Morsel API
-Owns persistence provisioning, resource lifecycle, and permanence enforcement at the API layer. See [components/morsel-api.md — Persistence](../components/morsel-api.md).
+### Control Plane
+Owns persistence provisioning, resource lifecycle, and permanence enforcement at the API layer. See [components/control-plane.md — Persistence](../components/control-plane.md).
 
 ### Blob Service
 Implements the blob storage API, enforces quota, manages object storage interactions. See [components/blob-service.md](../components/blob-service.md).
@@ -163,4 +163,4 @@ Manages shared Postgres instance, per-app database and user provisioning, PGBoun
 
 ---
 
-Up: [Index](README.md) · Prev: [Networking](networking.md) · Next: [Morsel API](../components/morsel-api.md)
+Up: [Index](README.md) · Prev: [Networking](networking.md) · Next: [Control Plane](../components/control-plane.md)

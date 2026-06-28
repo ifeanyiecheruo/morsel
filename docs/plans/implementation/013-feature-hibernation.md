@@ -13,10 +13,10 @@ _Delivers: idle apps automatically scale to zero; first request after hibernatio
 - [ ] Scale-to-zero via `client-go` on idle threshold exceeded
 - [ ] App hibernation state persisted in SQLite (`hibernated_at`, `hibernation_reason`)
 - [ ] `HTTPRoute` update — route hibernated app's subdomain to wake-proxy Service in `morsel-services`
-- [ ] Wake proxy binary — read `Host` header; call `POST /internal/wake/{namespace}/{name}` on Morsel API; forward held request to returned Service address on success; return `503 wake_timeout` on timeout
-- [ ] Wake proxy Deployment + Service + NetworkPolicy in `morsel-services`; shared token Secret for Morsel API auth
-- [ ] Morsel API internal wake endpoint — scale to 1, watch readiness, restore `HTTPRoute`, return Service address; cluster-internal only
-- [ ] `HTTPRoute` restore — Morsel API restores subdomain to app Service as part of wake completion
+- [ ] Wake proxy binary — read `Host` header; call `POST /internal/wake/{namespace}/{name}` on control plane; forward held request to returned Service address on success; return `503 wake_timeout` on timeout
+- [ ] Wake proxy Deployment + Service + NetworkPolicy in `morsel-services`; shared token Secret for control plane auth
+- [ ] control plane internal wake endpoint — scale to 1, watch readiness, restore `HTTPRoute`, return Service address; cluster-internal only
+- [ ] `HTTPRoute` restore — control plane restores subdomain to app Service as part of wake completion
 - [ ] Worker hibernation — queue service idle flag polling; scale-to-zero when all queues idle
 - [ ] `CronJob` suspend via `spec.suspend: true`; unsuspend on wake
 - [ ] `POST /api/repos/:slug/apps/:name/hibernate` — force hibernate (synchronous)

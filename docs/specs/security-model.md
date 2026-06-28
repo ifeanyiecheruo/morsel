@@ -16,7 +16,7 @@ These constraints are non-negotiable. They exist to ensure Morsel cannot be used
 
 ## Principle 1: GitHub Calls Morsel, Not the Other Way
 
-Morsel never holds a GitHub credential. GitHub Actions calls the Morsel API and presents a short-lived OIDC token as proof of identity. Morsel validates the token signature against GitHub's public JWKS endpoint — a read-only, unauthenticated operation.
+Morsel never holds a GitHub credential. GitHub Actions calls the control plane and presents a short-lived OIDC token as proof of identity. Morsel validates the token signature against GitHub's public JWKS endpoint — a read-only, unauthenticated operation.
 
 **Why:** Morsel has no ability to enumerate the GitHub organisation, read source code, or impersonate developers. If Morsel is compromised, the attacker has no way to reach beyond the platform into GitHub.
 
@@ -60,7 +60,7 @@ No GitHub PAT, no service account key files, no stored cloud credentials. Every 
 
 - **Short-lived cryptographic tokens** (GitHub OIDC JWT, platform identity tokens) — valid for minutes, signed by the issuer, verified by signature only
 - **Ambient cloud identity** — credentials injected by the cloud platform, not stored on disk
-- **Short-lived access tokens** (issued by Morsel API) — signed JWT, verified by signature, no database lookup required
+- **Short-lived access tokens** (issued by control plane) — signed JWT, verified by signature, no database lookup required
 
 **What Morsel holds:**
 - GitHub's public JWKS URL (read-only, no auth required)
@@ -83,7 +83,7 @@ GitHub Actions runner (GitHub-hosted)
   → Claims: { repository, ref, sha, workflow, ... }
   → POST /api/token/github-oidc  { token: "jwt" }
 
-Morsel API
+control plane
   → Fetch GitHub JWKS (public, cached, no auth)
   → Validate JWT signature
   → Extract repository claim
@@ -135,10 +135,10 @@ GitHub Actions
   → exchange GitHub OIDC for short-lived platform credential via identity federation
   → credential grants write access to staging container registry only
   → push image to staging repo
-  → call Morsel API with image digest (via GitHub OIDC, not platform credential)
+  → call control plane with image digest (via GitHub OIDC, not platform credential)
 ```
 
-GitHub Actions never touches the canonical image repository. The Morsel API is the sole writer to the canonical registry.
+GitHub Actions never touches the canonical image repository. The control plane is the sole writer to the canonical registry.
 
 ---
 
@@ -149,9 +149,9 @@ The staging handshake prevents deployers from directly overwriting production im
 ```
 Deployer (GitHub Actions)
   ├─ push image → staging repo (has write access)
-  └─ call Morsel API with image digest + OIDC token
+  └─ call control plane with image digest + OIDC token
 
-Morsel API
+control plane
   ├─ validate token
   ├─ confirm image exists in staging at claimed digest
   ├─ copy image: staging → canonical (metadata operation, no data transfer)
@@ -159,7 +159,7 @@ Morsel API
   └─ apply Kubernetes manifest
 ```
 
-**Why:** Cross-repo image overwrites are impossible regardless of registry ACLs. One repo's deployer can never overwrite another repo's production image — the Morsel API is the gatekeeper.
+**Why:** Cross-repo image overwrites are impossible regardless of registry ACLs. One repo's deployer can never overwrite another repo's production image — the control plane is the gatekeeper.
 
 ---
 
@@ -214,13 +214,13 @@ Queue names are namespaced by the calling pod's service account identity. Two ap
 
 ### Morsel's Secrets
 
-Stored in the platform secret store (read by Morsel API via ambient cloud identity; see [platform/gcp.md](platform/gcp.md)):
+Stored in the platform secret store (read by control plane via ambient cloud identity; see [platform/gcp.md](platform/gcp.md)):
 - JWT signing key — used to sign all Morsel tokens
 - Bootstrap config — platform configuration (immutable after bootstrap)
 - Notification config — operator email address
 - Cloudflare API token — (if Cloudflare DNS selected; minimal scope: single zone)
 
-No secret is rotated at runtime — the signing key persists for the lifetime of the Morsel API instance. Rotation requires a Morsel API pod restart.
+No secret is rotated at runtime — the signing key persists for the lifetime of the control plane instance. Rotation requires a control plane pod restart.
 
 ### App Secrets
 
@@ -273,9 +273,9 @@ Operators are authenticated via the platform's operator authentication gateway. 
 
 ## Threat Model: Common Attacks
 
-### Compromised Morsel API Pod
+### Compromised control plane Pod
 
-An attacker gains shell access to the Morsel API container.
+An attacker gains shell access to the control plane container.
 
 **Can do:**
 - Access all Morsel data in SQLite (repos, apps, tokens, approvals)
@@ -301,19 +301,19 @@ An attacker gains shell access to the Morsel API container.
 An attacker intercepts a GitHub OIDC token during the workflow.
 
 **Can do:**
-- Call Morsel API on behalf of the compromised repo
+- Call control plane on behalf of the compromised repo
 - Deploy, update, or delete apps for that repo
 - Exceed quota (bounded by tier limit and budget ceiling)
 
 **Cannot do:**
 - Access other repos (token is scoped to one repository)
 - Deploy from repos other than the one that generated the token
-- Call Morsel API after the token expires (5-minute TTL)
+- Call control plane after the token expires (5-minute TTL)
 
 **Mitigation:**
 - OIDC tokens are short-lived (5 min)
 - GitHub Actions logs are auditable
-- Morsel API validates token signature (cannot be forged)
+- control plane validates token signature (cannot be forged)
 - Repo access controls in GitHub prevent unauthorized workflows
 
 ### Stolen Operator Refresh Token
@@ -321,7 +321,7 @@ An attacker intercepts a GitHub OIDC token during the workflow.
 An attacker obtains an operator's refresh token from the profile file.
 
 **Can do:**
-- Call Morsel API as an operator
+- Call control plane as an operator
 - Approve tier changes, transfer apps, delete apps, etc.
 
 **Cannot do:**
@@ -348,7 +348,7 @@ An attacker gains shell access to an app container.
 - Access another app's data — database isolation, blob namespacing, and queue namespacing prevent it
 - Access Kubernetes Secrets outside the app's namespace (RBAC)
 - Access Morsel's infrastructure (different namespace, different service account)
-- Access the Morsel API (different authentication)
+- Access the control plane (different authentication)
 
 **Mitigation:**
 - Pod security policies (RunAsNonRoot, etc.)

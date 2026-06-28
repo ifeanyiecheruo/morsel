@@ -8,7 +8,7 @@ Technical implementation — how each piece of the system works. Each doc covers
 
 | Document | What it covers |
 |---|---|
-| [Morsel API](morsel-api.md) | Control plane: all REST APIs, background tasks |
+| [Control Plane](control-plane.md) | Control plane: all REST APIs, background tasks |
 | [CLI](cli.md) | CLI commands, bootstrap phases, lint |
 | [Blob Service](blob-service.md) | HTTP object storage proxy, quota enforcement |
 | [Queue Service](queue-service.md) | HTTP queue service, self-consume detection |

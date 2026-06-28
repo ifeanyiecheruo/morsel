@@ -12,9 +12,9 @@ _Delivers: apps can call `blob.morsel.internal` to store and retrieve objects._
 - [ ] `TokenReview` caller identity resolution — map pod service account to `{repo-slug}/{app-name}`
 - [ ] Key namespacing — prepend `{repo-slug}/{app-name}/` before every storage operation
 - [ ] `LocalPlatform.Blobs()` — filesystem implementation; root at `~/.morsel/local/blobs/`
-- [ ] SQLite quota tracking database (separate file from Morsel API)
+- [ ] SQLite quota tracking database (separate file from control plane)
 - [ ] `GET /objects/{key}`, `PUT /objects/{key}`, `DELETE /objects/{key}` endpoints
 - [ ] `GET /objects?prefix=&cursor=` — paginated key listing
 - [ ] `PUT` quota check — reject writes that would exceed app's byte limit; return `429` with `blob_quota_exceeded`
-- [ ] Internal quota-push endpoint — receive updated limits from Morsel API on tier change
+- [ ] Internal quota-push endpoint — receive updated limits from control plane on tier change
 - [ ] Blob service registration in `morsel-services` namespace during bootstrap

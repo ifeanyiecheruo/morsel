@@ -68,13 +68,13 @@ Morsel supports two DNS providers, selected at bootstrap:
 
 ### Cloud DNS
 
-DNS records are managed within the Morsel cloud project. The Morsel API authenticates via its ambient cloud identity — no credential files required. All DNS operations stay within the cloud project boundary. See [platform/gcp.md](../platform/gcp.md) for GCP-specific details.
+DNS records are managed within the Morsel cloud project. The control plane authenticates via its ambient cloud identity — no credential files required. All DNS operations stay within the cloud project boundary. See [platform/gcp.md](../platform/gcp.md) for GCP-specific details.
 
 The operator must create the DNS zone for the base domain before running bootstrap. Morsel manages all records within that zone but does not create the zone itself.
 
 ### Cloudflare
 
-The Morsel API holds a Cloudflare API token stored in the platform secret store. The token is scoped to edit a single Cloudflare zone — no other permissions. The bootstrap wizard generates token scope instructions and validates the token before provisioning.
+The control plane holds a Cloudflare API token stored in the platform secret store. The token is scoped to edit a single Cloudflare zone — no other permissions. The bootstrap wizard generates token scope instructions and validates the token before provisioning.
 
 This is the one case where a Morsel secret can modify resources outside the cloud project boundary. The token scope minimises the blast radius: it can only modify DNS records for the configured zone.
 
@@ -99,7 +99,7 @@ Certificate provisioning happens asynchronously as part of the deploy operation.
 
 ### Renewal
 
-The Morsel API background process checks certificate expiry daily. Certificates are renewed 30 days before expiry. Renewal follows the same ACME flow as provisioning. The operator does not need to intervene.
+The control plane background process checks certificate expiry daily. Certificates are renewed 30 days before expiry. Renewal follows the same ACME flow as provisioning. The operator does not need to intervene.
 
 ### Failure Alerting
 
@@ -118,7 +118,7 @@ If certificate provisioning or renewal fails, the operator is alerted via the pl
 
 ## Platform Gateway API
 
-Morsel uses the Kubernetes Gateway API for all ingress routing. The Morsel API manages Gateway resources directly via `client-go` — developers and operators never interact with Gateway objects.
+Morsel uses the Kubernetes Gateway API for all ingress routing. The control plane manages Gateway resources directly via `client-go` — developers and operators never interact with Gateway objects.
 
 Each HTTP app gets a dedicated `HTTPRoute` resource that routes traffic from its subdomain to the app's Kubernetes Service. Private apps use an internal Gateway class; public apps use the external Gateway class.
 
@@ -152,8 +152,8 @@ See [platform/local.md](../platform/local.md).
 
 ## Component Contributions
 
-### Morsel API
-Owns DNS record management, ACME certificate provisioning and renewal, Gateway API resource management, and wake-on-request proxy routing. See [components/morsel-api.md — Networking](../components/morsel-api.md).
+### Control Plane
+Owns DNS record management, ACME certificate provisioning and renewal, Gateway API resource management, and wake-on-request proxy routing. See [components/control-plane.md — Networking](../components/control-plane.md).
 
 ### CLI
 Provisions the platform gateway classes and configures the DNS provider connection at bootstrap time. See [components/cli.md — Networking](../components/cli.md).

@@ -10,7 +10,7 @@ Up: [Index](../README.md) · Prev: [Database Service](database-service.md) · Ne
 
 ## Overview
 
-The admin UI is a static React SPA served directly from platform object storage and protected by the platform's operator authentication gateway. It is the operator's web interface for day-to-day platform management. No dedicated server pod is required — the SPA is served from object storage, and all data is fetched from the Morsel API.
+The admin UI is a static React SPA served directly from platform object storage and protected by the platform's operator authentication gateway. It is the operator's web interface for day-to-day platform management. No dedicated server pod is required — the SPA is served from object storage, and all data is fetched from the control plane.
 
 ---
 
@@ -30,8 +30,8 @@ Platform object storage (static SPA bundle)
   │
   │  SPA makes API calls:
   ▼
-Morsel API (/api/operator/*, /api/repos/*)
-  │  gateway injects identity token → Morsel API exchanges for Morsel token
+control plane (/api/operator/*, /api/repos/*)
+  │  gateway injects identity token → control plane exchanges for Morsel token
   │  All data returned as JSON
 ```
 
@@ -83,7 +83,7 @@ List of apps sorted by last deploy date, oldest first. Each entry shows the repo
 ### Platform Status
 
 - Cluster health indicator
-- Morsel API health indicator
+- control plane health indicator
 - Failed deploys count (last 24h) with link to detail
 - Certificate alerts (expiring soon, failed)
 - Pending approval count
@@ -95,7 +95,7 @@ List of apps sorted by last deploy date, oldest first. Each entry shows the repo
 
 The admin UI is protected by the platform's operator authentication gateway. The operator navigates to `https://admin.apps.example.com` and is prompted to sign in with their platform identity. The gateway validates the identity and checks that the principal is in the operator principals list configured at bootstrap.
 
-The gateway injects a signed identity token into requests forwarded to the Morsel API. The Morsel API verifies the token and exchanges it for a Morsel operator token. The SPA holds the Morsel token in memory for the session duration.
+The gateway injects a signed identity token into requests forwarded to the control plane. The control plane verifies the token and exchanges it for a Morsel operator token. The SPA holds the Morsel token in memory for the session duration.
 
 No separate password. No Morsel-specific account. Operators use their existing platform identity. See [platform/gcp.md](../platform/gcp.md) for GCP-specific details (IAP, Google account).
 
@@ -110,7 +110,7 @@ No separate password. No Morsel-specific account. Operators use their existing p
 | Operator auth gateway | Platform-dependent (see [platform/gcp.md](../platform/gcp.md)) |
 | Compute | Zero — no server pod |
 
-The admin UI has essentially zero marginal cost. All compute cost for the operator experience is borne by the Morsel API.
+The admin UI has essentially zero marginal cost. All compute cost for the operator experience is borne by the control plane.
 
 ---
 
@@ -118,7 +118,7 @@ The admin UI has essentially zero marginal cost. All compute cost for the operat
 
 - **Upgrades** — the SPA bundle is replaced in platform object storage during platform upgrade. No pod restarts. Cache-busting is handled by content-hashed filenames.
 - **Access management** — operators added/removed via `morsel operator principal add/remove`. No admin UI changes required.
-- **Availability** — platform object storage serves the SPA. The UI is unavailable only if the Morsel API is unavailable.
+- **Availability** — platform object storage serves the SPA. The UI is unavailable only if the control plane is unavailable.
 
 ---
 
@@ -159,7 +159,7 @@ The cost dashboard is the operator's primary cost visibility tool. Shows total s
 The approvals section is the operator's primary workflow for actioning pending configuration changes. Supports batch approve/reject/ignore with optional rejection reasons. Reconciliation progress is shown inline after a batch action. See [platform-features/approvals.md](../platform-features/approvals.md).
 
 ### Authentication
-The admin UI relies on the platform's operator authentication gateway for authentication — no login screen in the SPA itself. Gateway-issued tokens are exchanged for Morsel operator tokens by the Morsel API. The SPA holds the Morsel token in memory. See [platform-features/authentication.md](../platform-features/authentication.md).
+The admin UI relies on the platform's operator authentication gateway for authentication — no login screen in the SPA itself. Gateway-issued tokens are exchanged for Morsel operator tokens by the control plane. The SPA holds the Morsel token in memory. See [platform-features/authentication.md](../platform-features/authentication.md).
 
 ---
 

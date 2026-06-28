@@ -130,7 +130,7 @@ Usage is tracked at byte granularity. Over-counting due to object replacement is
 
 ### Quota Limit Updates
 
-The Morsel API pushes updated quota limits to the blob service when an app's tier changes:
+The control plane pushes updated quota limits to the blob service when an app's tier changes:
 
 ```http
 POST /internal/quota/{namespace}/{app-name}
@@ -139,7 +139,7 @@ Authorization: Bearer <blob-internal-token>
 { "blob_bytes": 5368709120 }
 ```
 
-The blob service rejects calls without a valid token with `401 Unauthorized`. The token is a shared secret provisioned at bootstrap, stored in the platform SecretStore under the key `blob-internal-token`, and mounted as the `BLOB_INTERNAL_TOKEN` environment variable in both the Morsel API pod and the blob service pod. It is independent of the queue service token — a compromised blob-service token cannot be replayed against the queue service.
+The blob service rejects calls without a valid token with `401 Unauthorized`. The token is a shared secret provisioned at bootstrap, stored in the platform SecretStore under the key `blob-internal-token`, and mounted as the `BLOB_INTERNAL_TOKEN` environment variable in both the control plane pod and the blob service pod. It is independent of the queue service token — a compromised blob-service token cannot be replayed against the queue service.
 
 The blob service does not pull limits on its own — limits are set only via this push.
 
@@ -166,7 +166,7 @@ The blob service itself is cheap. Object storage cost scales with how much data 
 ## Operational Cost
 
 - **Upgrades** — rolling pod replacement during platform upgrade. Brief blob unavailability during switchover (seconds).
-- **Quota adjustments** — the Morsel API pushes new limits automatically on tier change. No operator intervention in the blob service itself.
+- **Quota adjustments** — the control plane pushes new limits automatically on tier change. No operator intervention in the blob service itself.
 - **Monitoring** — blob service exposes a `/healthz` endpoint. Quota usage visible via `GET /api/repos/:slug/apps/:name/utilisation`.
 
 ---
@@ -203,10 +203,10 @@ For higher throughput, the quota tracking store could be migrated to a multi-rea
 The blob service is unaffected by app hibernation. Objects are retained in platform object storage while the app is hibernated. There is no connection to maintain — each HTTP request is stateless.
 
 ### Cost Controls
-The blob service is the enforcement point for per-app blob storage quota. It tracks byte usage in SQLite and rejects writes that exceed the limit. Quota limits are pushed by the Morsel API on tier changes. See [platform-features/cost-controls.md](../platform-features/cost-controls.md).
+The blob service is the enforcement point for per-app blob storage quota. It tracks byte usage in SQLite and rejects writes that exceed the limit. Quota limits are pushed by the control plane on tier changes. See [platform-features/cost-controls.md](../platform-features/cost-controls.md).
 
 ### Persistence
-Blob storage is one of the three managed persistence types. Object lifecycle (grace period, permanence) is managed by the Morsel API — the blob service stores and retrieves objects but does not implement deletion policies itself. See [platform-features/persistence.md](../platform-features/persistence.md).
+Blob storage is one of the three managed persistence types. Object lifecycle (grace period, permanence) is managed by the control plane — the blob service stores and retrieves objects but does not implement deletion policies itself. See [platform-features/persistence.md](../platform-features/persistence.md).
 
 ---
 

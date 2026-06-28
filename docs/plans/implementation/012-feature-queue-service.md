@@ -20,4 +20,4 @@ _Delivers: apps can enqueue and dequeue messages via `queue.morsel.internal`._
 - [ ] `GET /queues/{name}/depth` — message count
 - [ ] Storage quota enforcement — track total bytes per app; reject enqueue at limit
 - [ ] Internal quota-push endpoint — same pattern as blob service
-- [ ] `GET /internal/queues/{namespace}/{app-name}` — return idle status for all queues owned by app; authenticated with `queue-internal-token`; used by Morsel API hibernation watcher
+- [ ] `GET /internal/queues/{namespace}/{app-name}` — return idle status for all queues owned by app; authenticated with `queue-internal-token`; used by control plane hibernation watcher

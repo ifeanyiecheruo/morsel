@@ -9,7 +9,7 @@ _Delivers: operators can see estimated monthly spend per app and platform-wide._
 ## Tasks
 
 - [ ] `scale_events` table in SQLite — columns: `id`, `namespace`, `app`, `event` (`scale_to_1` / `scale_to_0`), `occurred_at`; written on every hibernation and wake transition
-- [ ] Daily price-fetch goroutine in Morsel API — call `Platform.Pricing().Prices()` once per day
+- [ ] Daily price-fetch goroutine in control plane — call `Platform.Pricing().Prices()` once per day
 - [ ] `LocalPlatform.Pricing()` — returns `Prices{}` with all-zero fields (LocalPlatform has no billing)
 - [ ] `price_snapshots` table in SQLite — one immutable row per fetch; columns match `Prices` struct fields + `fetched_at`
 - [ ] 48-hour staleness check — emit `prices_stale` warning in `GET /api/operator/status` if last snapshot is older than 48h

@@ -20,7 +20,7 @@ _Delivers: `morsel service bootstrap --platform local` provisions a working loca
 
 ## Remaining tasks — control plane deployment
 
-- [x] `Dockerfile` for `morsel-api` — multi-stage Go build (`CGO_ENABLED=0`); distroless nonroot final image
+- [x] `Dockerfile` for `morsel-ctrl-plane` — multi-stage Go build (`CGO_ENABLED=0`); distroless nonroot final image
 - [x] kind cluster config file — `extraPortMappings` host `8080` → node `30080`; `make cluster-up` uses `hack/kind-config.yaml`
 - [x] `kube.EnsureAPI(ctx, ns, image, dbPath)` — idempotent Deployment + NodePort Service; HostPath volume for SQLite DB; `--platform local --db` flags; `ImagePullPolicy: Never`
 - [x] `LocalPlatform.Bootstrap().Provision()` — detect container runtime; `docker/podman build`; `kind load docker-image`; `EnsureRegistry`; `EnsureAPI`

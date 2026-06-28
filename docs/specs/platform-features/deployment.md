@@ -39,7 +39,7 @@ A deployment integration is responsible for three things:
 2. **Image** — build a container image and place it in the staging registry
 3. **Dispatch** — call the Morsel sync and deploy APIs with the image digest and a valid token
 
-Everything else — image copy to canonical registry, Kubernetes manifest apply, health check monitoring, rollback on failure, DNS, TLS — is handled by the Morsel API.
+Everything else — image copy to canonical registry, Kubernetes manifest apply, health check monitoring, rollback on failure, DNS, TLS — is handled by the control plane.
 
 ---
 
@@ -53,7 +53,7 @@ Deployer
   → pushes to staging container registry  (deployer has write access to staging only)
   → calls POST /api/repos/:slug/apps with image digest + Morsel token
 
-Morsel API
+control plane
   → validates token
   → validates image exists in staging repo at claimed digest
   → copies image: staging → canonical (registry-side metadata operation, no network transfer)
@@ -74,7 +74,7 @@ Morsel retains two digests per app in the canonical repo: `current` (the image c
 This ensures:
 - No deployer ever touches the canonical image store directly
 - Cross-repo image overwrites are impossible regardless of registry ACLs
-- The Morsel API is the sole writer to the canonical registry
+- The control plane is the sole writer to the canonical registry
 - Abandoned staging images are cleaned up by a 1-hour TTL policy on the staging repo
 
 On `LocalPlatform`, the staging handshake is skipped — the deployer pushes directly to the in-cluster registry. Developer and platform share the same trust boundary locally.
@@ -124,7 +124,7 @@ jobs:
 
 When `GITHUB_ACTIONS=true`:
 
-1. Calls `Platform.DeployToken()` — posts the GitHub OIDC token directly to `POST /api/token/github-oidc`; Morsel API validates it against GitHub's public JWKS and returns a Morsel access token plus short-lived staging registry push credentials
+1. Calls `Platform.DeployToken()` — posts the GitHub OIDC token directly to `POST /api/token/github-oidc`; control plane validates it against GitHub's public JWKS and returns a Morsel access token plus short-lived staging registry push credentials
 2. Discovers all `*.morsel.json` files in `.morsel/`
 3. Calls `POST /api/repos/:slug/sync` with the full declared app list and current git SHA
 4. For each app in parallel:
@@ -172,7 +172,7 @@ The slug is stable as long as the directory name does not change. No configurati
 
 ### Auth and image push
 
-1. `LocalPlatform.DeployToken()` generates a signed JWT with `{ "repository": "localhost/{dirname}" }` and exchanges it at `POST /api/token/github-oidc` for a short-lived Morsel developer token. The Morsel API on LocalPlatform skips GitHub JWKS validation and trusts the submitted `repository` claim directly. See [platform-features/authentication.md — Local Deploy Auth](authentication.md).
+1. `LocalPlatform.DeployToken()` generates a signed JWT with `{ "repository": "localhost/{dirname}" }` and exchanges it at `POST /api/token/github-oidc` for a short-lived Morsel developer token. The control plane on LocalPlatform skips GitHub JWKS validation and trusts the submitted `repository` claim directly. See [platform-features/authentication.md — Local Deploy Auth](authentication.md).
 2. Discovers all `*.morsel.json` files in `.morsel/`
 3. Calls `POST /api/repos/localhost/{dirname}/sync` with the full declared app list and current git SHA
 4. For each app in parallel:
@@ -221,7 +221,7 @@ A repository can contain any number of Dockerfiles in any layout. There is no re
 
 ## Other Deployment Models
 
-Any system that can satisfy the three deployment model requirements (identity, image, dispatch) can deploy to Morsel. The Morsel API does not care how the deployer built the image or where it runs, as long as the OIDC token is valid and the image digest exists in the staging registry.
+Any system that can satisfy the three deployment model requirements (identity, image, dispatch) can deploy to Morsel. The control plane does not care how the deployer built the image or where it runs, as long as the OIDC token is valid and the image digest exists in the staging registry.
 
 Examples of what is possible but unsupported:
 - GitLab CI / Jenkins / CircleCI — would need to obtain a GitHub-compatible OIDC token or a different trusted identity mechanism

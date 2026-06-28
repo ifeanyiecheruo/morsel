@@ -12,9 +12,9 @@ Up: [Index](README.md) · Prev: [Principles](principles.md) · Next: [Operator S
 
 Morsel has one central service and two external actors.
 
-The **Morsel API** is the control plane and the center of the system. All operations flow through it. It validates tokens, manages app lifecycle, and applies Kubernetes manifests on behalf of callers. No other actor touches the cluster directly. It also runs background processes: a hibernation watcher that scales idle apps to zero, a wake-on-request proxy that holds inbound requests until a hibernated app comes back up, and a cost enforcement watcher that evaluates estimated spend against the budget ceiling — blocking wakes at the soft limit, force-hibernating apps at the hard limit, and taking daily price snapshots from the platform pricing API (see [platform/gcp.md](platform/gcp.md)).
+The **control plane** (`morsel-ctrl-plane`) is the center of the system. All operations flow through it. It validates tokens, manages app lifecycle, and applies Kubernetes manifests on behalf of callers. No other actor touches the cluster directly. It also runs background processes: a hibernation watcher that scales idle apps to zero, a wake-on-request proxy that holds inbound requests until a hibernated app comes back up, and a cost enforcement watcher that evaluates estimated spend against the budget ceiling — blocking wakes at the soft limit, force-hibernating apps at the hard limit, and taking daily price snapshots from the platform pricing API (see [platform/gcp.md](platform/gcp.md)).
 
-Developer code runs in **per-app namespaces** inside the cluster, each managed exclusively by the Morsel API. 
+Developer code runs in **per-app namespaces** inside the cluster, each managed exclusively by the control plane. 
 
 Apps have access to batteries-included building blocks in the **morsel-services namespace**. eg. Blob Service for object storage, Queue Service for async messaging, and SQL Service for a database. Apps depend on these services at runtime; the services themselves have no knowledge of individual apps.
 
@@ -59,7 +59,7 @@ The **operator machine** runs the `morsel` CLI to provision the platform. Day-to
 |  |                                                                                  | |
 |  |  +----------------------------------------------------------------------------+ | |
 |  |  | morsel control plane namespace                                             | | |
-|  |  |  Morsel API                                                                | | |
+|  |  |  morsel-ctrl-plane                                                                | | |
 |  |  |  Hibernation watcher                                                       | | |
 |  |  |  Wake-on-request proxy                                                     | | |
 |  |  |  Cost enforcement watcher                                                  | | |
@@ -101,7 +101,7 @@ The **operator machine** runs the `morsel` CLI to provision the platform. Day-to
 
 ## Components
 
-### Morsel API
+### Control Plane
 
 The control plane. A Go HTTP service running in the `morsel` namespace. All platform operations flow through it.
 
@@ -117,7 +117,7 @@ Responsibilities:
 - DNS record management via the configured DNS provider
 - Platform state persistence in SQLite on a Kubernetes PersistentVolume
 
-See [components/morsel-api.md](components/morsel-api.md).
+See [components/control-plane.md](components/control-plane.md).
 
 ### Admin UI
 
@@ -171,7 +171,7 @@ Morsel achieves this by routing the two app types through separate load balancer
 - **Public apps** (`private: false`) are reachable from the internet via an external load balancer at `*.apps.example.com`. TLS is terminated here.
 - **Private apps** (`private: true`) are routed only through an internal load balancer scoped to the VPC — no public IP, no internet path, unreachable by construction.
 
-The Admin UI is internet-facing but gated by the platform's operator authentication gateway, restricting access to authenticated operators. The Morsel API itself has no public port; it only accepts connections from outbound HTTPS calls by CI runners and the operator CLI — it cannot be reached from a browser.
+The Admin UI is internet-facing but gated by the platform's operator authentication gateway, restricting access to authenticated operators. The control plane itself has no public port; it only accepts connections from outbound HTTPS calls by CI runners and the operator CLI — it cannot be reached from a browser.
 
 See [platform-features/networking.md](platform-features/networking.md).
 

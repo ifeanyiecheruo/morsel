@@ -83,7 +83,7 @@ This means:
 
 DNS records and TLS certificates are provisioned once and retained. Re-deploying an app does not trigger a new DNS record creation or certificate request if the existing record and certificate are valid. Morsel checks current state before acting.
 
-Certificate renewal is handled by the Morsel API's background renewal process, not by deploys.
+Certificate renewal is handled by the control plane's background renewal process, not by deploys.
 
 ---
 

@@ -13,7 +13,7 @@ Up: [Index](../README.md) · Prev: [Admin UI](../components/admin-ui.md) · Next
 All infrastructure concerns in Morsel are accessed through a single `Platform` interface. Business logic never imports a cloud SDK directly. Platform-specific implementations live in isolated packages and are injected at startup via dependency injection.
 
 This means:
-- The Morsel API, bootstrap binary, blob service, and queue service all depend on `Platform`, not on GCP
+- The control plane, bootstrap binary, blob service, and queue service all depend on `Platform`, not on GCP
 - Adding a new cloud target means implementing the interface in a new package — no business logic changes
 - Testing uses a `LocalPlatform` or a mock implementation — no cloud account required
 
@@ -185,7 +185,7 @@ type CertProvider interface {
 ```go
 type PricingProvider interface {
     // Prices fetches current list prices from the platform's pricing API.
-    // Results are used for cost estimation and stored as daily snapshots by the Morsel API.
+    // Results are used for cost estimation and stored as daily snapshots by the control plane.
     Prices(ctx context.Context) (Prices, error)
 }
 ```

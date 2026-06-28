@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ifeanyiecheruo/morsel/internal/cli"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/cli"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 

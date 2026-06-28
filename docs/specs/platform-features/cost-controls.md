@@ -59,7 +59,7 @@ morsel operator tier set-default --name medium
 morsel operator tier delete --name large
 ```
 
-All tier fields are optional on `edit` — only specified fields are changed. Edits take effect immediately: the Morsel API updates `ResourceQuota` and `LimitRange` in all Kubernetes namespaces currently on that tier.
+All tier fields are optional on `edit` — only specified fields are changed. Edits take effect immediately: the control plane updates `ResourceQuota` and `LimitRange` in all Kubernetes namespaces currently on that tier.
 
 ### Platform Default Tier
 
@@ -80,7 +80,7 @@ A tier cannot be deleted if:
 ::warning title=Unknown tier: my-app::tier "enterprise" does not exist. Deploying at platform default tier "medium".
 ```
 
-**Missing platform default tier:** If the platform default tier has been deleted without replacing it, the Morsel API falls back to its built-in hardcoded baseline (equivalent to the `small` built-in defaults) and emits a warning in the deploy output and the admin UI:
+**Missing platform default tier:** If the platform default tier has been deleted without replacing it, the control plane falls back to its built-in hardcoded baseline (equivalent to the `small` built-in defaults) and emits a warning in the deploy output and the admin UI:
 
 ```text
 ::warning title=Platform default tier missing::configured default tier "medium" does not exist. Using built-in baseline tier. Set a valid default with: morsel tier set-default --name <tier>
@@ -95,19 +95,19 @@ The baseline fallback is non-configurable and exists solely to prevent the platf
 Quota is enforced at multiple layers depending on the resource type:
 
 ### Compute (CPU and Memory)
-Enforced by Kubernetes `ResourceQuota` and `LimitRange` at the namespace level. The Morsel API sets these when a namespace is created or when a tier changes. Kubernetes rejects any pod that would exceed the limits — no Morsel-level check required at deploy time.
+Enforced by Kubernetes `ResourceQuota` and `LimitRange` at the namespace level. The control plane sets these when a namespace is created or when a tier changes. Kubernetes rejects any pod that would exceed the limits — no Morsel-level check required at deploy time.
 
 ### App Count
-Enforced by the Morsel API at deploy time. When a repo attempts to deploy beyond its app limit, the API returns `quota_exceeded`. The developer is directed to contact the operator.
+Enforced by the control plane at deploy time. When a repo attempts to deploy beyond its app limit, the API returns `quota_exceeded`. The developer is directed to contact the operator.
 
 ### Blob Storage
-Enforced by the blob service at write time. `PUT` requests that would exceed the app's blob quota return `429 Too Many Requests` with a `blob_quota_exceeded` error. The blob service tracks per-app byte usage in SQLite. The Morsel API pushes updated quota limits to the blob service when an app's tier changes.
+Enforced by the blob service at write time. `PUT` requests that would exceed the app's blob quota return `429 Too Many Requests` with a `blob_quota_exceeded` error. The blob service tracks per-app byte usage in SQLite. The control plane pushes updated quota limits to the blob service when an app's tier changes.
 
 ### Queue Storage
 Enforced by the queue service at enqueue time. Enqueue requests that would exceed total queue storage across all of the app's queues return `429 Too Many Requests`. The queue service tracks total storage per app.
 
 ### Database Storage
-Advisory only. The Morsel API tracks declared storage allocations and blocks tier-exceeding requests at deploy time. Per-database enforcement at the Postgres level is not possible on a shared instance. App owners who exceed their database quota will not be automatically throttled — the operator is alerted and can act.
+Advisory only. The control plane tracks declared storage allocations and blocks tier-exceeding requests at deploy time. Per-database enforcement at the Postgres level is not possible on a shared instance. App owners who exceed their database quota will not be automatically throttled — the operator is alerted and can act.
 
 ---
 
@@ -141,7 +141,7 @@ When estimated spend reaches the soft limit (default 90%):
 
 When estimated spend reaches the hard limit (100%):
 
-- All running non-exempt apps are force-hibernated immediately. The Morsel API issues `scale to 0` for each.
+- All running non-exempt apps are force-hibernated immediately. The control plane issues `scale to 0` for each.
 - Wake is blocked under the same rules as the soft limit.
 - Deploys are allowed so developers can push fixes. The app pod runs long enough to pass health checks, then is immediately hibernated again.
 - At the start of the next billing period the hard limit enforcement lifts automatically. Apps remain hibernated but can wake normally once budget resets.
@@ -180,11 +180,11 @@ The operator can list all exemptions via `GET /api/operator/exemptions` or in th
 
 ## Cost Estimation
 
-Morsel estimates monthly cost by combining resource requests, actual running time, and current platform list prices fetched from the platform pricing API. Prices are fetched at bootstrap and refreshed daily by the Morsel API in the background. The stored prices are used for all cost calculations — no live API call is made per request. See [platform/gcp.md](../platform/gcp.md) for the GCP-specific pricing API details.
+Morsel estimates monthly cost by combining resource requests, actual running time, and current platform list prices fetched from the platform pricing API. Prices are fetched at bootstrap and refreshed daily by the control plane in the background. The stored prices are used for all cost calculations — no live API call is made per request. See [platform/gcp.md](../platform/gcp.md) for the GCP-specific pricing API details.
 
 ### Scale Event Tracking
 
-Every scale-to-1 and scale-to-0 event is recorded in the `scale_events` SQLite table with an app identifier and a UTC timestamp. The Morsel API derives each app's running intervals from this log. No running intervals means zero compute cost.
+Every scale-to-1 and scale-to-0 event is recorded in the `scale_events` SQLite table with an app identifier and a UTC timestamp. The control plane derives each app's running intervals from this log. No running intervals means zero compute cost.
 
 ### Formula
 
@@ -212,11 +212,11 @@ Cost estimates are available at:
 - Per-repo: `GET /api/repos/:slug` → `estimated_cost_month`
 - Platform: `GET /api/operator/cost` → `estimated_total_month`, `prices_fetched_at`
 
-`prices_fetched_at` in the platform response indicates when prices were last refreshed from the Catalog API. The Morsel API emits an admin UI warning if prices are more than 48 hours stale (e.g., Catalog API unreachable).
+`prices_fetched_at` in the platform response indicates when prices were last refreshed from the Catalog API. The control plane emits an admin UI warning if prices are more than 48 hours stale (e.g., Catalog API unreachable).
 
 ### Price History
 
-Each daily price fetch is stored as an immutable timestamped row in the Morsel API's SQLite database — snapshots are never overwritten. This builds a history of platform list price changes over time, which makes it possible to audit why a cost estimate changed on a specific date.
+Each daily price fetch is stored as an immutable timestamped row in the control plane's SQLite database — snapshots are never overwritten. This builds a history of platform list price changes over time, which makes it possible to audit why a cost estimate changed on a specific date.
 
 The full snapshot history is available at:
 
@@ -286,11 +286,11 @@ The operator is the deliberate gatekeeper for tier promotions. This is intention
 
 ## Component Contributions
 
-### Morsel API
-Enforces app count limits, manages Kubernetes ResourceQuota and LimitRange, provides cost estimation endpoints, and handles tier promotion. See [components/morsel-api.md — Cost Controls](../components/morsel-api.md).
+### Control Plane
+Enforces app count limits, manages Kubernetes ResourceQuota and LimitRange, provides cost estimation endpoints, and handles tier promotion. See [components/control-plane.md — Cost Controls](../components/control-plane.md).
 
 ### Blob Service
-Enforces per-app blob storage quota at write time. Tracks byte usage per app. Receives updated quota limits from Morsel API on tier changes. See [components/blob-service.md — Cost Controls](../components/blob-service.md).
+Enforces per-app blob storage quota at write time. Tracks byte usage per app. Receives updated quota limits from control plane on tier changes. See [components/blob-service.md — Cost Controls](../components/blob-service.md).
 
 ### Queue Service
 Enforces per-app total queue storage quota at enqueue time. See [components/queue-service.md — Cost Controls](../components/queue-service.md).

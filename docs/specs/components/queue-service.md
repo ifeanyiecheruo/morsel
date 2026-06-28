@@ -217,7 +217,7 @@ Scaling beyond this would require a purpose-built queue store. Not planned.
 
 ### Hibernation
 
-The queue service is the data source for worker hibernation decisions. The Morsel API watcher polls an internal endpoint at each tick to check idle status per worker app:
+The queue service is the data source for worker hibernation decisions. The control plane watcher polls an internal endpoint at each tick to check idle status per worker app:
 
 ```http
 GET /internal/queues/{namespace}/{app-name}
@@ -235,7 +235,7 @@ Response:
 }
 ```
 
-A worker hibernates when all of its queues report `idle: true`. This endpoint uses the same `queue-internal-token` bearer token as the quota endpoint — the Morsel API never uses app pod service account tokens.
+A worker hibernates when all of its queues report `idle: true`. This endpoint uses the same `queue-internal-token` bearer token as the quota endpoint — the control plane never uses app pod service account tokens.
 
 A queue's `idle` flag is driven by the `last_external_enqueue_at` timestamp stored per queue. An enqueue is "external" when the enqueueing pod's service account identity (resolved via `TokenReview`) differs from the queue-owning app. A queue is `idle: true` when no external enqueue has occurred within the app's idle window. Queue depth is irrelevant to the idle flag — a deep queue filled entirely by the owning app is still idle.
 
@@ -252,13 +252,13 @@ This prevents a worker from keeping itself alive indefinitely by processing its 
 
 In this example the worker stays alive because `jobs` has external messages pending, even though `internal-loop` is self-consuming.
 
-Workers wake when an external message is enqueued. The queue service notifies the Morsel API watcher, which scales the worker deployment to 1. The first message may wait in the queue for the cold-start duration before being processed.
+Workers wake when an external message is enqueued. The queue service notifies the control plane watcher, which scales the worker deployment to 1. The first message may wait in the queue for the cold-start duration before being processed.
 
 See [platform-features/hibernation.md](../platform-features/hibernation.md) for the full hibernation lifecycle.
 
 ### Cost Controls
 
-The queue service enforces per-app total queue storage quota at enqueue time. Quota limits are pushed by the Morsel API on tier changes:
+The queue service enforces per-app total queue storage quota at enqueue time. Quota limits are pushed by the control plane on tier changes:
 
 ```http
 POST /internal/quota/{namespace}/{app-name}
@@ -267,12 +267,12 @@ Authorization: Bearer <queue-internal-token>
 { "queue_bytes": 1073741824 }
 ```
 
-The queue service rejects calls without a valid token with `401 Unauthorized`. The token is a shared secret provisioned at bootstrap, stored in the platform SecretStore under the key `queue-internal-token`, and mounted as the `QUEUE_INTERNAL_TOKEN` environment variable in both the Morsel API pod and the queue service pod. It is independent of the blob service token.
+The queue service rejects calls without a valid token with `401 Unauthorized`. The token is a shared secret provisioned at bootstrap, stored in the platform SecretStore under the key `queue-internal-token`, and mounted as the `QUEUE_INTERNAL_TOKEN` environment variable in both the control plane pod and the queue service pod. It is independent of the blob service token.
 
 See [platform-features/cost-controls.md](../platform-features/cost-controls.md).
 
 ### Persistence
-Queues are one of the three managed persistence types. Queue table creation, deletion, and lifecycle (grace period on app deletion) are managed by the Morsel API. The queue service creates and drops Postgres tables on `PUT /queues/{name}` and `DELETE /queues/{name}`. See [platform-features/persistence.md](../platform-features/persistence.md).
+Queues are one of the three managed persistence types. Queue table creation, deletion, and lifecycle (grace period on app deletion) are managed by the control plane. The queue service creates and drops Postgres tables on `PUT /queues/{name}` and `DELETE /queues/{name}`. See [platform-features/persistence.md](../platform-features/persistence.md).
 
 ---
 

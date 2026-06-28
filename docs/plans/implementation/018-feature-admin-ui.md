@@ -7,7 +7,7 @@ _Delivers: operators have a browser interface for day-to-day management._
 ## Tasks
 
 - [ ] React + TypeScript SPA scaffold (Vite); production build outputs a static bundle
-- [ ] Operator token exchange on page load — LocalPlatform: POST to local-oidc; calls Morsel API
+- [ ] Operator token exchange on page load — LocalPlatform: POST to local-oidc; calls control plane
 - [ ] Token storage — in-memory only (no localStorage, no cookies)
 - [ ] App management view — list all apps; filter by repo/status/tier; per-app hibernate/wake/delete actions
 - [ ] Repo management view — list repos; tier promotion button
@@ -15,4 +15,4 @@ _Delivers: operators have a browser interface for day-to-day management._
 - [ ] Cost dashboard — spend vs ceiling progress bar; per-repo breakdown table; hibernate candidates
 - [ ] Platform status view — component health, cert alerts, failed deploys, pending approvals count
 - [ ] Stale apps view — apps sorted by last deploy date; suppress-for-30-days per entry
-- [ ] Morsel API serve static bundle on LocalPlatform (`GET /admin/*` route)
+- [ ] control plane serve static bundle on LocalPlatform (`GET /admin/*` route)

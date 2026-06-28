@@ -51,9 +51,9 @@ help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}' 2>/dev/null; true
 
 .PHONY: build
-build: ## Compile bin/morsel and bin/morsel-api
+build: ## Compile bin/morsel and bin/morsel-ctrl-plane
 	go build -o bin/morsel$(EXE) ./cmd/morsel
-	go build -o bin/morsel-api$(EXE) ./cmd/morsel-api
+	go build -o bin/morsel-ctrl-plane$(EXE) ./cmd/morsel-ctrl-plane
 
 .PHONY: test
 test: ## Run all tests

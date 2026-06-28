@@ -10,7 +10,7 @@ Up: [Index](README.md) · Prev: [Permanence](permanence.md) · Next: [Deployment
 
 ## Summary
 
-The Morsel API follows two conventions that apply to all endpoints: async operations and the error model.
+The control plane follows two conventions that apply to all endpoints: async operations and the error model.
 
 Long-running operations return `202 Accepted` immediately with a location to poll — callers never block waiting for deploys or provisioning. All errors return a consistent JSON structure with a stable machine-readable code, a human message, and a remedy that always tells the caller what to do next.
 
@@ -168,7 +168,7 @@ The GitHub Actions workflow polls and emits annotations on failure — see [plat
 
 ## Error Model
 
-All Morsel API errors return a consistent JSON structure with a stable machine-readable code, a human-readable message, and a remedy that always tells the caller what to do next. Error formatting is the client's responsibility — the API provides structured data. Pod logs are never included in error responses.
+All control plane errors return a consistent JSON structure with a stable machine-readable code, a human-readable message, and a remedy that always tells the caller what to do next. Error formatting is the client's responsibility — the API provides structured data. Pod logs are never included in error responses.
 
 ### Error Response Shape
 
@@ -208,7 +208,7 @@ All Morsel API errors return a consistent JSON structure with a stable machine-r
 | `deploy_failed` | 422 | Kubernetes rollout did not complete — health checks did not pass within timeout |
 | `immutable_field` | 422 | Attempt to change a field that cannot be changed after bootstrap |
 | `tier_demotion_conflict` | 409 | Demotion would put the repo over the new tier's limits |
-| `platform_unavailable` | 503 | Morsel API cannot reach a required platform service |
+| `platform_unavailable` | 503 | control plane cannot reach a required platform service |
 | `budget_soft_limit` | 503 | Wake blocked — estimated spend has reached the soft limit threshold (default 90% of monthly ceiling) |
 | `budget_hard_limit` | 503 | Wake blocked — estimated spend has reached or exceeded the monthly ceiling |
 
