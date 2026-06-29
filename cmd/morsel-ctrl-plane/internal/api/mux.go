@@ -14,24 +14,10 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
-// AppPlatform is the subset of platform.Platform that API handlers are allowed
-// to consume. Bootstrap() is deliberately absent: bootstrapping is a CLI concern.
-type AppPlatform interface {
-	Namespace() string
-	BaseDomain() string
-	Secrets() platform.Secrets
-	Tokens() platform.Tokens
-	Deploy() platform.Deployer
-	Blobs() platform.BlobStore
-	DNS() platform.DNSProvider
-	Certs() platform.CertProvider
-	Pricing() platform.PricingProvider
-}
-
 // NewMux constructs the root HTTP handler for the Morsel API using the
 // ogen-generated router. Panics if the server cannot be constructed (indicates
 // a programmer error such as a nil handler).
-func NewMux(ctx context.Context, plat AppPlatform, s *store.Store, deployer handler.Deployer) http.Handler {
+func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deployer handler.Deployer) http.Handler {
 	keys, err := plat.Secrets().EnsureSigningKey(ctx)
 	if err != nil || len(keys) == 0 {
 		panic("morsel api: signing key unavailable: " + err.Error())

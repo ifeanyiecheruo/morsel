@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- A local Kubernetes cluster for local testing (e.g. Docker Desktop, kind, or k3s)
+- A local Kubernetes cluster for local testing (e.g. Docker Desktop, k3d, or k3s)
 
 ## Getting started
 

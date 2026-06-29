@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	// morselNamespace is where the Morsel API and Envoy Gateway run; NetworkPolicy
-	// allows ingress from here to all app pods.
+	// morselNamespace is where the Morsel API runs; NetworkPolicy allows ingress
+	// from here to all app pods.
 	morselNamespace = "morsel"
 
 	containerName      = "app"
@@ -54,7 +54,7 @@ type AppManifest struct {
 	Env        map[string]string
 	Schedule   string // cron expression; only used when Type is "cron"
 	Private    bool   // if true, route through internal gateway class
-	BaseDomain string // e.g. "morsel.localhost"; empty disables HTTPRoute provisioning
+	BaseDomain string // e.g. "morsel.localhost"; empty disables routing provisioning
 	GatewayNS  string // namespace where the Gateway resources live (e.g. "morsel")
 }
 
@@ -106,7 +106,7 @@ func (c *Client) Apply(ctx context.Context, m AppManifest) error {
 	return nil
 }
 
-// Delete removes all Kubernetes resources for an app: the HTTPRoute, Service,
+// Delete removes all Kubernetes resources for an app: routing resources, Service,
 // and the namespace itself (which cascades to Deployment/CronJob and other resources).
 func (c *Client) Delete(ctx context.Context, namespace string) error {
 	if err := c.DeleteHTTPRoute(ctx, namespace); err != nil {
@@ -214,12 +214,22 @@ func (c *Client) applyNetworkPolicy(ctx context.Context, namespace string, port 
 					},
 				},
 				{
-					// Allow ingress from the morsel control-plane namespace on the app port.
+					// Allow ingress from the morsel namespace (control-plane) and
+					// the envoy-gateway-system namespace (Envoy proxy pods) on the
+					// app port. The Envoy proxy is spun up by Envoy Gateway in its
+					// own namespace, not in morsel.
 					From: []networkingv1.NetworkPolicyPeer{
 						{
 							NamespaceSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"kubernetes.io/metadata.name": morselNamespace,
+								},
+							},
+						},
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": envoyGatewayNamespace,
 								},
 							},
 						},

@@ -6,18 +6,17 @@ else
 EXE :=
 endif
 
-CLUSTER_NAME ?= morsel-local
+CLUSTER_NAME  ?= morsel-local
+K3D_VERSION   ?= v5.7.5
 
 # ---- Container runtime --------------------------------------------------------
 # docker takes precedence when its daemon is reachable; otherwise fall back to
-# rootless podman. KIND_PROVIDER is prepended to kind commands when needed.
+# rootless podman. k3d handles podman via DOCKER_HOST set at runtime.
 _docker_ok := $(shell docker info >/dev/null 2>&1 && echo yes)
 ifeq ($(_docker_ok),yes)
 CONTAINER_RUNTIME := docker
-KIND_PROVIDER     :=
 else
 CONTAINER_RUNTIME := podman
-KIND_PROVIDER     := KIND_EXPERIMENTAL_PROVIDER=podman
 endif
 # -------------------------------------------------------------------------------
 
@@ -133,6 +132,12 @@ install-tools: ## Install prerequisites
 	@echo "Installing tool binaries from go.mod into $(LOCAL)/bin ..."
 	@awk '/^tool [^(]/{print $$2} /^tool \(/{f=1;next} f&&/^\)/{f=0} f&&NF{print $$1}' go.mod | \
 	while read -r tool; do echo "  $$tool"; go install "$$tool"; done
+	@if command -v k3d >/dev/null 2>&1; then \
+		echo "k3d: found ($$(k3d version | head -1))"; \
+	else \
+		echo "Installing k3d $(K3D_VERSION) ..."; \
+		go install github.com/k3d-io/k3d/v5@$(K3D_VERSION); \
+	fi
 	@if ! docker info >/dev/null 2>&1 && ! command -v podman >/dev/null 2>&1; then \
 		echo "Installing podman (no docker daemon found) ..."; \
 		if [ "$(OS)" = "Windows_NT" ]; then \
@@ -151,8 +156,8 @@ install-tools: ## Install prerequisites
 	fi
 
 .PHONY: cluster-down
-cluster-down: ## Delete the local kind cluster (override: CLUSTER_NAME=morsel-dev)
-	$(KIND_PROVIDER) kind delete cluster --name $(CLUSTER_NAME)
+cluster-down: ## Delete the local k3d cluster (override: CLUSTER_NAME=morsel-dev)
+	k3d cluster delete $(CLUSTER_NAME)
 
 # _ensure-podman-machine starts the default podman machine on Windows/macOS
 # when podman is the container runtime. No-op on Linux (native socket).

@@ -91,7 +91,7 @@ func TestConsolePrompter_Confirm_AcceptsY(t *testing.T) {
 
 func TestConsolePrompter_Ask_ChoiceByNumber(t *testing.T) {
 	prompts := []platform.Prompt{
-		{Key: "provider", Label: "K8s provider", Choices: []string{"kind", "docker-desktop", "minikube"}, Default: "kind"},
+		{Key: "provider", Label: "K8s provider", Choices: []string{"k3d", "docker-desktop", "minikube"}, Default: "k3d"},
 	}
 	var out strings.Builder
 	p := NewConsolePrompter(strings.NewReader("2\n"), &out)
@@ -103,14 +103,14 @@ func TestConsolePrompter_Ask_ChoiceByNumber(t *testing.T) {
 	if answers["provider"] != "docker-desktop" {
 		t.Errorf("provider: want %q, got %q", "docker-desktop", answers["provider"])
 	}
-	if !strings.Contains(out.String(), "1. kind") {
+	if !strings.Contains(out.String(), "1. k3d") {
 		t.Errorf("expected numbered choices in output: %q", out.String())
 	}
 }
 
 func TestConsolePrompter_Ask_ChoiceDefaultOnEnter(t *testing.T) {
 	prompts := []platform.Prompt{
-		{Key: "provider", Label: "K8s provider", Choices: []string{"kind", "docker-desktop", "minikube"}, Default: "minikube"},
+		{Key: "provider", Label: "K8s provider", Choices: []string{"k3d", "docker-desktop", "minikube"}, Default: "minikube"},
 	}
 	var out strings.Builder
 	p := NewConsolePrompter(strings.NewReader("\n"), &out)
@@ -129,7 +129,7 @@ func TestConsolePrompter_Ask_ChoiceDefaultOnEnter(t *testing.T) {
 
 func TestConsolePrompter_Ask_ChoiceInvalidNumber(t *testing.T) {
 	prompts := []platform.Prompt{
-		{Key: "provider", Label: "K8s provider", Choices: []string{"kind", "docker-desktop"}, Default: "kind"},
+		{Key: "provider", Label: "K8s provider", Choices: []string{"k3d", "docker-desktop"}, Default: "k3d"},
 	}
 	var out strings.Builder
 	p := NewConsolePrompter(strings.NewReader("5\n"), &out)
@@ -152,7 +152,7 @@ func TestConsolePrompter_Confirm_RejectsOther(t *testing.T) {
 func TestConsolePrompter_AutoAcceptDefault_SkipsReadForDefaults(t *testing.T) {
 	prompts := []platform.Prompt{
 		{Key: "region", Label: "Region", Default: "us-east-1"},
-		{Key: "provider", Label: "Provider", Choices: []string{"kind", "docker-desktop"}, Default: "kind"},
+		{Key: "provider", Label: "Provider", Choices: []string{"k3d", "docker-desktop"}, Default: "k3d"},
 	}
 	var out strings.Builder
 	p := NewConsolePrompter(strings.NewReader(""), &out)
@@ -165,8 +165,8 @@ func TestConsolePrompter_AutoAcceptDefault_SkipsReadForDefaults(t *testing.T) {
 	if answers["region"] != "us-east-1" {
 		t.Errorf("region: want %q, got %q", "us-east-1", answers["region"])
 	}
-	if answers["provider"] != "kind" {
-		t.Errorf("provider: want %q, got %q", "kind", answers["provider"])
+	if answers["provider"] != "k3d" {
+		t.Errorf("provider: want %q, got %q", "k3d", answers["provider"])
 	}
 }
 

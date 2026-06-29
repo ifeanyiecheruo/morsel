@@ -14,8 +14,6 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/selfcert"
 )
 
-const envoyGatewayInstallURL = "https://github.com/envoyproxy/gateway/releases/download/v1.4.1/install.yaml"
-
 const (
 	// apiImage is the local tag used for the morsel-api image built during bootstrap.
 	// The localhost/ prefix is required for Podman, which stores all locally built
@@ -24,6 +22,9 @@ const (
 	// apiDBPath is the path inside the morsel-api container where the SQLite database
 	// is stored. The parent directory (/data) is mounted from a PVC.
 	apiDBPath = "/data/morsel.db"
+	// envoyGatewayVersion is the Envoy Gateway release to install during bootstrap.
+	// Must be compatible with the sigs.k8s.io/gateway-api version in go.mod.
+	envoyGatewayVersion = "v1.4.1"
 )
 
 type localBootstrapper struct {
@@ -40,12 +41,13 @@ func New() *localBootstrapper {
 }
 
 // CheckPrerequisites ensures the target cluster exists and is reachable.
-// answers must include k8s_provider. For "kind", the morsel-local cluster is
-// created (with extraPortMappings for localhost:8080) if it does not yet exist.
+// answers must include k8s_provider. For "k3d", the morsel-local cluster is
+// created (with port mappings for localhost:18080 and localhost:9443) if it does
+// not yet exist.
 func (lb *localBootstrapper) CheckPrerequisites(ctx context.Context, kubeconfig string, answers map[string]string) error {
 	provider := answers["k8s_provider"]
 	if provider == "" {
-		provider = "kind"
+		provider = "k3d"
 	}
 
 	rt, err := container.CreateRuntime()
@@ -76,7 +78,7 @@ func (lb *localBootstrapper) CheckPrerequisites(ctx context.Context, kubeconfig 
 	if err != nil {
 		return fmt.Errorf(
 			"could not read kubeconfig at %s\n\nPossible remediation:\n"+
-				"  • Start your local Kubernetes cluster (Docker Desktop, Rancher Desktop, kind, …)\n"+
+				"  • Start your local Kubernetes cluster (Docker Desktop, Rancher Desktop, k3d, …)\n"+
 				"  • If the kubeconfig is in a non-default location, use --kubeconfig to specify the path\n"+
 				"  • Verify the file exists: kubectl config view",
 			kubeconfig,
@@ -85,7 +87,7 @@ func (lb *localBootstrapper) CheckPrerequisites(ctx context.Context, kubeconfig 
 	if err := kc.CheckAccess(ctx); err != nil {
 		return fmt.Errorf(
 			"cannot reach cluster %q at %s\n\nPossible remediation:\n"+
-				"  • Start your local Kubernetes cluster (Docker Desktop, Rancher Desktop, kind, …)\n"+
+				"  • Start your local Kubernetes cluster (Docker Desktop, Rancher Desktop, k3d, …)\n"+
 				"  • Check the active context:  kubectl config current-context\n"+
 				"  • Verify connectivity:       kubectl cluster-info\n"+
 				"  • Kubeconfig in use:         %s",
@@ -103,9 +105,9 @@ func (lb *localBootstrapper) KubeContext() string    { return lb.kubeContext }
 func (lb *localBootstrapper) ClusterServer() string  { return lb.clusterServer }
 
 // APIURL returns the host-accessible URL for the morsel-api after bootstrap.
-// For the local platform this is the kind extraPortMappings host port (8080).
+// The morsel-api is exposed as a NodePort mapped to localhost:18080 by k3d.
 func (lb *localBootstrapper) APIURL() string {
-	return fmt.Sprintf("http://localhost:%d", container.KindHostPort)
+	return fmt.Sprintf("http://localhost:%d", container.APIHostPort)
 }
 
 func (lb *localBootstrapper) Prompts() []platform.Prompt {
@@ -118,9 +120,9 @@ func (lb *localBootstrapper) Prompts() []platform.Prompt {
 		{
 			Key:      "k8s_provider",
 			Label:    "Kubernetes provider",
-			Default:  "kind",
+			Default:  "k3d",
 			Required: true,
-			Choices:  []string{"kind", "docker-desktop", "minikube"},
+			Choices:  []string{"k3d", "docker-desktop", "minikube"},
 		},
 	}
 }
@@ -134,15 +136,13 @@ func (lb *localBootstrapper) Plan(answers map[string]string) platform.Plan {
 		Summary: "A Morsel control plane will be provisioned inside your local Kubernetes cluster. No cloud account or billing is required.",
 		Resources: []platform.Resource{
 			{Name: "Local container registry", Description: "registry:2 in namespace " + ns},
-			{Name: "Morsel API", Description: "Control plane service in namespace " + ns + " on localhost:8080"},
+			{Name: "Morsel API", Description: "Control plane service in namespace " + ns + " on localhost:18080"},
 		},
 	}
 }
 
 // Provision provisions Kubernetes resources for the morsel control plane.
 // Safe to re-run — all operations are idempotent.
-// Cryptographic keys are generated lazily by the morsel-api on first use,
-// not during bootstrap.
 func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]string, dockerfile []byte) error {
 	// kubeconfigPath and cluster are set by CheckPrerequisites; skip K8s
 	// provisioning in contexts where that step was not run (e.g. unit tests).
@@ -160,10 +160,11 @@ func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]s
 	}
 
 	fmt.Println("Building morsel-api image…")
-	if err := lb.cluster.BuildAndLoad(ctx, dockerfile, apiImage, lb.repoRoot,
+	imageTag, err := lb.cluster.BuildAndLoad(ctx, dockerfile, apiImage, lb.repoRoot,
 		"--build-arg", fmt.Sprintf("MORSEL_UID=%d", kube.MorselUID),
 		"--build-arg", fmt.Sprintf("MORSEL_GID=%d", kube.MorselGID),
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("build morsel-api: %w", err)
 	}
 
@@ -176,7 +177,7 @@ func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]s
 		return fmt.Errorf("provision registry: %w", err)
 	}
 
-	if err := kubeClient.EnsureAPI(ctx, ns, apiImage, apiDBPath); err != nil {
+	if err := kubeClient.EnsureAPI(ctx, ns, imageTag, apiDBPath); err != nil {
 		return fmt.Errorf("provision morsel-api: %w", err)
 	}
 
@@ -185,9 +186,15 @@ func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]s
 		return fmt.Errorf("morsel-api did not become healthy: %w", err)
 	}
 
-	fmt.Println("Installing Envoy Gateway…")
-	if err := ensureEnvoyGateway(ctx, kubeClient, lb.kubeconfigPath); err != nil {
-		return fmt.Errorf("install envoy gateway: %w", err)
+	if !kubeClient.EnvoyGatewayInstalled(ctx) {
+		fmt.Println("Installing Envoy Gateway…")
+		if err := installEnvoyGateway(ctx, lb.kubeconfigPath); err != nil {
+			return fmt.Errorf("install envoy gateway: %w", err)
+		}
+	}
+	fmt.Println("Waiting for Envoy Gateway controller…")
+	if err := kubeClient.WaitForEnvoyGatewayReady(ctx, 3*time.Minute); err != nil {
+		return fmt.Errorf("envoy gateway not ready: %w", err)
 	}
 
 	fmt.Println("Provisioning TLS certificate…")
@@ -195,55 +202,36 @@ func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]s
 	if err != nil {
 		return fmt.Errorf("provision tls cert: %w", err)
 	}
+	// Store the wildcard cert in the morsel namespace so the Gateway's TLS
+	// termination config can reference it by secretName.
 	if err := kubeClient.StoreTLSSecret(ctx, ns, kube.MorselTLSSecret, cert); err != nil {
 		return fmt.Errorf("store tls secret: %w", err)
 	}
 
-	fmt.Println("Provisioning gateway classes and gateways…")
+	fmt.Println("Provisioning Gateway API resources…")
 	if err := kubeClient.EnsureGatewayClasses(ctx); err != nil {
 		return fmt.Errorf("provision gateway classes: %w", err)
 	}
-	if err := kubeClient.EnsureGateways(ctx, ns, kube.MorselTLSSecret); err != nil {
-		return fmt.Errorf("provision gateways: %w", err)
+	if err := kubeClient.EnsureExternalGateway(ctx, ns, kube.MorselTLSSecret); err != nil {
+		return fmt.Errorf("provision gateway: %w", err)
 	}
 
 	return nil
 }
 
-// ensureEnvoyGateway installs Envoy Gateway (which bundles Gateway API CRDs) into
-// the cluster using kubectl, then waits for the CRDs to be established. Idempotent.
-func ensureEnvoyGateway(ctx context.Context, kubeClient *kube.Client, kubeconfigPath string) error {
-	if kubeClient.GatewayAPICRDsInstalled(ctx) {
-		return nil
-	}
-	kubectlPath, err := exec.LookPath("kubectl")
-	if err != nil {
-		return fmt.Errorf(
-			"kubectl not found in PATH — install kubectl to enable Envoy Gateway provisioning\n" +
-				"See: https://kubernetes.io/docs/tasks/tools/",
-		)
-	}
-	cmd := exec.CommandContext(ctx, kubectlPath, "apply", "--server-side", "--force-conflicts", "-f", envoyGatewayInstallURL, "--kubeconfig", kubeconfigPath)
+// installEnvoyGateway applies the official Envoy Gateway release manifest to
+// the cluster using kubectl. The manifest installs the controller, CRDs, and
+// RBAC into envoy-gateway-system. Safe to re-run (kubectl apply is idempotent).
+func installEnvoyGateway(ctx context.Context, kubeconfigPath string) error {
+	url := "https://github.com/envoyproxy/gateway/releases/download/" + envoyGatewayVersion + "/install.yaml"
+	// --server-side avoids the size limit on configurations which Envoy Gateway CRDs exceed.
+	cmd := exec.CommandContext(ctx, "kubectl", "apply", "--server-side", "-f", url, "--kubeconfig", kubeconfigPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("kubectl apply envoy gateway: %w", err)
+		return fmt.Errorf("kubectl apply envoy gateway %s: %w", envoyGatewayVersion, err)
 	}
-	// Wait for the Gateway API CRDs to be established.
-	deadline := time.Now().Add(2 * time.Minute)
-	for {
-		if kubeClient.GatewayAPICRDsInstalled(ctx) {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("gateway api crds not established after 2 minutes")
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
-	}
+	return nil
 }
 
 // findRepoRoot walks up from the current working directory until it finds a

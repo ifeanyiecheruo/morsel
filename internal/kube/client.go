@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -29,8 +30,9 @@ func (e *ConfigError) Unwrap() error { return e.Err }
 // Client wraps the Kubernetes Clientset with Morsel-specific manifest apply
 // and status query operations.
 type Client struct {
-	cs kubernetes.Interface
-	gw gatewayclient.Interface
+	cs  kubernetes.Interface
+	gw  gatewayclient.Interface
+	dyn dynamic.Interface
 }
 
 // New creates a Client. It tries in-cluster config first (service account
@@ -50,7 +52,11 @@ func New(kubeconfigPath string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build gateway client: %w", err)
 	}
-	return &Client{cs: cs, gw: gw}, nil
+	dyn, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("build dynamic client: %w", err)
+	}
+	return &Client{cs: cs, gw: gw, dyn: dyn}, nil
 }
 
 // buildKubeConfig returns a *rest.Config using in-cluster config first, then

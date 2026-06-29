@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -20,6 +21,27 @@ type Runtime interface {
 	// SaveArchive saves the image in docker-archive format to destPath.
 	// kind requires docker-archive format regardless of the underlying runtime.
 	SaveArchive(ctx context.Context, tag, destPath string) error
+
+	// Host returns the DOCKER_HOST URI that tools communicating with this
+	// runtime via the Docker API (e.g. k3d) must set. Returns "" when the
+	// default socket is correct and no override is needed.
+	Host() (string, error)
+	// Exec runs cmd with args inside containerName. env is a slice of "KEY=VAL"
+	// strings injected into the container environment.
+	Exec(ctx context.Context, containerName, cmd string, args, env []string) error
+	// ApplyDNSWorkaround fixes DNS resolution inside containerName if the
+	// runtime requires it. Returns nil without doing anything when no fix is needed.
+	ApplyDNSWorkaround(ctx context.Context, containerName string) error
+	// ApplyCgroupWorkaround ensures the host cgroup configuration supports
+	// running a Kubernetes node. Returns nil without doing anything when no fix
+	// is needed.
+	ApplyCgroupWorkaround(ctx context.Context) error
+
+	// ImageID returns the sha256 hex digest of the image identified by tag,
+	// without the "sha256:" prefix.
+	ImageID(ctx context.Context, tag string) (string, error)
+	// Tag creates a new tag alias dst pointing at the same image as src.
+	Tag(ctx context.Context, src, dst string) error
 }
 
 // CreateRuntime detects and returns the available container runtime.
@@ -54,6 +76,28 @@ func (dockerRuntime) SaveArchive(ctx context.Context, tag, destPath string) erro
 	return runCmd(exec.CommandContext(ctx, "docker", "save", "-o", destPath, tag))
 }
 
+func (dockerRuntime) Host() (string, error) { return "", nil }
+
+func (dockerRuntime) Exec(ctx context.Context, containerName, cmd string, args, env []string) error {
+	execArgs := []string{"exec"}
+	for _, e := range env {
+		execArgs = append(execArgs, "--env", e)
+	}
+	execArgs = append(execArgs, containerName, cmd)
+	execArgs = append(execArgs, args...)
+	return runCmd(exec.CommandContext(ctx, "docker", execArgs...))
+}
+
+func (dockerRuntime) ApplyDNSWorkaround(_ context.Context, _ string) error { return nil }
+func (dockerRuntime) ApplyCgroupWorkaround(_ context.Context) error        { return nil }
+
+func (dockerRuntime) ImageID(ctx context.Context, tag string) (string, error) {
+	return inspectImageID(ctx, "docker", tag)
+}
+func (dockerRuntime) Tag(ctx context.Context, src, dst string) error {
+	return runCmd(exec.CommandContext(ctx, "docker", "tag", src, dst))
+}
+
 // podmanRuntime
 
 type podmanRuntime struct{}
@@ -78,6 +122,92 @@ func (podmanRuntime) Push(ctx context.Context, tag string) error {
 func (podmanRuntime) SaveArchive(ctx context.Context, tag, destPath string) error {
 	// kind requires docker-archive format; podman defaults to OCI archive
 	return runCmd(exec.CommandContext(ctx, "podman", "save", "--format", "docker-archive", "-o", destPath, tag))
+}
+
+func (podmanRuntime) Host() (string, error) {
+	if runtime.GOOS == "windows" {
+		out, err := exec.Command("podman", "machine", "inspect",
+			"--format", "{{.ConnectionInfo.PodmanPipe.Path}}").Output()
+		if err != nil {
+			return "", fmt.Errorf("query podman machine pipe: %w", err)
+		}
+		pipePath := strings.TrimSpace(string(out))
+		if pipePath == "" {
+			return "", fmt.Errorf("podman machine reported empty pipe path")
+		}
+		// \\.\pipe\foo  →  npipe:////./pipe/foo
+		normalized := strings.TrimLeft(strings.ReplaceAll(pipePath, `\`, "/"), "/")
+		return "npipe:////" + normalized, nil
+	}
+	out, err := exec.Command("podman", "info", "--format", "{{.Host.RemoteSocket.Path}}").Output()
+	if err != nil {
+		return "", fmt.Errorf("query podman socket: %w", err)
+	}
+	p := strings.TrimSpace(string(out))
+	if p == "" {
+		return "", fmt.Errorf("podman reported empty socket path")
+	}
+	return "unix://" + p, nil
+}
+
+// Exec tunnels into the Podman machine via `podman machine ssh` because on
+// Windows the containers run inside the WSL VM and are not directly reachable
+// from a Windows process. The inner command is built as a single shell string
+// with each token single-quoted.
+func (podmanRuntime) Exec(ctx context.Context, containerName, cmd string, args, env []string) error {
+	parts := []string{"podman", "exec"}
+	for _, e := range env {
+		parts = append(parts, "--env", shellQuote(e))
+	}
+	parts = append(parts, shellQuote(containerName), shellQuote(cmd))
+	for _, a := range args {
+		parts = append(parts, shellQuote(a))
+	}
+	return runCmd(exec.CommandContext(ctx, "podman", "machine", "ssh", strings.Join(parts, " ")))
+}
+
+func (p podmanRuntime) ApplyCgroupWorkaround(ctx context.Context) error {
+	// ApplyCgroupWorkaround writes the systemd user-slice delegate drop-in and
+	// reloads the daemon so the cpuset controller is propagated through the cgroup
+	// hierarchy. Without this, kubelet's CPU manager cannot write to cpuset.cpus
+	// inside pod cgroup subtrees and the node stays NotReady.
+
+	const shellCmd = `sudo mkdir -p /etc/systemd/system/user@.service.d && ` +
+		`printf '[Service]\nDelegate=memory pids cpu io cpuset\n' | ` +
+		`sudo tee /etc/systemd/system/user@.service.d/delegate.conf > /dev/null && ` +
+		`sudo systemctl daemon-reload`
+	return runCmd(exec.CommandContext(ctx, "podman", "machine", "ssh", shellCmd))
+}
+
+func (p podmanRuntime) ApplyDNSWorkaround(ctx context.Context, containerName string) error {
+	// On Podman, aardvark-dns doesn't forward external DNS queries reliably from
+	// inside k3d containers on Windows/WSL. After cluster creation, overwrite
+	// /etc/resolv.conf in each k3s node to use 1.1.1.1 directly so containerd
+	// can pull images. The volume-mount approach conflicts with k3d's own DNS fix,
+	// so we patch the file after k3d has finished its startup sequence.
+	return p.Exec(ctx, containerName, "sh", []string{"-c", "echo nameserver 1.1.1.1 > /etc/resolv.conf"}, nil)
+}
+
+func (podmanRuntime) ImageID(ctx context.Context, tag string) (string, error) {
+	return inspectImageID(ctx, "podman", tag)
+}
+func (podmanRuntime) Tag(ctx context.Context, src, dst string) error {
+	return runCmd(exec.CommandContext(ctx, "podman", "tag", src, dst))
+}
+
+// inspectImageID returns the sha256 hex digest of tag using the given runtime binary.
+// Both docker and podman return the digest with a "sha256:" prefix which is stripped.
+func inspectImageID(ctx context.Context, binary, tag string) (string, error) {
+	out, err := exec.CommandContext(ctx, binary, "image", "inspect", "--format", "{{.Id}}", tag).Output()
+	if err != nil {
+		return "", fmt.Errorf("%s image inspect: %w", binary, err)
+	}
+	return strings.TrimPrefix(strings.TrimSpace(string(out)), "sha256:"), nil
+}
+
+// shellQuote wraps s in single quotes for safe embedding in a POSIX shell command.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // isLocalhostTag reports whether tag targets a localhost or loopback registry,

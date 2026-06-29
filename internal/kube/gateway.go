@@ -15,6 +15,11 @@ import (
 )
 
 const (
+	// envoyGatewayNamespace is where the Envoy Gateway controller is installed.
+	envoyGatewayNamespace = "envoy-gateway-system"
+	// envoyGatewayDeployment is the Deployment name for the Envoy Gateway controller.
+	envoyGatewayDeployment = "envoy-gateway"
+
 	// appServiceName is the fixed name for the per-app Kubernetes Service.
 	appServiceName = "app"
 	// appServicePort is the port the app container listens on.
@@ -52,6 +57,40 @@ func (c *Client) GatewayAPICRDsInstalled(ctx context.Context) bool {
 	}
 	_, err := c.gw.GatewayV1().GatewayClasses().List(ctx, metav1.ListOptions{Limit: 1})
 	return err == nil
+}
+
+// EnvoyGatewayInstalled reports whether the Envoy Gateway controller is present
+// in the cluster by checking for its Deployment in envoy-gateway-system.
+func (c *Client) EnvoyGatewayInstalled(ctx context.Context) bool {
+	_, err := c.cs.AppsV1().Deployments(envoyGatewayNamespace).Get(ctx, envoyGatewayDeployment, metav1.GetOptions{})
+	return err == nil
+}
+
+// WaitForEnvoyGatewayReady polls until the Envoy Gateway controller Deployment
+// reaches ReadyReplicas ≥ 1 or timeout elapses.
+func (c *Client) WaitForEnvoyGatewayReady(ctx context.Context, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		deploy, err := c.cs.AppsV1().Deployments(envoyGatewayNamespace).Get(ctx, envoyGatewayDeployment, metav1.GetOptions{})
+		if err == nil && deploy.Status.ReadyReplicas >= 1 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("envoy-gateway controller not ready after %s", timeout)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+// EnsureExternalGateway provisions the external-facing Gateway in ns.
+// This is used on the local platform where a single node cannot bind port 443
+// twice, making a second internal Gateway impractical.
+func (c *Client) EnsureExternalGateway(ctx context.Context, ns, tlsSecretName string) error {
+	return c.applyGateway(ctx, ns, GatewayExternal, GatewayClassExternal, tlsSecretName)
 }
 
 // EnsureGatewayClasses provisions the external and internal GatewayClass resources.

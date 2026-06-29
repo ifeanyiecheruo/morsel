@@ -28,26 +28,16 @@ type Deployer interface {
 	GetTLSCertExpiry(ctx context.Context, namespace, secretName string) (*time.Time, error)
 }
 
-// AppPlatform is the subset of platform.Platform that API handlers may consume.
-// Expanded as stub methods are implemented.
-type AppPlatform interface {
-	Namespace() string
-	BaseDomain() string
-	Secrets() platform.Secrets
-	Tokens() platform.Tokens
-	Deploy() platform.Deployer
-}
-
 // Handler implements server.Handler for all Morsel API operations.
 type Handler struct {
-	plat       AppPlatform
+	plat       platform.Platform
 	store      *store.Store
 	signingKey []byte
 	deployer   Deployer
 }
 
 // New constructs a Handler.
-func New(plat AppPlatform, s *store.Store, signingKey []byte, deployer Deployer) *Handler {
+func New(plat platform.Platform, s *store.Store, signingKey []byte, deployer Deployer) *Handler {
 	return &Handler{plat: plat, store: s, signingKey: signingKey, deployer: deployer}
 }
 

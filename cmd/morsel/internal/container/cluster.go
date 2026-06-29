@@ -9,200 +9,251 @@ import (
 )
 
 // Cluster abstracts how container images are made available to a local
-// Kubernetes cluster. Implementations exist for kind, Docker Desktop, and
+// Kubernetes cluster. Implementations exist for k3d, Docker Desktop, and
 // minikube.
 type Cluster interface {
 	// Ensure creates the cluster if it does not exist and verifies it is
 	// ready to accept workloads. For Docker Desktop and minikube, which
 	// manage their own lifecycle, this is a no-op.
 	Ensure(ctx context.Context) error
-	// BuildAndLoad builds the container image and ensures it is visible to
-	// the cluster. buildArgs are forwarded to the build command
-	// (e.g. --build-arg KEY=VAL). The mechanism differs per provider:
-	//   - kind: build → save docker-archive tar → kind load image-archive
+	// BuildAndLoad builds the container image, assigns it a content-addressed
+	// tag derived from the image digest, ensures it is visible to the cluster,
+	// and returns the content-addressed tag. buildArgs are forwarded to the
+	// build command (e.g. --build-arg KEY=VAL). The mechanism differs per provider:
+	//   - k3d: build then k3d image import
 	//   - docker-desktop: build only (daemon is shared; no load step needed)
 	//   - minikube: minikube image build (targets minikube's internal runtime)
-	BuildAndLoad(ctx context.Context, dockerfile []byte, tag, buildContext string, buildArgs ...string) error
+	// The returned tag changes whenever the image content changes, so callers
+	// can use it as the Deployment image to trigger automatic rollouts.
+	BuildAndLoad(ctx context.Context, dockerfile []byte, tag, buildContext string, buildArgs ...string) (string, error)
 }
 
 const (
-	// kindClusterName is the fixed name of the kind cluster that bootstrap creates.
-	kindClusterName = "morsel-local"
-	// kindNodePort is the NodePort that the morsel-api service exposes inside
-	// the kind cluster. Must match kube.apiNodePort.
-	kindNodePort = 30080
-	// KindHostPort is the host port that kind's extraPortMappings maps to
-	// kindNodePort, making the morsel-api reachable at localhost:8080.
-	// Exported so the local bootstrapper can construct the external API URL.
-	KindHostPort = 8080
+	// clusterName is the fixed name of the local cluster that bootstrap creates.
+	clusterName = "morsel-local"
+	// apiNodePort is the NodePort that the morsel-api service exposes inside
+	// the cluster. Must match kube.apiNodePort.
+	apiNodePort = 30080
+	// APIHostPort is the host port mapped to apiNodePort, making the morsel-api
+	// reachable at localhost:18080. Uses a non-privileged port so Docker Desktop
+	// (wslrelay) can bind it without HTTP.SYS interference on Windows.
+	APIHostPort = 18080
 	// registryNodePort is the NodePort that the local registry service exposes
-	// inside the kind cluster. Must match kube.registryKubeNodePort.
+	// inside the cluster. Must match kube.registryKubeNodePort.
 	registryNodePort = 30050
-	// RegistryHostPort is the host port mapped to registryNodePort by kind's
-	// extraPortMappings, making the registry reachable at localhost:5000 for push.
+	// RegistryHostPort is the host port mapped to registryNodePort, making the
+	// registry reachable at localhost:5000 for push.
 	RegistryHostPort = 5000
+	// HTTPHostPort is the host port mapped to container port 80 on k3s nodes.
+	// Currently unused (reserved for future HTTP redirect support); Envoy Gateway
+	// only binds port 443. Non-privileged to avoid HTTP.SYS interception on Windows.
+	HTTPHostPort = 9080
+	// HTTPSHostPort is the host port mapped to container port 443 on k3s nodes.
+	// Envoy Gateway's proxy LoadBalancer service binds port 443; Klipper ServiceLB
+	// exposes it as a hostPort, making apps reachable at localhost:9443 over HTTPS.
+	// Non-privileged to avoid HTTP.SYS interception on Windows.
+	HTTPSHostPort = 9443
 )
 
 // NewCluster returns the Cluster implementation for provider. provider must be
-// one of "kind", "docker-desktop", or "minikube". kindSearchDirs are extra
-// directories appended to FindKind's search path (e.g. a repo's .local/bin).
-func NewCluster(rt Runtime, provider string, kindSearchDirs ...string) (Cluster, error) {
+// one of "k3d", "docker-desktop", or "minikube". k3dSearchDirs are extra
+// directories appended to FindK3d's search path (e.g. a repo's .local/bin).
+func NewCluster(rt Runtime, provider string, k3dSearchDirs ...string) (Cluster, error) {
 	switch provider {
-	case "kind":
-		kindPath, err := FindKind(kindSearchDirs...)
+	case "k3d":
+		k3dPath, err := FindK3d(k3dSearchDirs...)
 		if err != nil {
 			return nil, err
 		}
-		return newKindCluster(rt, kindPath), nil
+		return newK3dCluster(rt, k3dPath), nil
 	case "docker-desktop":
 		return newDockerDesktopCluster(rt), nil
 	case "minikube":
 		return newMinikubeCluster(), nil
 	default:
-		return nil, fmt.Errorf("unknown provider %q: must be kind, docker-desktop, or minikube", provider)
+		return nil, fmt.Errorf("unknown provider %q: must be k3d, docker-desktop, or minikube", provider)
 	}
 }
 
-func newKindCluster(rt Runtime, kindPath string) Cluster {
-	return kindCluster{rt: rt, kindPath: kindPath}
+// ── k3dCluster ────────────────────────────────────────────────────────────────
+
+func newK3dCluster(rt Runtime, k3dPath string) Cluster {
+	return k3dCluster{rt: rt, k3dPath: k3dPath}
 }
 
-func newDockerDesktopCluster(rt Runtime) Cluster { return dockerDesktopCluster{rt: rt} }
-
-func newMinikubeCluster() Cluster { return minikubeCluster{} }
-
-// kindCluster
-
-type kindCluster struct {
-	rt       Runtime
-	kindPath string
+type k3dCluster struct {
+	rt      Runtime
+	k3dPath string
 }
 
-// Ensure creates the kind cluster with the configured port mapping if it does
-// not exist. If the cluster already exists, it verifies the port mapping is
-// present and returns an actionable error if it is missing.
-func (k kindCluster) Ensure(ctx context.Context) error {
-	out, _ := exec.CommandContext(ctx, k.kindPath, "get", "clusters").Output()
+func (k k3dCluster) Ensure(ctx context.Context) error {
+	out, _ := exec.CommandContext(ctx, k.k3dPath, "cluster", "list", "--no-headers").Output()
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if strings.TrimSpace(line) == kindClusterName {
-			return k.checkPortMapping()
+		if strings.HasPrefix(strings.TrimSpace(line), clusterName) {
+			return nil // already exists
 		}
 	}
-	fmt.Printf("\n  Creating kind cluster %q…\n", kindClusterName)
+	fmt.Printf("\n  Creating k3d cluster %q…\n", clusterName)
 	return k.create(ctx)
 }
 
-// checkPortMapping returns an error when the cluster exists but lacks the
-// required host-port mapping, giving the operator a clear remediation command.
-func (k kindCluster) checkPortMapping() error {
-	nodeName := kindClusterName + "-control-plane"
-	out, err := exec.Command(k.rt.Name(), "port", nodeName).Output()
-	if err != nil {
-		return nil // can't inspect — let connectivity check surface the issue
+func (k k3dCluster) create(ctx context.Context) error {
+	if err := k.rt.ApplyCgroupWorkaround(ctx); err != nil {
+		return fmt.Errorf("cgroup workaround: %w", err)
 	}
-	outStr := string(out)
-	if strings.Contains(outStr, fmt.Sprintf(":%d", KindHostPort)) &&
-		strings.Contains(outStr, fmt.Sprintf(":%d", RegistryHostPort)) {
-		return nil
-	}
-	return fmt.Errorf(
-		"kind cluster %q exists but is missing required port mappings (localhost:%d and localhost:%d)\n\n"+
-			"Delete the cluster and re-run bootstrap to recreate it with the correct port mappings:\n"+
-			"  kind delete cluster --name %s\n"+
-			"  morsel service bootstrap --platform local",
-		kindClusterName, KindHostPort, RegistryHostPort, kindClusterName,
-	)
-}
 
-// create creates the kind cluster with the morsel-api port mapping.
-func (k kindCluster) create(ctx context.Context) error {
-	// containerdConfigPatches: tell the kind node's containerd to redirect
-	// localhost:5000 pulls to localhost:30050 (the registry NodePort) so that
-	// pods can pull images pushed from the host via the same localhost:5000 tag.
-	config := fmt.Sprintf(`kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-containerdConfigPatches:
-- |-
-  [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:%d"]
-  endpoint = ["http://localhost:%d"]
-nodes:
-- role: control-plane
-  extraPortMappings:
-  - containerPort: %d
-    hostPort: %d
-    protocol: TCP
-  - containerPort: %d
-    hostPort: %d
-    protocol: TCP
-`, RegistryHostPort, registryNodePort, kindNodePort, KindHostPort, registryNodePort, RegistryHostPort)
+	// registries.yaml tells k3s containerd to mirror localhost:5000 pulls to the
+	// in-cluster registry NodePort so pods can pull images that were pushed from
+	// the host via localhost:5000.
+	registriesYAML := fmt.Sprintf(`mirrors:
+  "localhost:%d":
+    endpoint:
+      - "http://localhost:%d"
+`, RegistryHostPort, registryNodePort)
 
-	f, err := os.CreateTemp("", "morsel-kind-config-*.yaml")
+	f, err := os.CreateTemp("", "morsel-k3d-registries-*.yaml")
 	if err != nil {
-		return fmt.Errorf("create kind config: %w", err)
+		return fmt.Errorf("create registries config: %w", err)
 	}
 	defer func() { _ = os.Remove(f.Name()) }()
-	if _, err := f.WriteString(config); err != nil {
+	if _, err := f.WriteString(registriesYAML); err != nil {
 		_ = f.Close()
-		return fmt.Errorf("write kind config: %w", err)
+		return fmt.Errorf("write registries config: %w", err)
 	}
 	_ = f.Close()
 
-	args := []string{"create", "cluster", "--name", kindClusterName, "--config", f.Name()}
+	args := []string{
+		"cluster", "create", clusterName,
+		// morsel-api NodePort
+		"--port", fmt.Sprintf("%d:%d@server:0", APIHostPort, apiNodePort),
+		// in-cluster registry NodePort
+		"--port", fmt.Sprintf("%d:%d@server:0", RegistryHostPort, registryNodePort),
+		// Port 80/443 via non-privileged host ports to avoid HTTP.SYS interception
+		// and WSL relay conflicts on Windows. Envoy Gateway's proxy binds port 443;
+		// port 80 is reserved for future HTTP redirect support.
+		"--port", fmt.Sprintf("%d:80@server:0", HTTPHostPort),
+		"--port", fmt.Sprintf("%d:443@server:0", HTTPSHostPort),
+		// Disable built-in Traefik; Envoy Gateway is installed during bootstrap.
+		"--k3s-arg", "--disable=traefik@server:0",
+		// KubeletInUserNamespace: without this, kubelet attempts to write kernel
+		// parameters (e.g. /proc/sys/kernel/dmesg_restrict, net.ipv4 sysctls) during
+		// node initialization. Those writes are denied inside a rootless Podman
+		// container running in a user namespace, causing kubelet to crash before the
+		// node ever reaches Ready. The feature gate makes kubelet skip those sysctl
+		// writes when it detects it is running inside a user namespace.
+		"--k3s-arg", "--kubelet-arg=feature-gates=KubeletInUserNamespace=true@server:0",
+		// registry mirror for containerd inside k3s nodes
+		"--registry-config", f.Name(),
+	}
 
-	cmd := exec.CommandContext(ctx, k.kindPath, args...)
-	if k.rt.Name() == "podman" {
-		cmd.Env = append(os.Environ(), "KIND_EXPERIMENTAL_PROVIDER=podman")
+	cmd, err := k.exec(ctx, args...)
+	if err != nil {
+		return err
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func (k kindCluster) BuildAndLoad(ctx context.Context, dockerfile []byte, tag, buildContext string, buildArgs ...string) error {
-	if err := k.rt.Build(ctx, dockerfile, tag, buildContext, buildArgs...); err != nil {
-		return fmt.Errorf("build: %w", err)
+	if err := cmd.Run(); err != nil {
+		return err
 	}
 
-	archive, err := os.CreateTemp("", "morsel-image-*.tar")
+	if err := k.rt.ApplyDNSWorkaround(ctx, "k3d-"+clusterName+"-server-0"); err != nil {
+		return err
+	}
+
+	// Merge the new cluster's kubeconfig into the default kubeconfig so that
+	// subsequent kubectl / kube.Client calls see the cluster without requiring
+	// the user to run kubeconfig merge manually.
+	merge, err := k.exec(ctx, "kubeconfig", "merge", clusterName, "--kubeconfig-merge-default")
 	if err != nil {
-		return fmt.Errorf("create image archive: %w", err)
+		return fmt.Errorf("merge kubeconfig: %w", err)
 	}
-	archivePath := archive.Name()
-	_ = archive.Close()
-	defer func() { _ = os.Remove(archivePath) }()
-
-	if err := k.rt.SaveArchive(ctx, tag, archivePath); err != nil {
-		return fmt.Errorf("save image archive: %w", err)
-	}
-
-	load := exec.CommandContext(ctx, k.kindPath, "load", "image-archive", archivePath, "--name", kindClusterName)
-	load.Stdout = os.Stdout
-	load.Stderr = os.Stderr
-	if err := load.Run(); err != nil {
-		return fmt.Errorf("kind load image-archive: %w", err)
+	if out, err := merge.CombinedOutput(); err != nil {
+		return fmt.Errorf("merge kubeconfig: %w: %s", err, out)
 	}
 	return nil
 }
 
-// dockerDesktopCluster
+func (k k3dCluster) exec(ctx context.Context, args ...string) (*exec.Cmd, error) {
+	host, err := k.rt.Host()
+	if err != nil {
+		return nil, fmt.Errorf("get runtime host: %w", err)
+	}
+	env := os.Environ()
+	if host != "" {
+		env = append(env, "DOCKER_HOST="+host)
+	}
+	cmd := exec.CommandContext(ctx, k.k3dPath, args...)
+	cmd.Env = env
+	return cmd, nil
+}
+
+func (k k3dCluster) BuildAndLoad(ctx context.Context, dockerfile []byte, tag, buildContext string, buildArgs ...string) (string, error) {
+	if err := k.rt.Build(ctx, dockerfile, tag, buildContext, buildArgs...); err != nil {
+		return "", fmt.Errorf("build: %w", err)
+	}
+	ct, err := contentTag(ctx, k.rt, tag)
+	if err != nil {
+		return "", err
+	}
+	load, err := k.exec(ctx, "image", "import", ct, "--cluster", clusterName)
+	if err != nil {
+		return "", fmt.Errorf("k3d image import: %w", err)
+	}
+	load.Stdout = os.Stdout
+	load.Stderr = os.Stderr
+	if err := load.Run(); err != nil {
+		return "", fmt.Errorf("k3d image import: %w", err)
+	}
+	return ct, nil
+}
+
+// contentTag derives a content-addressed tag from tag by inspecting the built
+// image's digest. Example: "localhost/morsel-api:local" → "localhost/morsel-api:sha-abc123def456".
+// It also creates the new alias in the local runtime so k3d can import it.
+func contentTag(ctx context.Context, rt Runtime, tag string) (string, error) {
+	id, err := rt.ImageID(ctx, tag)
+	if err != nil {
+		return "", fmt.Errorf("image id: %w", err)
+	}
+	if len(id) > 12 {
+		id = id[:12]
+	}
+	repo := strings.SplitN(tag, ":", 2)[0]
+	dst := repo + ":sha-" + id
+	if err := rt.Tag(ctx, tag, dst); err != nil {
+		return "", fmt.Errorf("retag: %w", err)
+	}
+	return dst, nil
+}
+
+// ── dockerDesktopCluster ─────────────────────────────────────────────────────
 
 type dockerDesktopCluster struct{ rt Runtime }
 
+func newDockerDesktopCluster(rt Runtime) Cluster { return dockerDesktopCluster{rt: rt} }
+
 func (dockerDesktopCluster) Ensure(_ context.Context) error { return nil }
 
-func (d dockerDesktopCluster) BuildAndLoad(ctx context.Context, dockerfile []byte, tag, buildContext string, buildArgs ...string) error {
-	return d.rt.Build(ctx, dockerfile, tag, buildContext, buildArgs...)
+func (d dockerDesktopCluster) BuildAndLoad(ctx context.Context, dockerfile []byte, tag, buildContext string, buildArgs ...string) (string, error) {
+	if err := d.rt.Build(ctx, dockerfile, tag, buildContext, buildArgs...); err != nil {
+		return "", fmt.Errorf("build: %w", err)
+	}
+	return contentTag(ctx, d.rt, tag)
 }
 
-// minikubeCluster
+// ── minikubeCluster ──────────────────────────────────────────────────────────
 
 type minikubeCluster struct{}
 
+func newMinikubeCluster() Cluster { return minikubeCluster{} }
+
 func (minikubeCluster) Ensure(_ context.Context) error { return nil }
 
-func (minikubeCluster) BuildAndLoad(ctx context.Context, dockerfile []byte, tag, buildContext string, buildArgs ...string) error {
+func (minikubeCluster) BuildAndLoad(ctx context.Context, dockerfile []byte, tag, buildContext string, buildArgs ...string) (string, error) {
 	args := []string{"image", "build", "-t", tag, "-f", "-"}
 	args = append(args, buildArgs...)
 	args = append(args, buildContext)
-	return execBuild(ctx, "minikube", dockerfile, args...)
+	// minikube builds inside its own container runtime; host-side inspect is not
+	// available, so the input tag is returned unchanged.
+	return tag, execBuild(ctx, "minikube", dockerfile, args...)
 }
