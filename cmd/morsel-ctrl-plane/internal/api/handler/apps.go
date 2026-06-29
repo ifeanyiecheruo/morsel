@@ -62,6 +62,7 @@ func (h *Handler) UpsertApp(ctx context.Context, spec *server.AppSpec, params se
 	manifest := kube.AppManifest{
 		Namespace:  ns,
 		AppName:    name,
+		RepoName:   params.Repo,
 		Type:       string(spec.Type),
 		Image:      spec.Image,
 		Port:       int32(spec.Port.Or(0)),

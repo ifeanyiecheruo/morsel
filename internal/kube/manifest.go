@@ -47,7 +47,8 @@ var smallTierQuota = corev1.ResourceList{
 // AppManifest describes the Kubernetes resources to apply for a single app.
 type AppManifest struct {
 	Namespace  string
-	AppName    string // used in pod labels
+	AppName    string // used in pod labels and the public hostname
+	RepoName   string // used in the public hostname: <app>.<repo>.app.<basedomain>
 	Type       string // "http", "worker", or "cron"
 	Image      string
 	Port       int32 // container port; 0 means use appServicePort default
@@ -90,7 +91,7 @@ func (c *Client) Apply(ctx context.Context, m AppManifest) error {
 		if err := c.ApplyAppService(ctx, m.Namespace, m.AppName, port); err != nil {
 			return fmt.Errorf("app service: %w", err)
 		}
-		host := appHostname(m.Namespace, m.BaseDomain)
+		host := appHostname(m.AppName, m.RepoName, m.BaseDomain)
 		gatewayNS := m.GatewayNS
 		if gatewayNS == "" {
 			gatewayNS = morselNamespace
@@ -122,9 +123,8 @@ func (c *Client) Delete(ctx context.Context, namespace string) error {
 }
 
 // appHostname derives the public hostname for an app.
-// The namespace already encodes org/repo/appname in a slug-safe form.
-func appHostname(namespace, baseDomain string) string {
-	return namespace + "." + baseDomain
+func appHostname(appName, repoName, baseDomain string) string {
+	return appName + "." + repoName + ".app." + baseDomain
 }
 
 func (c *Client) ensureNamespace(ctx context.Context, name string) error {

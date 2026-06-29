@@ -215,6 +215,9 @@ func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]s
 	if err := kubeClient.EnsureExternalGateway(ctx, ns, kube.MorselTLSSecret); err != nil {
 		return fmt.Errorf("provision gateway: %w", err)
 	}
+	if err := kubeClient.EnsureAPIHTTPRoute(ctx, ns, "api."+selfcert.LocalBaseDomain); err != nil {
+		return fmt.Errorf("provision api route: %w", err)
+	}
 
 	return nil
 }

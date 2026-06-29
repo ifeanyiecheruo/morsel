@@ -290,6 +290,57 @@ func (c *Client) DeleteAppService(ctx context.Context, namespace string) error {
 	return err
 }
 
+// EnsureAPIHTTPRoute creates or updates an HTTPRoute in ns that routes hostname
+// to the morsel-api Service. The route is attached to the morsel-external Gateway.
+func (c *Client) EnsureAPIHTTPRoute(ctx context.Context, ns, hostname string) error {
+	gwNS := gatewayv1.Namespace(ns)
+	port := gatewayv1.PortNumber(apiPort)
+	hostName := gatewayv1.Hostname(hostname)
+	route := &gatewayv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      apiName,
+			Namespace: ns,
+			Labels:    map[string]string{"morsel.io/managed": "true"},
+		},
+		Spec: gatewayv1.HTTPRouteSpec{
+			CommonRouteSpec: gatewayv1.CommonRouteSpec{
+				ParentRefs: []gatewayv1.ParentReference{
+					{
+						Name:      gatewayv1.ObjectName(GatewayExternal),
+						Namespace: &gwNS,
+					},
+				},
+			},
+			Hostnames: []gatewayv1.Hostname{hostName},
+			Rules: []gatewayv1.HTTPRouteRule{
+				{
+					BackendRefs: []gatewayv1.HTTPBackendRef{
+						{
+							BackendRef: gatewayv1.BackendRef{
+								BackendObjectReference: gatewayv1.BackendObjectReference{
+									Name: gatewayv1.ObjectName(apiName),
+									Port: &port,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	existing, err := c.gw.GatewayV1().HTTPRoutes(ns).Get(ctx, apiName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		_, err = c.gw.GatewayV1().HTTPRoutes(ns).Create(ctx, route, metav1.CreateOptions{})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	existing.Spec = route.Spec
+	_, err = c.gw.GatewayV1().HTTPRoutes(ns).Update(ctx, existing, metav1.UpdateOptions{})
+	return err
+}
+
 // StoreTLSSecret writes a *tls.Certificate as a kubernetes.io/tls Secret.
 // Idempotent — creates or updates.
 func (c *Client) StoreTLSSecret(ctx context.Context, namespace, name string, cert *tls.Certificate) error {
