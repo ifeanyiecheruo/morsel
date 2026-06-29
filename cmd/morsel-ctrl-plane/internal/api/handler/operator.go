@@ -64,7 +64,7 @@ func (h *Handler) GetDeploymentInfo(ctx context.Context) (server.GetDeploymentIn
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
-	return &server.DeploymentInfo{Namespace: h.plat.Namespace()}, nil
+	return &server.DeploymentInfo{Namespace: h.plat.Namespace(), Platform: h.plat.Name()}, nil
 }
 
 func (h *Handler) GetOperatorStatus(ctx context.Context) (server.GetOperatorStatusRes, error) {

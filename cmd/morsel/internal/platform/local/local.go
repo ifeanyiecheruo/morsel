@@ -27,7 +27,7 @@ const (
 	envoyGatewayVersion = "v1.4.1"
 )
 
-type localBootstrapper struct {
+type localServiceDeployer struct {
 	kubeconfigPath string
 	kubeContext    string
 	clusterServer  string
@@ -36,15 +36,15 @@ type localBootstrapper struct {
 }
 
 // New returns a new local platform bootstrapper.
-func New() *localBootstrapper {
-	return &localBootstrapper{}
+func New() *localServiceDeployer {
+	return &localServiceDeployer{}
 }
 
 // CheckPrerequisites ensures the target cluster exists and is reachable.
 // answers must include k8s_provider. For "k3d", the morsel-local cluster is
 // created (with port mappings for localhost:18080 and localhost:9443) if it does
 // not yet exist.
-func (lb *localBootstrapper) CheckPrerequisites(ctx context.Context, kubeconfig string, answers map[string]string) error {
+func (lb *localServiceDeployer) CheckPrerequisites(ctx context.Context, kubeconfig string, answers map[string]string) error {
 	provider := answers["k8s_provider"]
 	if provider == "" {
 		provider = "k3d"
@@ -100,17 +100,17 @@ func (lb *localBootstrapper) CheckPrerequisites(ctx context.Context, kubeconfig 
 	return nil
 }
 
-func (lb *localBootstrapper) KubeconfigPath() string { return lb.kubeconfigPath }
-func (lb *localBootstrapper) KubeContext() string    { return lb.kubeContext }
-func (lb *localBootstrapper) ClusterServer() string  { return lb.clusterServer }
+func (lb *localServiceDeployer) KubeconfigPath() string { return lb.kubeconfigPath }
+func (lb *localServiceDeployer) KubeContext() string    { return lb.kubeContext }
+func (lb *localServiceDeployer) ClusterServer() string  { return lb.clusterServer }
 
 // APIURL returns the host-accessible URL for the morsel-api after bootstrap.
 // The morsel-api is exposed as a NodePort mapped to localhost:18080 by k3d.
-func (lb *localBootstrapper) APIURL() string {
+func (lb *localServiceDeployer) APIURL() string {
 	return fmt.Sprintf("http://localhost:%d", container.APIHostPort)
 }
 
-func (lb *localBootstrapper) Prompts() []platform.Prompt {
+func (lb *localServiceDeployer) Prompts() []platform.Prompt {
 	return []platform.Prompt{
 		{
 			Key:     "k8s_namespace",
@@ -127,7 +127,7 @@ func (lb *localBootstrapper) Prompts() []platform.Prompt {
 	}
 }
 
-func (lb *localBootstrapper) Plan(answers map[string]string) platform.Plan {
+func (lb *localServiceDeployer) Plan(answers map[string]string) platform.Plan {
 	ns := answers["k8s_namespace"]
 	if ns == "" {
 		ns = "morsel"
@@ -143,7 +143,7 @@ func (lb *localBootstrapper) Plan(answers map[string]string) platform.Plan {
 
 // Provision provisions Kubernetes resources for the morsel control plane.
 // Safe to re-run — all operations are idempotent.
-func (lb *localBootstrapper) Provision(ctx context.Context, answers map[string]string, dockerfile []byte) error {
+func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[string]string, dockerfile []byte) error {
 	// kubeconfigPath and cluster are set by CheckPrerequisites; skip K8s
 	// provisioning in contexts where that step was not run (e.g. unit tests).
 	if lb.kubeconfigPath == "" {
@@ -258,4 +258,4 @@ func findRepoRoot() (string, error) {
 	}
 }
 
-var _ platform.Bootstrapper = (*localBootstrapper)(nil)
+var _ platform.ServiceDeployer = (*localServiceDeployer)(nil)

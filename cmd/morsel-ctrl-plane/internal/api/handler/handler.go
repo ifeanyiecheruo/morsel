@@ -18,8 +18,8 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
-// Deployer is the subset of kube.Client methods used by the handler.
-type Deployer interface {
+// AppDeployer is the subset of kube.Client methods used by the handler.
+type AppDeployer interface {
 	Apply(ctx context.Context, m kube.AppManifest) error
 	Delete(ctx context.Context, namespace string) error
 	WatchDeploymentRollout(ctx context.Context, namespace string) error
@@ -33,11 +33,11 @@ type Handler struct {
 	plat       platform.Platform
 	store      *store.Store
 	signingKey []byte
-	deployer   Deployer
+	deployer   AppDeployer
 }
 
 // New constructs a Handler.
-func New(plat platform.Platform, s *store.Store, signingKey []byte, deployer Deployer) *Handler {
+func New(plat platform.Platform, s *store.Store, signingKey []byte, deployer AppDeployer) *Handler {
 	return &Handler{plat: plat, store: s, signingKey: signingKey, deployer: deployer}
 }
 

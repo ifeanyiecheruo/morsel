@@ -15,7 +15,8 @@ import (
 // which returns a safe empty profile). Tests set only the hooks they care about.
 type mockCliHandler struct {
 	onLoadProfile             func(name string, ensureValid bool) (*Profile, error)
-	onServiceBootstrap        func(kubeconfig string, b platform.Bootstrapper, dockerfile []byte, yes bool) (*Profile, error)
+	onServiceDeploy           func(kubeconfig string, b platform.ServiceDeployer, dockerfile []byte, yes bool) (*Profile, error)
+	onServiceDeployPlatform   func(prof *Profile) (string, error)
 	onOperatorLogin           func(apiURL, username, password string) (*Profile, error)
 	onSaveProfile             func(name string, prof *Profile) error
 	onDeleteProfile           func(name string) error
@@ -52,11 +53,18 @@ func (h *mockCliHandler) LoadProfile(_ context.Context, name string, ensureValid
 	return nil, nil
 }
 
-func (h *mockCliHandler) ServiceBootstrap(_ context.Context, kubeconfig string, b platform.Bootstrapper, dockerfile []byte, yes bool) (*Profile, error) {
-	if h.onServiceBootstrap != nil {
-		return h.onServiceBootstrap(kubeconfig, b, dockerfile, yes)
+func (h *mockCliHandler) ServiceDeploy(_ context.Context, kubeconfig string, b platform.ServiceDeployer, dockerfile []byte, yes bool) (*Profile, error) {
+	if h.onServiceDeploy != nil {
+		return h.onServiceDeploy(kubeconfig, b, dockerfile, yes)
 	}
 	return &Profile{}, nil
+}
+
+func (h *mockCliHandler) ServiceDeployPlatform(_ context.Context, prof *Profile) (string, error) {
+	if h.onServiceDeployPlatform != nil {
+		return h.onServiceDeployPlatform(prof)
+	}
+	return "local", nil
 }
 
 func (h *mockCliHandler) OperatorLogin(_ context.Context, apiURL, username, password string) (*Profile, error) {
@@ -348,17 +356,17 @@ func TestOperatorLoginSucceedsWithAPIURLAndNoProfile(t *testing.T) {
 	}
 }
 
-// --- Service bootstrap ---
+// --- Service deploy ---
 
-func TestServiceBootstrapPassesFlagsToHandler(t *testing.T) {
+func TestServiceDeployPassesFlagsToHandler(t *testing.T) {
 	var gotKubeconfig string
 	mock := &mockCliHandler{
-		onServiceBootstrap: func(kubeconfig string, _ platform.Bootstrapper, _ []byte, _ bool) (*Profile, error) {
+		onServiceDeploy: func(kubeconfig string, _ platform.ServiceDeployer, _ []byte, _ bool) (*Profile, error) {
 			gotKubeconfig = kubeconfig
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"service", "bootstrap", "--platform", "local", "--kubeconfig", "/tmp/kube"}, nil); err != nil {
+	if err := run(context.Background(), mock, []string{"service", "deploy", "--platform", "local", "--kubeconfig", "/tmp/kube"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotKubeconfig != "/tmp/kube" {
@@ -366,15 +374,15 @@ func TestServiceBootstrapPassesFlagsToHandler(t *testing.T) {
 	}
 }
 
-func TestServiceBootstrapYesFlagPassedToHandler(t *testing.T) {
+func TestServiceDeployYesFlagPassedToHandler(t *testing.T) {
 	var gotYes bool
 	mock := &mockCliHandler{
-		onServiceBootstrap: func(_ string, _ platform.Bootstrapper, _ []byte, yes bool) (*Profile, error) {
+		onServiceDeploy: func(_ string, _ platform.ServiceDeployer, _ []byte, yes bool) (*Profile, error) {
 			gotYes = yes
 			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"service", "bootstrap", "--platform", "local", "-y"}, nil); err != nil {
+	if err := run(context.Background(), mock, []string{"service", "deploy", "--platform", "local", "-y"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !gotYes {
@@ -382,17 +390,45 @@ func TestServiceBootstrapYesFlagPassedToHandler(t *testing.T) {
 	}
 }
 
-func TestServiceBootstrapRequiresPlatformFlag(t *testing.T) {
-	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap"}, nil)
+func TestServiceDeployRequiresPlatformFlagWhenNotLoggedIn(t *testing.T) {
+	// onLoadProfile is nil → no profile → not logged in → --platform required
+	err := run(context.Background(), &mockCliHandler{}, []string{"service", "deploy"}, nil)
 	if err == nil {
-		t.Fatal("expected error for missing --platform, got nil")
+		t.Fatal("expected error for missing --platform when not logged in, got nil")
 	}
 }
 
-func TestServiceBootstrapRejectsKubeconfigForNonLocalPlatform(t *testing.T) {
-	err := run(context.Background(), &mockCliHandler{}, []string{"service", "bootstrap", "--platform", "gcp", "--kubeconfig", "/tmp/kube"}, nil)
+func TestServiceDeployRejectsMismatchedPlatformWhenLoggedIn(t *testing.T) {
+	mock := &mockCliHandler{
+		onLoadProfile:           withProfile(&Profile{APIURL: "http://localhost:8080"}),
+		onServiceDeployPlatform: func(_ *Profile) (string, error) { return "local", nil },
+		onServiceDeploy: func(_ string, _ platform.ServiceDeployer, _ []byte, _ bool) (*Profile, error) {
+			return &Profile{}, nil
+		},
+	}
+	err := run(context.Background(), mock, []string{"service", "deploy", "--platform", "gcp"}, nil)
 	if err == nil {
-		t.Fatal("expected error when --kubeconfig is used with non-local platform, got nil")
+		t.Fatal("expected error when --platform disagrees with instance platform, got nil")
+	}
+}
+
+func TestServiceDeployAllowsMatchingPlatformWhenLoggedIn(t *testing.T) {
+	mock := &mockCliHandler{
+		onLoadProfile:           withProfile(&Profile{APIURL: "http://localhost:8080"}),
+		onServiceDeployPlatform: func(_ *Profile) (string, error) { return "local", nil },
+		onServiceDeploy: func(_ string, _ platform.ServiceDeployer, _ []byte, _ bool) (*Profile, error) {
+			return &Profile{}, nil
+		},
+	}
+	if err := run(context.Background(), mock, []string{"service", "deploy", "--platform", "local"}, nil); err != nil {
+		t.Fatalf("expected no error when --platform matches instance platform, got: %v", err)
+	}
+}
+
+func TestServiceDeployRejectsUnknownPlatform(t *testing.T) {
+	err := run(context.Background(), &mockCliHandler{}, []string{"service", "deploy", "--platform", "gcp"}, nil)
+	if err == nil {
+		t.Fatal("expected error for unknown platform, got nil")
 	}
 }
 

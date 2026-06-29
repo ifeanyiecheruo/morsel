@@ -1,6 +1,9 @@
 type: object
-required: [namespace]
+required: [namespace, platform]
 properties:
   namespace:
     description: Kubernetes namespace where Morsel is installed. Set at bootstrap time and immutable.
+    type: string
+  platform:
+    description: Platform implementation backing this deployment (e.g. "local").
     type: string

@@ -1,4 +1,4 @@
-// Package platforms resolves a platform name to its Bootstrapper implementation.
+// Package platforms resolves a platform name to its ServiceDeployer implementation.
 package platforms
 
 import (
@@ -8,8 +8,8 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platform/local"
 )
 
-// New returns the Bootstrapper for the given platform name.
-func New(platformName string) (platform.Bootstrapper, error) {
+// New returns the ServiceDeployer for the given platform name.
+func New(platformName string) (platform.ServiceDeployer, error) {
 	switch platformName {
 	case "local":
 		return local.New(), nil

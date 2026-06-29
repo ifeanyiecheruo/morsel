@@ -7,7 +7,7 @@ func (c *cli) serviceCmd() *cobra.Command {
 		Use:   "service",
 		Short: "Platform lifecycle commands (operator use)",
 	}
-	cmd.AddCommand(c.serviceBootstrapCmd())
+	cmd.AddCommand(c.serviceDeployCmd())
 	cmd.AddCommand(c.serviceStatusCmd())
 	cmd.AddCommand(c.serviceDeleteCmd())
 	cmd.AddCommand(c.serviceUpgradeCmd())

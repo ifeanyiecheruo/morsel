@@ -19,7 +19,11 @@ type Handler interface {
 	LoadProfile(ctx context.Context, name string, ensureValid bool) (*Profile, error)
 
 	// No-auth commands
-	ServiceBootstrap(ctx context.Context, kubeconfig string, b platform.Bootstrapper, dockerfile []byte, yes bool) (*Profile, error)
+	ServiceDeploy(ctx context.Context, kubeconfig string, b platform.ServiceDeployer, dockerfile []byte, yes bool) (*Profile, error)
+
+	// ServiceDeployPlatform fetches the platform name from a running instance.
+	// Called by serviceDeployCmd when the operator is already logged in.
+	ServiceDeployPlatform(ctx context.Context, prof *Profile) (string, error)
 
 	OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, error)
 	SaveProfile(ctx context.Context, name string, prof *Profile) error

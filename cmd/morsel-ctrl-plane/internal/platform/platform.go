@@ -31,9 +31,10 @@ type Seeder interface {
 
 // Platform is the full control-plane-facing interface consumed by the REST API server.
 type Platform interface {
+	Name() string
 	Namespace() string
 	BaseDomain() string
-	Deploy() Deployer
+	Deploy() AppDeployer
 	Blobs() BlobStore
 	Secrets() Secrets
 	Tokens() Tokens
@@ -86,8 +87,8 @@ type Tokens interface {
 	ValidateOperatorCredential(ctx context.Context, username, password string) (subject string, err error)
 }
 
-// Deployer provides registry and credential information needed for a deploy run.
-type Deployer interface {
+// AppDeployer provides registry and credential information needed for a deploy run.
+type AppDeployer interface {
 	// Credentials returns the Morsel token and registry auth needed for a deploy.
 	Credentials(ctx context.Context) (DeployCredentials, error)
 

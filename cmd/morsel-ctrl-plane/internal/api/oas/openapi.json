@@ -601,10 +601,15 @@
           "namespace": {
             "description": "Kubernetes namespace where Morsel is installed. Set at bootstrap time and immutable.",
             "type": "string"
+          },
+          "platform": {
+            "description": "Platform implementation backing this deployment (e.g. \"local\").",
+            "type": "string"
           }
         },
         "required": [
-          "namespace"
+          "namespace",
+          "platform"
         ],
         "type": "object"
       },
@@ -2386,10 +2391,15 @@
                     "namespace": {
                       "description": "Kubernetes namespace where Morsel is installed. Set at bootstrap time and immutable.",
                       "type": "string"
+                    },
+                    "platform": {
+                      "description": "Platform implementation backing this deployment (e.g. \"local\").",
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "namespace"
+                    "namespace",
+                    "platform"
                   ],
                   "type": "object"
                 }

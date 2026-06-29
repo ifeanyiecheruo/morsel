@@ -784,6 +784,8 @@ func (*DeployConfig) prepareRepoDeployRes() {}
 type DeploymentInfo struct {
 	// Kubernetes namespace where Morsel is installed. Set at bootstrap time and immutable.
 	Namespace string `json:"namespace"`
+	// Platform implementation backing this deployment (e.g. "local").
+	Platform string `json:"platform"`
 }
 
 // GetNamespace returns the value of Namespace.
@@ -791,9 +793,19 @@ func (s *DeploymentInfo) GetNamespace() string {
 	return s.Namespace
 }
 
+// GetPlatform returns the value of Platform.
+func (s *DeploymentInfo) GetPlatform() string {
+	return s.Platform
+}
+
 // SetNamespace sets the value of Namespace.
 func (s *DeploymentInfo) SetNamespace(val string) {
 	s.Namespace = val
+}
+
+// SetPlatform sets the value of Platform.
+func (s *DeploymentInfo) SetPlatform(val string) {
+	s.Platform = val
 }
 
 func (*DeploymentInfo) getDeploymentInfoRes() {}

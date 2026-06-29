@@ -54,7 +54,7 @@ func (m *memSecretStore) Delete(_ context.Context, name string) error {
 	return nil
 }
 
-// fakeDeployer satisfies handler.Deployer and immediately succeeds every
+// fakeDeployer satisfies handler.AppDeployer and immediately succeeds every
 // operation, allowing tests to verify API contracts without a real cluster.
 type fakeDeployer struct{}
 
@@ -67,7 +67,7 @@ func (fakeDeployer) GetTLSCertExpiry(_ context.Context, _, _ string) (*time.Time
 	return nil, nil
 }
 
-var _ handler.Deployer = fakeDeployer{}
+var _ handler.AppDeployer = fakeDeployer{}
 
 // jsonPost returns a POST request with Content-Type: application/json.
 func jsonPost(target, body string) *http.Request {

@@ -1,11 +1,11 @@
 // Package platform defines the CLI-facing platform interface.
-// All platforms must implement Bootstrapper to support the service bootstrap command.
+// All platforms must implement ServiceDeployer to support the service bootstrap command.
 package platform
 
 import "context"
 
-// Bootstrapper provisions all platform resources needed to run Morsel.
-type Bootstrapper interface {
+// ServiceDeployer provisions all platform resources needed to run Morsel.
+type ServiceDeployer interface {
 	CheckPrerequisites(ctx context.Context, kubeconfig string, answers map[string]string) error
 	KubeconfigPath() string
 	KubeContext() string

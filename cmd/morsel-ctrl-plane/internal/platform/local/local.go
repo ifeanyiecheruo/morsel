@@ -15,6 +15,9 @@ import (
 
 const saNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
+// Name identifies this platform implementation.
+func (lp *LocalPlatform) Name() string { return "local" }
+
 // BaseDomain returns the base domain for app URLs on the local platform.
 func (lp *LocalPlatform) BaseDomain() string { return selfcert.LocalBaseDomain }
 
@@ -70,7 +73,7 @@ func DBPath() string {
 	return filepath.Join(localDataDir(), "morsel.db")
 }
 
-func (lp *LocalPlatform) Deploy() platform.Deployer         { return &localDeployer{} }
+func (lp *LocalPlatform) Deploy() platform.AppDeployer      { return &localAppDeployer{} }
 func (lp *LocalPlatform) Blobs() platform.BlobStore         { return &localBlobStore{} }
 func (lp *LocalPlatform) Secrets() platform.Secrets         { return lp.secrets }
 func (lp *LocalPlatform) Tokens() platform.Tokens           { return lp.tok }
