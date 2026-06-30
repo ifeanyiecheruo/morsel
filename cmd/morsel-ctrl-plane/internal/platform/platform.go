@@ -9,6 +9,8 @@ import (
 	"errors"
 	"io"
 	"time"
+
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/queue"
 )
 
 var (
@@ -36,6 +38,9 @@ type Platform interface {
 	BaseDomain() string
 	Deploy() AppDeployer
 	Blobs() BlobStore
+	// Queues returns a Queue scoped to the given app. The platform implementation
+	// derives the Kubernetes namespace from repoSlug ("org/repo") and appName.
+	Queues(repoSlug, appName string) queue.Queue
 	Secrets() Secrets
 	Tokens() Tokens
 	DNS() DNSProvider

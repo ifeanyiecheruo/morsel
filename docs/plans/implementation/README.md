@@ -27,7 +27,7 @@
 | [F09](009-feature-networking.md) | Networking | ✅ done | F06, F07 |
 | [F10](010-feature-blob-service.md) | Blob Service | ⬜ not started | F07 |
 | [F11](011-feature-database-service.md) | Database Service | ⬜ not started | F06, F07 |
-| [F12](012-feature-queue-service.md) | Queue Service | ⬜ not started | F07, F11 |
+| [F12](012-feature-queue-service.md) | Queue Service | ✅ done | F07 |
 | [F13](013-feature-hibernation.md) | Hibernation | ⬜ not started | F06, F07, F08, F09, F12 |
 | [F14](014-feature-quota-tiers.md) | Quota Tiers | ⬜ not started | F05, F06 |
 | [F15](015-feature-approvals.md) | Approvals | ⬜ not started | F05, F14 |
@@ -50,8 +50,8 @@
 | 3 | **F03b**, **F07** | F03b needs F03; F07 needs F02+F03 |
 | 4 | **F05** | F03b |
 | 5 | **F06**, **F14** | F05; F06 also needed for F14 so do F06 first |
-| 6 | **F08**, **F09**, **F10**, **F11** | F06+F07 (F08 also needs F03+F05) |
-| 7 | **F12**, **F15** | F12 needs F07+F11; F15 needs F05+F14 |
+| 6 | **F08**, **F09**, **F10**, **F11**, **F12** | F06+F07 (F08 also needs F03+F05); F10, F11, F12 need only F07 |
+| 7 | **F15** | F15 needs F05+F14 |
 | 8 | F13 | F06+F07+F08+F09+F12 |
 | 9 | F16 | F13 |
 | 10 | F17 | F13+F16 |
@@ -90,8 +90,6 @@ graph TD
     F07 --> F10[F10: Blob Service]
     F07 --> F11
     F07 --> F12[F12: Queue Service]
-
-    F11 --> F12
 
     F14 --> F15
 

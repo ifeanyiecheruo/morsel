@@ -36,7 +36,7 @@ func (h *Handler) UpsertApp(ctx context.Context, spec *server.AppSpec, params se
 	}
 	name := spec.Name.Or("")
 	slug := repoSlug(params.Org, params.Repo)
-	ns := appNamespace(params.Org, params.Repo, name)
+	ns := kube.AppNamespace(repoSlug(params.Org, params.Repo), name)
 
 	if _, err := h.store.GetOrCreateRepo(ctx, slug); err != nil {
 		return nil, fmt.Errorf("get or create repo: %w", err)
@@ -174,7 +174,7 @@ func (h *Handler) DeleteApp(ctx context.Context, params server.DeleteAppParams) 
 		return nil, fmt.Errorf("create operation: %w", err)
 	}
 
-	ns := appNamespace(params.Org, params.Repo, params.Name)
+	ns := kube.AppNamespace(repoSlug(params.Org, params.Repo), params.Name)
 	go h.runDelete(context.WithoutCancel(ctx), opID, app.ID, ns)
 
 	return &server.AcceptedOperationHeaders{

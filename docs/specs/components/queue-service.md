@@ -33,28 +33,59 @@ queue.morsel.internal (ClusterIP Service)
   │                                              │
   │  HTTP handler                                │
   │    ├── Identify caller (pod SA token)        │
-  │    ├── Namespace queue: repo__app__name      │
-  │    ├── Check / update quota (Postgres)       │
-  │    ├── Enqueue / dequeue (Postgres tables)   │
-  │    └── Track self-consume window             │
+  │    ├── Namespace queue: {k8s-namespace}/name │
+  │    ├── Check / update quota (quota.db)       │
+  │    ├── Enqueue / dequeue (per-queue SQLite)  │
+  │    └── Track external-enqueue timestamp      │
   │                                              │
-  │  Shared Postgres instance                    │
-  │    queue_{namespace}: messages table         │
-  │    queue_usage: {namespace → bytes}          │
+  │  SQLite (PersistentVolume)                   │
+  │    {namespace}/{queue-name}.db  ← per queue  │
+  │    {namespace}/quota.db         ← per app    │
   └──────────────────────────────────────────────┘
 ```
 
 ---
 
-## Queue Naming
+## Queue Storage
 
-Queue names in Postgres are prefixed with the caller's repo and app:
+Each queue is stored in its own SQLite file. Queue files are stored on a PersistentVolume mounted into the queue service pod:
 
 ```
-Postgres table name:  {repo-slug}__{app-name}__{queue-name}
+{data-dir}/
+  {k8s-namespace}/
+    {queue-name}.db   ← one file per queue
+    quota.db          ← per-app byte totals and limits
 ```
 
-Double underscores are used as separators to avoid collisions with hyphenated repo or app names. The queue service derives the prefix from the caller's pod service account token. Apps address queues by their short name only — the full prefixed name is never visible to the app.
+`{k8s-namespace}` is the Kubernetes namespace of the app that owns the queue (e.g. `alice-myrepo--worker`). This is derived from the pod's service account token via TokenReview. Apps address queues by short name only — the storage path is never visible to the app.
+
+Creating a queue is `mkdir -p` + SQLite schema init. Deleting a queue is `os.Remove`. No database migrations or shared schema are needed.
+
+**Schema — `{queue-name}.db`**
+
+```sql
+CREATE TABLE IF NOT EXISTS messages (
+    id              TEXT    NOT NULL PRIMARY KEY,
+    body            BLOB    NOT NULL,
+    body_size       INTEGER NOT NULL,
+    enqueued_at     TEXT    NOT NULL,
+    visibility_until TEXT
+);
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+-- key = 'last_external_enqueue_at'
+```
+
+**Schema — `quota.db`**
+
+```sql
+CREATE TABLE IF NOT EXISTS quota (
+    total_bytes INTEGER NOT NULL DEFAULT 0,
+    limit_bytes INTEGER NOT NULL DEFAULT 0
+);
+```
 
 ---
 
@@ -136,9 +167,15 @@ Returns the count of pending (unacknowledged) messages.
 
 Identical to the blob service — the pod's projected service account token is resolved via Kubernetes TokenReview API. Queue names are namespaced as `{repo-slug}__{app-name}__{queue-name}` internally. The app uses bare names.
 
+### Dequeue
+
+Dequeue uses `BEGIN IMMEDIATE` on the queue's SQLite file to serialize concurrent dequeuers. It selects the oldest message where `visibility_until IS NULL OR visibility_until < now()`, sets `visibility_until = now() + 30s`, and returns the message in the same transaction.
+
+If the queue is empty the dequeue handler waits up to 5 seconds for an in-process notification channel to be signalled (fired by any concurrent enqueue). This gives a short-poll-free long-poll that works correctly for a single-replica service.
+
 ### At-Least-Once Delivery
 
-Messages remain in the queue until explicitly acknowledged with `DELETE /queues/{name}/messages/{id}`. If a consumer crashes after dequeuing but before acknowledging, the message becomes eligible for redelivery after a visibility timeout (platform-configurable, default 30 seconds).
+Messages remain in the queue until explicitly acknowledged with `DELETE /queues/{name}/messages/{id}`. If a consumer crashes after dequeuing but before acknowledging, the message becomes eligible for redelivery after a visibility timeout (default 30 seconds).
 
 This gives at-least-once delivery semantics. Apps that require exactly-once processing must implement their own idempotency.
 
@@ -172,17 +209,17 @@ Each message is delivered to exactly one consumer. Fan-out (one message delivere
 |---|---|---|
 | CPU request | 0.1 cores | ~$2 |
 | Memory request | 128 MB | ~$0.50 |
-| Postgres storage (queue tables) | Shared with database service PV | Included in database service cost |
+| PersistentVolume (queue SQLite files) | 10 GB SSD | ~$2 |
 
-Queue messages are stored in Postgres tables on the shared in-cluster Postgres instance. There is no separate storage cost for queues — they share the database PV.
+Queue messages are stored in per-queue SQLite files on the queue service's own PersistentVolume. No dependency on the database service or shared Postgres instance.
 
 ---
 
 ## Operational Cost
 
-- **Upgrades** — rolling pod replacement during platform upgrade. Brief queue service unavailability (seconds). Messages in transit are not lost — they remain in Postgres.
+- **Upgrades** — rolling pod replacement during platform upgrade. Brief queue service unavailability (seconds). Messages in transit are not lost — they remain in the SQLite files on the PV.
 - **Queue growth monitoring** — unusually deep queues (worker not keeping up) are visible in the admin UI.
-- **Table maintenance** — acknowledged messages are hard-deleted immediately. No separate vacuum job required for queue tables.
+- **Ack cleanup** — acknowledged messages are hard-deleted immediately. No separate vacuum job required.
 
 ---
 
@@ -206,10 +243,10 @@ Scaling beyond this would require a purpose-built queue store. Not planned.
 
 ## Performance
 
-- Enqueue: single Postgres `INSERT` — sub-millisecond
-- Dequeue (`messages/next`): Postgres `SELECT FOR UPDATE SKIP LOCKED` — sub-millisecond if queue has messages; up to 5-second long poll if empty
-- Depth: single Postgres `COUNT` — sub-millisecond for typical queue sizes
-- Idle flag check: single Postgres read of `last_external_enqueue_at` per queue — sub-millisecond
+- Enqueue: `BEGIN IMMEDIATE` + `INSERT` on queue SQLite file — sub-millisecond
+- Dequeue (`messages/next`): `BEGIN IMMEDIATE` + `SELECT` + `UPDATE` on queue SQLite file — sub-millisecond if queue has messages; up to 5-second in-process channel wait if empty
+- Depth: `SELECT COUNT(*)` on queue SQLite file — sub-millisecond for typical queue sizes
+- Idle flag check: read `last_external_enqueue_at` from meta table — sub-millisecond
 
 ---
 

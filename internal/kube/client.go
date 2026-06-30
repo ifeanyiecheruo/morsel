@@ -86,6 +86,10 @@ func NewFromClientset(cs kubernetes.Interface) *Client {
 	return &Client{cs: cs}
 }
 
+// Clientset returns the underlying Kubernetes clientset. Use when you need
+// direct access to a specific API group (e.g. AuthenticationV1 for TokenReview).
+func (c *Client) Clientset() kubernetes.Interface { return c.cs }
+
 // IsConfigError reports whether err (or any error it wraps) is a ConfigError.
 func IsConfigError(err error) bool {
 	return errors.As(err, new(*ConfigError))

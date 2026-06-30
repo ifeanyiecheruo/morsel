@@ -28,6 +28,7 @@ type Platform interface {
     Bootstrap()   Bootstrapper
     Deploy()      Deployer
     Blobs()       BlobStore
+    Queues()      QueueStore
     Secrets()     SecretStore
     Credentials() CredentialProvider
     DNS()         DNSProvider
@@ -122,6 +123,41 @@ type BlobStore interface {
 }
 ```
 
+### QueueStore
+
+The backing store for the queue service. `namespace` is the Kubernetes namespace of the app that owns the queues (e.g. `alice-myrepo--worker`). `LocalQueueStore` stores one SQLite file per queue; `GCPQueueStore` would back this with Cloud Tasks or Firestore.
+
+```go
+type QueueStore interface {
+    CreateQueue(ctx context.Context, namespace, name string) error
+    DeleteQueue(ctx context.Context, namespace, name string) error
+    ListQueues(ctx context.Context, namespace string, idleAfter time.Duration) ([]QueueInfo, error)
+    Enqueue(ctx context.Context, namespace, name string, body []byte, senderID, ownerID string) error
+    Dequeue(ctx context.Context, namespace, name string, visibilityTimeout time.Duration) (*QueueMessage, error)
+    Ack(ctx context.Context, namespace, name, id string) error
+    Depth(ctx context.Context, namespace, name string) (int64, error)
+    SetQuota(ctx context.Context, namespace string, limitBytes int64) error
+    Usage(ctx context.Context, namespace string) (int64, error)
+    IdleStatus(ctx context.Context, namespace string, idleAfter time.Duration) ([]QueueInfo, error)
+}
+
+type QueueInfo struct {
+    Name  string
+    Depth int64
+    Idle  bool
+}
+
+type QueueMessage struct {
+    ID         string
+    Body       []byte
+    EnqueuedAt time.Time
+}
+```
+
+`senderID` and `ownerID` in `Enqueue` are Kubernetes namespace strings. When they differ the enqueue is treated as external and updates `last_external_enqueue_at`, which drives idle detection.
+
+`IdleStatus` is the internal endpoint consumed by the control plane hibernation watcher.
+
 ### SecretStore
 
 ```go
@@ -204,6 +240,7 @@ type PricingProvider interface {
 | `Deployer.Credentials()` | Returns the Morsel token and registry auth needed for a deploy. In CI: exchanges the platform identity token. Locally: reads from stored profile. |
 | `Deployer.StagingRegistry()` | Returns the staging registry URL for image push. |
 | `Blobs()` | Returns the `BlobStore`. Object storage — get, put, list, delete, usage. |
+| `Queues()` | Returns the `QueueStore`. Message queue backing store — create/delete queues, enqueue/dequeue/ack messages, quota, idle status. Used by the queue service and control plane queue lifecycle management. |
 | `Secrets()` | Returns the `SecretStore`. Platform secret read and write. |
 | `Credentials()` | Returns the `CredentialProvider`. Service authentication token for platform API calls. |
 | `CredentialProvider.ValidateOperatorToken()` | Validates the operator identity from an incoming `POST /api/token/oidc` request. Reads credential from wherever the platform expects it: request body (Local) or injected header (GCP). Returns the operator subject. |
@@ -235,6 +272,7 @@ morsel/
       bootstrap.go
       deploy.go
       blobs.go
+      queues.go
       secrets.go
       credentials.go
       dns.go

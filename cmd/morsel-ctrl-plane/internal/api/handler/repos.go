@@ -8,6 +8,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
+	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
 // ── Repo-scoped handlers ──────────────────────────────────────────────────────
@@ -112,7 +113,7 @@ func (h *Handler) SyncRepo(ctx context.Context, req *server.SyncRepoReq, params 
 	for _, spec := range req.Apps {
 		name := spec.Name.Or("")
 		desired[name] = struct{}{}
-		ns := appNamespace(params.Org, params.Repo, name)
+		ns := kube.AppNamespace(repoSlug(params.Org, params.Repo), name)
 		if _, err := h.store.UpsertApp(ctx, slug, name, string(spec.Type), ns, spec.Image); err != nil {
 			return nil, fmt.Errorf("upsert app %q: %w", name, err)
 		}

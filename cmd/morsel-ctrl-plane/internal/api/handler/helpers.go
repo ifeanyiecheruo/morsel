@@ -3,7 +3,6 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"strings"
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
@@ -18,21 +17,6 @@ func newOperationID() (string, error) {
 		return "", err
 	}
 	return "op_" + hex.EncodeToString(b), nil
-}
-
-// appNamespace derives the Kubernetes namespace for an app.
-// Formula: {org-slug}-{repo-slug}--{app-name} for named apps,
-//
-//	{org-slug}-{repo-slug} for unnamed apps.
-//
-// Slashes and underscores in org/repo/name are replaced with hyphens.
-func appNamespace(org, repo, name string) string {
-	r := strings.NewReplacer("/", "-", "_", "-")
-	base := r.Replace(org) + "-" + r.Replace(repo)
-	if name == "" {
-		return base
-	}
-	return base + "--" + r.Replace(name)
 }
 
 func operationLocation(org, repo, name, opID string) string {
