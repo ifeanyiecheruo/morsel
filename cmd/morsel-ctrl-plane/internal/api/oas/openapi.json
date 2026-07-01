@@ -488,6 +488,10 @@
             "description": "Environment variables injected into the container at runtime.",
             "type": "object"
           },
+          "idle_after": {
+            "description": "Duration string after which the app hibernates when idle (e.g. \"24h\", \"2h\"). Omit to use the platform default.",
+            "type": "string"
+          },
           "image": {
             "description": "Container image to deploy, including tag (e.g. \"ghcr.io/myorg/api:v1.2.3\").",
             "type": "string"
@@ -5247,6 +5251,10 @@
                     "description": "Environment variables injected into the container at runtime.",
                     "type": "object"
                   },
+                  "idle_after": {
+                    "description": "Duration string after which the app hibernates when idle (e.g. \"24h\", \"2h\"). Omit to use the platform default.",
+                    "type": "string"
+                  },
                   "image": {
                     "description": "Container image to deploy, including tag (e.g. \"ghcr.io/myorg/api:v1.2.3\").",
                     "type": "string"
@@ -7308,6 +7316,20 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "hibernated": {
+                      "description": "Whether the app is currently hibernated.",
+                      "type": "boolean"
+                    },
+                    "hibernated_at": {
+                      "description": "When the app was most recently hibernated.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "idle_since": {
+                      "description": "Timestamp of the last observed inbound request or queue message; the start of the current idle window.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
                     "ready_replicas": {
                       "description": "Number of replicas that are healthy and serving traffic.",
                       "type": "integer"
@@ -8526,6 +8548,10 @@
                           },
                           "description": "Environment variables injected into the container at runtime.",
                           "type": "object"
+                        },
+                        "idle_after": {
+                          "description": "Duration string after which the app hibernates when idle (e.g. \"24h\", \"2h\"). Omit to use the platform default.",
+                          "type": "string"
                         },
                         "image": {
                           "description": "Container image to deploy, including tag (e.g. \"ghcr.io/myorg/api:v1.2.3\").",

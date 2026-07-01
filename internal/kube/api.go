@@ -241,11 +241,24 @@ func (c *Client) applyAPIDeployment(ctx context.Context, ns, image, dbPath strin
 							Image:           image,
 							ImagePullPolicy: corev1.PullNever,
 							Args: []string{
+								"api",
 								"--platform", "local",
 								"--db", dbPath,
 							},
 							Env: []corev1.EnvVar{
 								{Name: "MORSEL_LOCAL_DATA_DIR", Value: apiDataMount},
+								{
+									Name: "WAKE_PROXY_TOKEN",
+									ValueFrom: &corev1.EnvVarSource{
+										SecretKeyRef: &corev1.SecretKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: wakeProxySecretName,
+											},
+											Key:      wakeProxyTokenKey,
+											Optional: func() *bool { b := true; return &b }(),
+										},
+									},
+								},
 							},
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: apiPort, Name: "http"},

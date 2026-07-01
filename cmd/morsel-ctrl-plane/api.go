@@ -5,16 +5,14 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db/queries"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/hibernation"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
@@ -22,7 +20,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
-func runAPI(args []string) {
+func runAPI(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("api", flag.ExitOnError)
 	addr := fs.String("addr", ":8080", "HTTP listen address")
 	platformName := fs.String("platform", "local", "platform implementation (local|gcp)")
@@ -30,8 +28,7 @@ func runAPI(args []string) {
 	kubeconfigPath := fs.String("kubeconfig", "", "path to kubeconfig file (defaults to in-cluster config, then ~/.kube/config)")
 	_ = fs.Parse(args)
 
-	logger := slog.Default()
-	ctx := ctxlog.With(context.Background(), logger)
+	logger := ctxlog.From(ctx)
 
 	s, closeStore := initializeStore(ctx, logger, *dbPath)
 	defer closeStore()
@@ -40,47 +37,11 @@ func runAPI(args []string) {
 	kubeClient := initializeKube(logger, *kubeconfigPath)
 
 	go runCertRenewal(ctx, plat, kubeClient, logger)
+	go hibernation.New(s, kubeClient, plat, 0).Run(ctx)
 
-	ln, err := net.Listen("tcp", *addr)
-	if err != nil {
-		logger.Error("listen error", "err", err)
-		os.Exit(1)
-	}
-	logger.Info("listening", "addr", ln.Addr())
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGTERM, syscall.SIGHUP, os.Interrupt)
-
-	for {
-		srv := &http.Server{Handler: api.NewMux(ctx, plat, s, kubeClient)}
-
-		go func() {
-			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-				logger.Error("server error", "err", err)
-				os.Exit(1)
-			}
-		}()
-
-		sig := <-quit
-		logger.Info("signal received", "signal", sig)
-
-		shutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		if err := srv.Shutdown(shutCtx); err != nil {
-			logger.Error("shutdown error", "err", err)
-		}
-		cancel()
-
-		if sig == syscall.SIGHUP {
-			logger.Info("reloading")
-			continue
-		}
-
-		if err := ln.Close(); err != nil {
-			logger.Error("listener close error", "err", err)
-		}
-		logger.Info("shutdown complete")
-		return
-	}
+	runServer(ctx, *addr, 30*time.Second, func() *http.Server {
+		return &http.Server{Handler: api.NewMux(ctx, plat, s, kubeClient)}
+	})
 }
 
 func initializeStore(ctx context.Context, logger *slog.Logger, dbPath string) (*store.Store, func()) {

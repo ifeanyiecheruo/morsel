@@ -29,3 +29,6 @@ properties:
   schedule:
     description: 'Cron schedule expression (e.g. "0 * * * *"). Required for type: cron, ignored otherwise.'
     type: string
+  idle_after:
+    description: 'Duration string after which the app hibernates when idle (e.g. "24h", "2h"). Omit to use the platform default.'
+    type: string

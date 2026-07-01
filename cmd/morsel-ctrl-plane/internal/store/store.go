@@ -107,7 +107,8 @@ func (s *Store) ListApps(ctx context.Context, repoSlug string) ([]App, error) {
 }
 
 // UpsertApp creates or updates the app record. Returns the resulting row.
-func (s *Store) UpsertApp(ctx context.Context, repoSlug, name, appType, namespace, image string) (App, error) {
+// idleAfter is an optional duration string (e.g. "24h"); empty string means platform default.
+func (s *Store) UpsertApp(ctx context.Context, repoSlug, name, appType, namespace, image, idleAfter string) (App, error) {
 	var ns sql.NullString
 	if namespace != "" {
 		ns = sql.NullString{String: namespace, Valid: true}
@@ -116,13 +117,51 @@ func (s *Store) UpsertApp(ctx context.Context, repoSlug, name, appType, namespac
 	if image != "" {
 		img = sql.NullString{String: image, Valid: true}
 	}
+	var ia sql.NullString
+	if idleAfter != "" {
+		ia = sql.NullString{String: idleAfter, Valid: true}
+	}
 	return s.q.UpsertApp(ctx, dbqueries.UpsertAppParams{
 		RepoSlug:     repoSlug,
 		Name:         name,
 		Type:         appType,
 		Namespace:    ns,
 		ImageCurrent: img,
+		IdleAfter:    ia,
 	})
+}
+
+// SetAppHibernated records the app as hibernated with the given reason.
+func (s *Store) SetAppHibernated(ctx context.Context, id int64, reason string) error {
+	var r sql.NullString
+	if reason != "" {
+		r = sql.NullString{String: reason, Valid: true}
+	}
+	return s.q.SetAppHibernated(ctx, dbqueries.SetAppHibernatedParams{
+		HibernationReason: r,
+		ID:                id,
+	})
+}
+
+// SetAppAwake clears hibernation state and marks the app running.
+func (s *Store) SetAppAwake(ctx context.Context, id int64) error {
+	return s.q.SetAppAwake(ctx, id)
+}
+
+// UpdateLastActiveAt refreshes the last_active_at timestamp for an app.
+func (s *Store) UpdateLastActiveAt(ctx context.Context, id int64) error {
+	return s.q.UpdateLastActiveAt(ctx, id)
+}
+
+// ListAllApps returns all non-deleted apps across all repos, ordered by repo then name.
+func (s *Store) ListAllApps(ctx context.Context) ([]App, error) {
+	return s.q.ListAllApps(ctx)
+}
+
+// GetAppByNamespace returns the app whose Kubernetes namespace matches the given value.
+// Returns sql.ErrNoRows if not found.
+func (s *Store) GetAppByNamespace(ctx context.Context, namespace string) (App, error) {
+	return s.q.GetAppByNamespace(ctx, sql.NullString{String: namespace, Valid: true})
 }
 
 // MarkAppDeletionPending begins the deletion grace period for the given app.

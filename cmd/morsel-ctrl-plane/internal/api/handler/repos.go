@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
-	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
 // ── Repo-scoped handlers ──────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ func (h *Handler) GetRepo(ctx context.Context, params server.GetRepoParams) (ser
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	slug := repoSlug(params.Org, params.Repo)
+	slug := names.RepoSlug(params.Org, params.Repo)
 	repo, err := h.store.GetRepo(ctx, slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &server.GetRepoNotFound{Error: server.ErrorDetail{
@@ -102,7 +102,7 @@ func (h *Handler) SyncRepo(ctx context.Context, req *server.SyncRepoReq, params 
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	slug := repoSlug(params.Org, params.Repo)
+	slug := names.RepoSlug(params.Org, params.Repo)
 
 	if _, err := h.store.GetOrCreateRepo(ctx, slug); err != nil {
 		return nil, fmt.Errorf("get or create repo: %w", err)
@@ -113,8 +113,8 @@ func (h *Handler) SyncRepo(ctx context.Context, req *server.SyncRepoReq, params 
 	for _, spec := range req.Apps {
 		name := spec.Name.Or("")
 		desired[name] = struct{}{}
-		ns := kube.AppNamespace(repoSlug(params.Org, params.Repo), name)
-		if _, err := h.store.UpsertApp(ctx, slug, name, string(spec.Type), ns, spec.Image); err != nil {
+		ns := names.AppNamespace(names.RepoSlug(params.Org, params.Repo), name)
+		if _, err := h.store.UpsertApp(ctx, slug, name, string(spec.Type), ns, spec.Image, spec.IdleAfter.Or("")); err != nil {
 			return nil, fmt.Errorf("upsert app %q: %w", name, err)
 		}
 	}

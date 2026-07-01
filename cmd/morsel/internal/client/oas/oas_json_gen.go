@@ -653,9 +653,15 @@ func (s *AppSpec) encodeFields(e *jx.Encoder) {
 			s.Schedule.Encode(e)
 		}
 	}
+	{
+		if s.IdleAfter.Set {
+			e.FieldStart("idle_after")
+			s.IdleAfter.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfAppSpec = [7]string{
+var jsonFieldsNameOfAppSpec = [8]string{
 	0: "name",
 	1: "type",
 	2: "image",
@@ -663,6 +669,7 @@ var jsonFieldsNameOfAppSpec = [7]string{
 	4: "port",
 	5: "private",
 	6: "schedule",
+	7: "idle_after",
 }
 
 // Decode decodes AppSpec from json.
@@ -745,6 +752,16 @@ func (s *AppSpec) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"schedule\"")
+			}
+		case "idle_after":
+			if err := func() error {
+				s.IdleAfter.Reset()
+				if err := s.IdleAfter.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"idle_after\"")
 			}
 		default:
 			return d.Skip()
@@ -2749,12 +2766,33 @@ func (s *GetAppStatusOK) encodeFields(e *jx.Encoder) {
 			s.ReadyReplicas.Encode(e)
 		}
 	}
+	{
+		if s.Hibernated.Set {
+			e.FieldStart("hibernated")
+			s.Hibernated.Encode(e)
+		}
+	}
+	{
+		if s.HibernatedAt.Set {
+			e.FieldStart("hibernated_at")
+			s.HibernatedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
+		if s.IdleSince.Set {
+			e.FieldStart("idle_since")
+			s.IdleSince.Encode(e, json.EncodeDateTime)
+		}
+	}
 }
 
-var jsonFieldsNameOfGetAppStatusOK = [3]string{
+var jsonFieldsNameOfGetAppStatusOK = [6]string{
 	0: "status",
 	1: "replicas",
 	2: "ready_replicas",
+	3: "hibernated",
+	4: "hibernated_at",
+	5: "idle_since",
 }
 
 // Decode decodes GetAppStatusOK from json.
@@ -2797,6 +2835,36 @@ func (s *GetAppStatusOK) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"ready_replicas\"")
+			}
+		case "hibernated":
+			if err := func() error {
+				s.Hibernated.Reset()
+				if err := s.Hibernated.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hibernated\"")
+			}
+		case "hibernated_at":
+			if err := func() error {
+				s.HibernatedAt.Reset()
+				if err := s.HibernatedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"hibernated_at\"")
+			}
+		case "idle_since":
+			if err := func() error {
+				s.IdleSince.Reset()
+				if err := s.IdleSince.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"idle_since\"")
 			}
 		default:
 			return d.Skip()

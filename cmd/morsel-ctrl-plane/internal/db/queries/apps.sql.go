@@ -13,7 +13,7 @@ import (
 const createApp = `-- name: CreateApp :one
 INSERT INTO apps (repo_slug, name, type, namespace)
 VALUES (?, ?, ?, ?)
-RETURNING id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at
+RETURNING id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at, hibernated, hibernated_at, hibernation_reason, last_active_at, idle_after
 `
 
 type CreateAppParams struct {
@@ -45,12 +45,17 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Hibernated,
+		&i.HibernatedAt,
+		&i.HibernationReason,
+		&i.LastActiveAt,
+		&i.IdleAfter,
 	)
 	return i, err
 }
 
 const getApp = `-- name: GetApp :one
-SELECT id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at FROM apps
+SELECT id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at, hibernated, hibernated_at, hibernation_reason, last_active_at, idle_after FROM apps
 WHERE repo_slug = ? AND name = ?
 `
 
@@ -76,12 +81,97 @@ func (q *Queries) GetApp(ctx context.Context, arg GetAppParams) (App, error) {
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Hibernated,
+		&i.HibernatedAt,
+		&i.HibernationReason,
+		&i.LastActiveAt,
+		&i.IdleAfter,
 	)
 	return i, err
 }
 
+const getAppByNamespace = `-- name: GetAppByNamespace :one
+SELECT id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at, hibernated, hibernated_at, hibernation_reason, last_active_at, idle_after FROM apps
+WHERE namespace = ? AND deletion_pending = 0
+LIMIT 1
+`
+
+func (q *Queries) GetAppByNamespace(ctx context.Context, namespace sql.NullString) (App, error) {
+	row := q.db.QueryRowContext(ctx, getAppByNamespace, namespace)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.RepoSlug,
+		&i.Name,
+		&i.Type,
+		&i.Status,
+		&i.Namespace,
+		&i.ImageCurrent,
+		&i.ImageLastHealthy,
+		&i.Permanent,
+		&i.DeletionPending,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Hibernated,
+		&i.HibernatedAt,
+		&i.HibernationReason,
+		&i.LastActiveAt,
+		&i.IdleAfter,
+	)
+	return i, err
+}
+
+const listAllApps = `-- name: ListAllApps :many
+SELECT id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at, hibernated, hibernated_at, hibernation_reason, last_active_at, idle_after FROM apps
+WHERE deletion_pending = 0
+ORDER BY repo_slug, name
+`
+
+func (q *Queries) ListAllApps(ctx context.Context) ([]App, error) {
+	rows, err := q.db.QueryContext(ctx, listAllApps)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []App{}
+	for rows.Next() {
+		var i App
+		if err := rows.Scan(
+			&i.ID,
+			&i.RepoSlug,
+			&i.Name,
+			&i.Type,
+			&i.Status,
+			&i.Namespace,
+			&i.ImageCurrent,
+			&i.ImageLastHealthy,
+			&i.Permanent,
+			&i.DeletionPending,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Hibernated,
+			&i.HibernatedAt,
+			&i.HibernationReason,
+			&i.LastActiveAt,
+			&i.IdleAfter,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAppsByRepo = `-- name: ListAppsByRepo :many
-SELECT id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at FROM apps
+SELECT id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at, hibernated, hibernated_at, hibernation_reason, last_active_at, idle_after FROM apps
 WHERE repo_slug = ? AND deletion_pending = 0
 ORDER BY name
 `
@@ -109,6 +199,11 @@ func (q *Queries) ListAppsByRepo(ctx context.Context, repoSlug string) ([]App, e
 			&i.DeletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Hibernated,
+			&i.HibernatedAt,
+			&i.HibernationReason,
+			&i.LastActiveAt,
+			&i.IdleAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -133,6 +228,41 @@ WHERE id = ?
 
 func (q *Queries) MarkAppDeletionPending(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, markAppDeletionPending, id)
+	return err
+}
+
+const setAppAwake = `-- name: SetAppAwake :exec
+UPDATE apps
+SET hibernated          = 0,
+    hibernated_at       = NULL,
+    hibernation_reason  = NULL,
+    status              = 'running',
+    updated_at          = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ?
+`
+
+func (q *Queries) SetAppAwake(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, setAppAwake, id)
+	return err
+}
+
+const setAppHibernated = `-- name: SetAppHibernated :exec
+UPDATE apps
+SET hibernated          = 1,
+    hibernated_at       = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    hibernation_reason  = ?,
+    status              = 'hibernated',
+    updated_at          = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ?
+`
+
+type SetAppHibernatedParams struct {
+	HibernationReason sql.NullString
+	ID                int64
+}
+
+func (q *Queries) SetAppHibernated(ctx context.Context, arg SetAppHibernatedParams) error {
+	_, err := q.db.ExecContext(ctx, setAppHibernated, arg.HibernationReason, arg.ID)
 	return err
 }
 
@@ -172,19 +302,32 @@ func (q *Queries) UpdateAppStatus(ctx context.Context, arg UpdateAppStatusParams
 	return err
 }
 
+const updateLastActiveAt = `-- name: UpdateLastActiveAt :exec
+UPDATE apps
+SET last_active_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    updated_at     = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ?
+`
+
+func (q *Queries) UpdateLastActiveAt(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, updateLastActiveAt, id)
+	return err
+}
+
 const upsertApp = `-- name: UpsertApp :one
-INSERT INTO apps (repo_slug, name, type, namespace, image_current)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO apps (repo_slug, name, type, namespace, image_current, idle_after)
+VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(repo_slug, name) DO UPDATE SET
     type               = excluded.type,
     namespace          = excluded.namespace,
     image_last_healthy = apps.image_current,
     image_current      = excluded.image_current,
+    idle_after         = excluded.idle_after,
     status             = 'pending',
     deletion_pending   = 0,
     deleted_at         = NULL,
     updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-RETURNING id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at
+RETURNING id, repo_slug, name, type, status, namespace, image_current, image_last_healthy, permanent, deletion_pending, deleted_at, created_at, updated_at, hibernated, hibernated_at, hibernation_reason, last_active_at, idle_after
 `
 
 type UpsertAppParams struct {
@@ -193,6 +336,7 @@ type UpsertAppParams struct {
 	Type         string
 	Namespace    sql.NullString
 	ImageCurrent sql.NullString
+	IdleAfter    sql.NullString
 }
 
 func (q *Queries) UpsertApp(ctx context.Context, arg UpsertAppParams) (App, error) {
@@ -202,6 +346,7 @@ func (q *Queries) UpsertApp(ctx context.Context, arg UpsertAppParams) (App, erro
 		arg.Type,
 		arg.Namespace,
 		arg.ImageCurrent,
+		arg.IdleAfter,
 	)
 	var i App
 	err := row.Scan(
@@ -218,6 +363,11 @@ func (q *Queries) UpsertApp(ctx context.Context, arg UpsertAppParams) (App, erro
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Hibernated,
+		&i.HibernatedAt,
+		&i.HibernationReason,
+		&i.LastActiveAt,
+		&i.IdleAfter,
 	)
 	return i, err
 }

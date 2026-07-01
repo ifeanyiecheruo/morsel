@@ -177,6 +177,11 @@ func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[strin
 		return fmt.Errorf("provision registry: %w", err)
 	}
 
+	fmt.Println("Provisioning wake proxy…")
+	if err := kubeClient.EnsureWakeProxy(ctx, ns, imageTag); err != nil {
+		return fmt.Errorf("provision wake proxy: %w", err)
+	}
+
 	if err := kubeClient.EnsureAPI(ctx, ns, imageTag, apiDBPath); err != nil {
 		return fmt.Errorf("provision morsel-api: %w", err)
 	}

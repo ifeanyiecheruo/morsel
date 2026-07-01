@@ -7,12 +7,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	authnv1 "k8s.io/api/authentication/v1"
@@ -20,9 +17,10 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/queue"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
-func runQueueService(args []string) {
+func runQueueService(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("svc queue", flag.ExitOnError)
 	addr := fs.String("addr", ":8081", "HTTP listen address")
 	dataDir := fs.String("data-dir", "", "root directory for queue SQLite files (required)")
@@ -40,7 +38,8 @@ func runQueueService(args []string) {
 		os.Exit(2)
 	}
 
-	kubeClient := initializeKube(slog.Default(), *kubeconfigPath)
+	logger := ctxlog.From(ctx)
+	kubeClient := initializeKube(logger, *kubeconfigPath)
 
 	h := &queueHandler{
 		baseDir:       *dataDir,
@@ -60,30 +59,13 @@ func runQueueService(args []string) {
 	mux.HandleFunc("POST /internal/quota/{namespace}/{app}", h.setQuota)
 	mux.HandleFunc("GET /internal/queues/{namespace}/{app}", h.idleStatus)
 
-	srv := &http.Server{
-		Addr:         *addr,
-		Handler:      mux,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
-
-	go func() {
-		slog.Info("queue service listening", "addr", *addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("listen", "err", err)
-			os.Exit(1)
+	runServer(ctx, *addr, 30*time.Second, func() *http.Server {
+		return &http.Server{
+			Handler:      mux,
+			ReadTimeout:  30 * time.Second,
+			WriteTimeout: 30 * time.Second,
 		}
-	}()
-
-	<-ctx.Done()
-	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutCtx); err != nil {
-		slog.Error("shutdown", "err", err)
-	}
+	})
 }
 
 // queueHandler holds shared dependencies for the queue service HTTP handlers.
@@ -135,10 +117,10 @@ func (h *queueHandler) checkInternalToken(r *http.Request) bool {
 
 // — response helpers —
 
-func queueWriteJSON(w http.ResponseWriter, v any) {
+func queueWriteJSON(ctx context.Context, w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Error("write response", "err", err)
+		ctxlog.From(ctx).Error("write response", "err", err)
 	}
 }
 
@@ -204,7 +186,7 @@ func (h *queueHandler) listQueues(w http.ResponseWriter, r *http.Request) {
 	for _, info := range infos {
 		out = append(out, entry{Name: info.Name, Depth: info.Depth, Idle: info.Idle})
 	}
-	queueWriteJSON(w, map[string]any{"queues": out})
+	queueWriteJSON(r.Context(), w, map[string]any{"queues": out})
 }
 
 func (h *queueHandler) enqueue(w http.ResponseWriter, r *http.Request) {
@@ -268,7 +250,7 @@ func (h *queueHandler) dequeue(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	queueWriteJSON(w, map[string]any{
+	queueWriteJSON(r.Context(), w, map[string]any{
 		"id":          msg.ID,
 		"body":        base64.StdEncoding.EncodeToString(msg.Body),
 		"enqueued_at": msg.EnqueuedAt.Format(time.RFC3339),
@@ -305,7 +287,7 @@ func (h *queueHandler) depth(w http.ResponseWriter, r *http.Request) {
 		queueWriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	queueWriteJSON(w, map[string]any{"depth": d})
+	queueWriteJSON(r.Context(), w, map[string]any{"depth": d})
 }
 
 func (h *queueHandler) setQuota(w http.ResponseWriter, r *http.Request) {
@@ -348,7 +330,7 @@ func (h *queueHandler) idleStatus(w http.ResponseWriter, r *http.Request) {
 	for _, info := range infos {
 		out = append(out, entry{Name: info.Name, Depth: info.Depth, Idle: info.Idle})
 	}
-	queueWriteJSON(w, map[string]any{"queues": out})
+	queueWriteJSON(r.Context(), w, map[string]any{"queues": out})
 }
 
 // — utility —

@@ -66,6 +66,21 @@ func (fakeDeployer) AppStatus(_ context.Context, _, _ string) string          { 
 func (fakeDeployer) GetTLSCertExpiry(_ context.Context, _, _ string) (*time.Time, error) {
 	return nil, nil
 }
+func (fakeDeployer) ScaleDeployment(_ context.Context, _ string, _ int32) error { return nil }
+func (fakeDeployer) SuspendCronJob(_ context.Context, _ string) error           { return nil }
+func (fakeDeployer) UnsuspendCronJob(_ context.Context, _ string) error         { return nil }
+func (fakeDeployer) RouteToWakeProxy(_ context.Context, _, _, _, _ string) error {
+	return nil
+}
+func (fakeDeployer) RestoreHTTPRoute(_ context.Context, _, _, _, _ string, _ int32) error {
+	return nil
+}
+func (fakeDeployer) WatchDeploymentReady(_ context.Context, _ string, _ time.Duration) error {
+	return nil
+}
+func (fakeDeployer) AppReplicaCounts(_ context.Context, _, _ string) (int32, int32) {
+	return 1, 1
+}
 
 var _ handler.AppDeployer = fakeDeployer{}
 

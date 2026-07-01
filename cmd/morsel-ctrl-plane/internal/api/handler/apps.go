@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
@@ -18,7 +20,7 @@ func (h *Handler) ListApps(ctx context.Context, params server.ListAppsParams) (s
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	slug := repoSlug(params.Org, params.Repo)
+	slug := names.RepoSlug(params.Org, params.Repo)
 	apps, err := h.store.ListApps(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("list apps: %w", err)
@@ -35,14 +37,14 @@ func (h *Handler) UpsertApp(ctx context.Context, spec *server.AppSpec, params se
 		return nil, err
 	}
 	name := spec.Name.Or("")
-	slug := repoSlug(params.Org, params.Repo)
-	ns := kube.AppNamespace(repoSlug(params.Org, params.Repo), name)
+	slug := names.RepoSlug(params.Org, params.Repo)
+	ns := names.AppNamespace(names.RepoSlug(params.Org, params.Repo), name)
 
 	if _, err := h.store.GetOrCreateRepo(ctx, slug); err != nil {
 		return nil, fmt.Errorf("get or create repo: %w", err)
 	}
 
-	app, err := h.store.UpsertApp(ctx, slug, name, string(spec.Type), ns, spec.Image)
+	app, err := h.store.UpsertApp(ctx, slug, name, string(spec.Type), ns, spec.Image, spec.IdleAfter.Or(""))
 	if err != nil {
 		return nil, fmt.Errorf("upsert app: %w", err)
 	}
@@ -130,7 +132,7 @@ func (h *Handler) GetApp(ctx context.Context, params server.GetAppParams) (serve
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	app, err := h.store.GetApp(ctx, repoSlug(params.Org, params.Repo), params.Name)
+	app, err := h.store.GetApp(ctx, names.RepoSlug(params.Org, params.Repo), params.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &server.GetAppNotFound{Error: server.ErrorDetail{
 			Code:    "not_found",
@@ -149,7 +151,7 @@ func (h *Handler) DeleteApp(ctx context.Context, params server.DeleteAppParams) 
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	slug := repoSlug(params.Org, params.Repo)
+	slug := names.RepoSlug(params.Org, params.Repo)
 	app, err := h.store.GetApp(ctx, slug, params.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &server.DeleteAppNotFound{Error: server.ErrorDetail{
@@ -174,7 +176,7 @@ func (h *Handler) DeleteApp(ctx context.Context, params server.DeleteAppParams) 
 		return nil, fmt.Errorf("create operation: %w", err)
 	}
 
-	ns := kube.AppNamespace(repoSlug(params.Org, params.Repo), params.Name)
+	ns := names.AppNamespace(names.RepoSlug(params.Org, params.Repo), params.Name)
 	go h.runDelete(context.WithoutCancel(ctx), opID, app.ID, ns)
 
 	return &server.AcceptedOperationHeaders{
@@ -207,7 +209,7 @@ func (h *Handler) GetAppStatus(ctx context.Context, params server.GetAppStatusPa
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	app, err := h.store.GetApp(ctx, repoSlug(params.Org, params.Repo), params.Name)
+	app, err := h.store.GetApp(ctx, names.RepoSlug(params.Org, params.Repo), params.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &server.GetAppStatusNotFound{Error: server.ErrorDetail{
 			Code:    "not_found",
@@ -222,15 +224,28 @@ func (h *Handler) GetAppStatus(ctx context.Context, params server.GetAppStatusPa
 	if app.Namespace.Valid {
 		ns = app.Namespace.String
 	}
+	desired, ready := h.deployer.AppReplicaCounts(ctx, ns, app.Type)
 	status := h.deployer.AppStatus(ctx, ns, app.Type)
-	return &server.GetAppStatusOK{Status: status}, nil
+	out := server.GetAppStatusOK{
+		Status:        status,
+		Replicas:      server.NewOptInt(int(desired)),
+		ReadyReplicas: server.NewOptInt(int(ready)),
+		Hibernated:    server.NewOptBool(app.Hibernated != 0),
+	}
+	if app.HibernatedAt.Valid {
+		out.HibernatedAt = server.NewOptDateTime(app.HibernatedAt.Time)
+	}
+	if app.LastActiveAt.Valid {
+		out.IdleSince = server.NewOptDateTime(app.LastActiveAt.Time)
+	}
+	return &out, nil
 }
 
 func (h *Handler) GetAppHistory(ctx context.Context, params server.GetAppHistoryParams) (server.GetAppHistoryRes, error) {
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	slug := repoSlug(params.Org, params.Repo)
+	slug := names.RepoSlug(params.Org, params.Repo)
 	_, err := h.store.GetApp(ctx, slug, params.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &server.GetAppHistoryNotFound{Error: server.ErrorDetail{
@@ -289,12 +304,163 @@ func (h *Handler) HibernateApp(ctx context.Context, params server.HibernateAppPa
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	return nil, errNotImplemented
+	slug := names.RepoSlug(params.Org, params.Repo)
+	app, err := h.store.GetApp(ctx, slug, params.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &server.HibernateAppNotFound{Error: server.ErrorDetail{
+			Code:    "not_found",
+			Message: "app not found",
+			Remedy:  "check the app name and repo",
+		}}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get app: %w", err)
+	}
+
+	opID, err := newOperationID()
+	if err != nil {
+		return nil, fmt.Errorf("generate operation id: %w", err)
+	}
+	if _, err := h.store.CreateOperation(ctx, opID, slug, params.Name, "hibernate"); err != nil {
+		return nil, fmt.Errorf("create operation: %w", err)
+	}
+
+	ns := ""
+	if app.Namespace.Valid {
+		ns = app.Namespace.String
+	}
+	host := names.AppHostname(params.Name, params.Repo, h.plat.BaseDomain())
+	go h.runHibernate(context.WithoutCancel(ctx), opID, app.ID, app.Type, ns, host)
+
+	return &server.AcceptedOperationHeaders{
+		Location:   operationLocation(params.Org, params.Repo, params.Name, opID),
+		RetryAfter: server.NewOptInt(int(retryAfterDeploy.Seconds())),
+		Response:   server.AcceptedOperation{OperationID: opID},
+	}, nil
+}
+
+func (h *Handler) runHibernate(ctx context.Context, opID string, appID int64, appType, namespace, host string) {
+	logger := ctxlog.From(ctx).With("op", opID, "namespace", namespace)
+	if err := h.store.StartOperation(ctx, opID); err != nil {
+		logger.Error("start hibernate operation", "err", err)
+	}
+
+	switch appType {
+	case "http":
+		if err := h.deployer.RouteToWakeProxy(ctx, namespace, host, h.plat.Namespace(), kube.GatewayExternal); err != nil {
+			logger.Error("route to wake proxy", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+		if err := h.deployer.ScaleDeployment(ctx, namespace, 0); err != nil {
+			logger.Error("scale to zero", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+	case "worker":
+		if err := h.deployer.ScaleDeployment(ctx, namespace, 0); err != nil {
+			logger.Error("scale to zero", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+	case "cron":
+		if err := h.deployer.SuspendCronJob(ctx, namespace); err != nil {
+			logger.Error("suspend cron job", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+	}
+
+	if err := h.store.SetAppHibernated(ctx, appID, "manual"); err != nil {
+		logger.Error("set app hibernated", "err", err)
+	}
+	_ = h.store.UpdateAppStatus(ctx, appID, "hibernated")
+	if err := h.store.SucceedOperation(ctx, opID); err != nil {
+		logger.Error("succeed hibernate operation", "err", err)
+	}
 }
 
 func (h *Handler) WakeApp(ctx context.Context, params server.WakeAppParams) (server.WakeAppRes, error) {
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	return nil, errNotImplemented
+	slug := names.RepoSlug(params.Org, params.Repo)
+	app, err := h.store.GetApp(ctx, slug, params.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &server.WakeAppNotFound{Error: server.ErrorDetail{
+			Code:    "not_found",
+			Message: "app not found",
+			Remedy:  "check the app name and repo",
+		}}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get app: %w", err)
+	}
+
+	opID, err := newOperationID()
+	if err != nil {
+		return nil, fmt.Errorf("generate operation id: %w", err)
+	}
+	if _, err := h.store.CreateOperation(ctx, opID, slug, params.Name, "wake"); err != nil {
+		return nil, fmt.Errorf("create operation: %w", err)
+	}
+
+	ns := ""
+	if app.Namespace.Valid {
+		ns = app.Namespace.String
+	}
+	host := names.AppHostname(params.Name, params.Repo, h.plat.BaseDomain())
+	go h.runWake(context.WithoutCancel(ctx), opID, app.ID, app.Type, ns, host)
+
+	return &server.AcceptedOperationHeaders{
+		Location:   operationLocation(params.Org, params.Repo, params.Name, opID),
+		RetryAfter: server.NewOptInt(int(retryAfterDeploy.Seconds())),
+		Response:   server.AcceptedOperation{OperationID: opID},
+	}, nil
+}
+
+func (h *Handler) runWake(ctx context.Context, opID string, appID int64, appType, namespace, host string) {
+	logger := ctxlog.From(ctx).With("op", opID, "namespace", namespace)
+	if err := h.store.StartOperation(ctx, opID); err != nil {
+		logger.Error("start wake operation", "err", err)
+	}
+
+	switch appType {
+	case "http":
+		if err := h.deployer.ScaleDeployment(ctx, namespace, 1); err != nil {
+			logger.Error("scale up", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+		if err := h.deployer.WatchDeploymentReady(ctx, namespace, 5*time.Minute); err != nil {
+			logger.Error("wait for ready", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+		if err := h.deployer.RestoreHTTPRoute(ctx, namespace, host, h.plat.Namespace(), kube.GatewayExternal, 8080); err != nil {
+			logger.Error("restore http route", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+	case "worker":
+		if err := h.deployer.ScaleDeployment(ctx, namespace, 1); err != nil {
+			logger.Error("scale up", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+	case "cron":
+		if err := h.deployer.UnsuspendCronJob(ctx, namespace); err != nil {
+			logger.Error("unsuspend cron job", "err", err)
+			_ = h.store.FailOperation(ctx, opID, err.Error())
+			return
+		}
+	}
+
+	if err := h.store.SetAppAwake(ctx, appID); err != nil {
+		logger.Error("set app awake", "err", err)
+	}
+	_ = h.store.UpdateAppStatus(ctx, appID, "running")
+	if err := h.store.SucceedOperation(ctx, opID); err != nil {
+		logger.Error("succeed wake operation", "err", err)
+	}
 }

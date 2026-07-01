@@ -10,19 +10,24 @@ import (
 )
 
 type App struct {
-	ID               int64
-	RepoSlug         string
-	Name             string
-	Type             string
-	Status           string
-	Namespace        sql.NullString
-	ImageCurrent     sql.NullString
-	ImageLastHealthy sql.NullString
-	Permanent        int64
-	DeletionPending  int64
-	DeletedAt        sql.NullTime
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                int64
+	RepoSlug          string
+	Name              string
+	Type              string
+	Status            string
+	Namespace         sql.NullString
+	ImageCurrent      sql.NullString
+	ImageLastHealthy  sql.NullString
+	Permanent         int64
+	DeletionPending   int64
+	DeletedAt         sql.NullTime
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Hibernated        int64
+	HibernatedAt      sql.NullTime
+	HibernationReason sql.NullString
+	LastActiveAt      sql.NullTime
+	IdleAfter         sql.NullString
 }
 
 type Operation struct {

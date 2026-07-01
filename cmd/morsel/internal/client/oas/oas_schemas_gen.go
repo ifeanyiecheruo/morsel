@@ -264,6 +264,9 @@ type AppSpec struct {
 	Private OptBool `json:"private"`
 	// Cron schedule expression (e.g. "0 * * * *"). Required for type: cron, ignored otherwise.
 	Schedule OptString `json:"schedule"`
+	// Duration string after which the app hibernates when idle (e.g. "24h", "2h"). Omit to use the
+	// platform default.
+	IdleAfter OptString `json:"idle_after"`
 }
 
 // GetName returns the value of Name.
@@ -301,6 +304,11 @@ func (s *AppSpec) GetSchedule() OptString {
 	return s.Schedule
 }
 
+// GetIdleAfter returns the value of IdleAfter.
+func (s *AppSpec) GetIdleAfter() OptString {
+	return s.IdleAfter
+}
+
 // SetName sets the value of Name.
 func (s *AppSpec) SetName(val OptString) {
 	s.Name = val
@@ -334,6 +342,11 @@ func (s *AppSpec) SetPrivate(val OptBool) {
 // SetSchedule sets the value of Schedule.
 func (s *AppSpec) SetSchedule(val OptString) {
 	s.Schedule = val
+}
+
+// SetIdleAfter sets the value of IdleAfter.
+func (s *AppSpec) SetIdleAfter(val OptString) {
+	s.IdleAfter = val
 }
 
 // Environment variables injected into the container at runtime.
@@ -992,6 +1005,13 @@ type GetAppStatusOK struct {
 	Replicas OptInt `json:"replicas"`
 	// Number of replicas that are healthy and serving traffic.
 	ReadyReplicas OptInt `json:"ready_replicas"`
+	// Whether the app is currently hibernated.
+	Hibernated OptBool `json:"hibernated"`
+	// When the app was most recently hibernated.
+	HibernatedAt OptDateTime `json:"hibernated_at"`
+	// Timestamp of the last observed inbound request or queue message; the start of the current idle
+	// window.
+	IdleSince OptDateTime `json:"idle_since"`
 }
 
 // GetStatus returns the value of Status.
@@ -1009,6 +1029,21 @@ func (s *GetAppStatusOK) GetReadyReplicas() OptInt {
 	return s.ReadyReplicas
 }
 
+// GetHibernated returns the value of Hibernated.
+func (s *GetAppStatusOK) GetHibernated() OptBool {
+	return s.Hibernated
+}
+
+// GetHibernatedAt returns the value of HibernatedAt.
+func (s *GetAppStatusOK) GetHibernatedAt() OptDateTime {
+	return s.HibernatedAt
+}
+
+// GetIdleSince returns the value of IdleSince.
+func (s *GetAppStatusOK) GetIdleSince() OptDateTime {
+	return s.IdleSince
+}
+
 // SetStatus sets the value of Status.
 func (s *GetAppStatusOK) SetStatus(val string) {
 	s.Status = val
@@ -1022,6 +1057,21 @@ func (s *GetAppStatusOK) SetReplicas(val OptInt) {
 // SetReadyReplicas sets the value of ReadyReplicas.
 func (s *GetAppStatusOK) SetReadyReplicas(val OptInt) {
 	s.ReadyReplicas = val
+}
+
+// SetHibernated sets the value of Hibernated.
+func (s *GetAppStatusOK) SetHibernated(val OptBool) {
+	s.Hibernated = val
+}
+
+// SetHibernatedAt sets the value of HibernatedAt.
+func (s *GetAppStatusOK) SetHibernatedAt(val OptDateTime) {
+	s.HibernatedAt = val
+}
+
+// SetIdleSince sets the value of IdleSince.
+func (s *GetAppStatusOK) SetIdleSince(val OptDateTime) {
+	s.IdleSince = val
 }
 
 func (*GetAppStatusOK) getAppStatusRes() {}

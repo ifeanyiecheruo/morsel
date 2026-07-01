@@ -12,6 +12,7 @@ import (
 	"github.com/ogen-go/ogen/ogenerrors"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
@@ -26,6 +27,13 @@ type AppDeployer interface {
 	RollbackDeployment(ctx context.Context, namespace, lastHealthyImage string) error
 	AppStatus(ctx context.Context, namespace, appType string) string
 	GetTLSCertExpiry(ctx context.Context, namespace, secretName string) (*time.Time, error)
+	ScaleDeployment(ctx context.Context, namespace string, replicas int32) error
+	SuspendCronJob(ctx context.Context, namespace string) error
+	UnsuspendCronJob(ctx context.Context, namespace string) error
+	RouteToWakeProxy(ctx context.Context, namespace, host, gatewayNS, gatewayName string) error
+	RestoreHTTPRoute(ctx context.Context, namespace, host, gatewayNS, gatewayName string, port int32) error
+	WatchDeploymentReady(ctx context.Context, namespace string, timeout time.Duration) error
+	AppReplicaCounts(ctx context.Context, namespace, appType string) (desired, ready int32)
 }
 
 // Handler implements server.Handler for all Morsel API operations.
@@ -117,8 +125,6 @@ func claimsFromContext(ctx context.Context) *tokens.Claims {
 	return v
 }
 
-func repoSlug(org, repo string) string { return org + "/" + repo }
-
 // checkRepoAccess enforces the repo claim for developer tokens; operator tokens bypass.
 func checkRepoAccess(ctx context.Context, org, repo string) error {
 	claims := claimsFromContext(ctx)
@@ -130,7 +136,7 @@ func checkRepoAccess(ctx context.Context, org, repo string) error {
 			remedy:     "include a valid Morsel access token in the Authorization header",
 		}
 	}
-	if claims.Role == tokens.RoleDeveloper && claims.Repo != repoSlug(org, repo) {
+	if claims.Role == tokens.RoleDeveloper && claims.Repo != names.RepoSlug(org, repo) {
 		return &apiError{
 			httpStatus: http.StatusForbidden,
 			code:       "repo_mismatch",

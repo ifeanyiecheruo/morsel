@@ -27,6 +27,17 @@ get:
               ready_replicas:
                 description: Number of replicas that are healthy and serving traffic.
                 type: integer
+              hibernated:
+                description: Whether the app is currently hibernated.
+                type: boolean
+              hibernated_at:
+                description: When the app was most recently hibernated.
+                type: string
+                format: date-time
+              idle_since:
+                description: Timestamp of the last observed inbound request or queue message; the start of the current idle window.
+                type: string
+                format: date-time
     '401':
       $ref: '../responses.yaml#/ErrorUnauthorized'
     '403':

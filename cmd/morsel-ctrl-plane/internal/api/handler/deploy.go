@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
 )
 
@@ -13,7 +14,7 @@ func (h *Handler) PrepareRepoDeploy(ctx context.Context, params server.PrepareRe
 		return nil, err
 	}
 
-	slug := repoSlug(params.Org, params.Repo)
+	slug := names.RepoSlug(params.Org, params.Repo)
 	deployToken, err := tokens.IssueToken(h.signingKey, tokens.CreateDeployClaims(slug))
 	if err != nil {
 		return nil, fmt.Errorf("issue deploy token: %w", err)
