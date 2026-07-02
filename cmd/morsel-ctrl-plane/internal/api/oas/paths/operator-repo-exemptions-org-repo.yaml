@@ -1,0 +1,21 @@
+parameters:
+  - $ref: '../parameters.yaml#/OrgParam'
+  - $ref: '../parameters.yaml#/RepoParam'
+delete:
+  operationId: removeRepoExemption
+  summary: Remove a repo-level budget exemption
+  description: Removes the explicit budget exemption for a repository. All apps in the repo will again be subject to soft and hard limit enforcement.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '204':
+      description: Exemption removed
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

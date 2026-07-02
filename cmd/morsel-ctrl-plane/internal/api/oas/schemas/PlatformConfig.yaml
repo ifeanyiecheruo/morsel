@@ -7,6 +7,13 @@ properties:
     type: number
     format: double
   soft_limit_pct:
-    description: Fraction of the budget ceiling at which a warning is triggered (0.0–1.0).
+    description: Fraction of the budget ceiling at which wake is blocked for non-exempt apps (0.0–1.0).
     type: number
     format: double
+  hard_limit_pct:
+    description: Fraction of the budget ceiling at which non-exempt running apps are force-hibernated (0.0–1.0).
+    type: number
+    format: double
+  default_idle_after:
+    description: Default idle-before-hibernate duration for apps that do not override it (e.g. "24h").
+    type: string

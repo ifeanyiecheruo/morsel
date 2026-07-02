@@ -13,12 +13,32 @@ type UnimplementedHandler struct{}
 
 var _ Handler = UnimplementedHandler{}
 
+// AddAppExemption implements addAppExemption operation.
+//
+// Permanently exempts a specific app from budget enforcement. The app continues to wake and run
+// normally even when the platform soft or hard limit is active.
+//
+// POST /api/operator/app-exemptions
+func (UnimplementedHandler) AddAppExemption(ctx context.Context, req *AppExemptionReq) (r AddAppExemptionRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // AddOperatorPrincipal implements addOperatorPrincipal operation.
 //
 // Grants admin UI access to the specified principal. Idempotent.
 //
 // POST /api/operator/principals
 func (UnimplementedHandler) AddOperatorPrincipal(ctx context.Context, req *PrincipalReq) (r AddOperatorPrincipalRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// AddRepoExemption implements addRepoExemption operation.
+//
+// Permanently exempts all apps in a repository from budget enforcement. Apps in the repo continue to
+// wake and run normally even when the platform soft or hard limit is active.
+//
+// POST /api/operator/repo-exemptions
+func (UnimplementedHandler) AddRepoExemption(ctx context.Context, req *RepoExemptionReq) (r AddRepoExemptionRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -215,6 +235,16 @@ func (UnimplementedHandler) ListApps(ctx context.Context, params ListAppsParams)
 	return r, ht.ErrNotImplemented
 }
 
+// ListExemptions implements listExemptions operation.
+//
+// Returns all active explicit and period exemptions. Period exemptions expire automatically at the end
+// of each billing period.
+//
+// GET /api/operator/exemptions
+func (UnimplementedHandler) ListExemptions(ctx context.Context) (r ListExemptionsRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // ListOperatorApprovals implements listOperatorApprovals operation.
 //
 // Returns every approval request across all repos that is waiting for operator action.
@@ -273,12 +303,32 @@ func (UnimplementedHandler) PrepareRepoDeploy(ctx context.Context, params Prepar
 	return r, ht.ErrNotImplemented
 }
 
+// RemoveAppExemption implements removeAppExemption operation.
+//
+// Removes the explicit budget exemption for a specific app. The app will again be subject to soft and
+// hard limit enforcement.
+//
+// DELETE /api/operator/app-exemptions/{org}/{repo}/{name}
+func (UnimplementedHandler) RemoveAppExemption(ctx context.Context, params RemoveAppExemptionParams) (r RemoveAppExemptionRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // RemoveOperatorPrincipal implements removeOperatorPrincipal operation.
 //
 // Revokes admin UI access from the specified principal.
 //
 // DELETE /api/operator/principals/{principal}
 func (UnimplementedHandler) RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (r RemoveOperatorPrincipalRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// RemoveRepoExemption implements removeRepoExemption operation.
+//
+// Removes the explicit budget exemption for a repository. All apps in the repo will again be subject
+// to soft and hard limit enforcement.
+//
+// DELETE /api/operator/repo-exemptions/{org}/{repo}
+func (UnimplementedHandler) RemoveRepoExemption(ctx context.Context, params RemoveRepoExemptionParams) (r RemoveRepoExemptionRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

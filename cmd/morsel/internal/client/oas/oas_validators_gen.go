@@ -591,6 +591,24 @@ func (s *PlatformConfig) Validate() error {
 			Error: err,
 		})
 	}
+	if err := func() error {
+		if value, ok := s.HardLimitPct.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "hard_limit_pct",
+			Error: err,
+		})
+	}
 	if len(failures) > 0 {
 		return &validate.Error{Fields: failures}
 	}

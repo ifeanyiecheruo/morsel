@@ -84,6 +84,9 @@ func TestRollbackRemovesTables(t *testing.T) {
 	if err := db.Rollback(context.Background(), database); err != nil {
 		t.Fatalf("sixth Rollback: %v", err)
 	}
+	if err := db.Rollback(context.Background(), database); err != nil {
+		t.Fatalf("seventh Rollback: %v", err)
+	}
 
 	for _, table := range []string{"repos", "apps", "operations", "refresh_tokens"} {
 		var name string

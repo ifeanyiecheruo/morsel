@@ -487,6 +487,24 @@
         ],
         "type": "object"
       },
+      "AppExemptionReq": {
+        "description": "Identifies a specific app for a budget-control exemption operation.",
+        "properties": {
+          "app_name": {
+            "description": "App name within the repository.",
+            "type": "string"
+          },
+          "repo_slug": {
+            "description": "Repository identifier in org/repo format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo_slug",
+          "app_name"
+        ],
+        "type": "object"
+      },
       "AppSpec": {
         "description": "Desired configuration for an app. Used when creating or updating an app.",
         "properties": {
@@ -739,6 +757,46 @@
         ],
         "type": "object"
       },
+      "ExemptionList": {
+        "description": "Active budget-control exemptions across all apps and repos.",
+        "properties": {
+          "exemptions": {
+            "items": {
+              "properties": {
+                "app_name": {
+                  "description": "App name (present when kind is 'app').",
+                  "type": "string"
+                },
+                "expires_at": {
+                  "description": "When the exemption expires. Absent for explicit exemptions.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "kind": {
+                  "description": "Exemption scope: 'app' or 'repo'.",
+                  "type": "string"
+                },
+                "repo_slug": {
+                  "description": "Repository identifier.",
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Exemption type: 'explicit' (permanent) or 'period' (current billing period only).",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "repo_slug",
+                "type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "Operation": {
         "description": "An asynchronous operation. Poll until status is \"complete\" or \"failed\".",
         "properties": {
@@ -842,8 +900,17 @@
             "format": "double",
             "type": "number"
           },
+          "default_idle_after": {
+            "description": "Default idle-before-hibernate duration for apps that do not override it (e.g. \"24h\").",
+            "type": "string"
+          },
+          "hard_limit_pct": {
+            "description": "Fraction of the budget ceiling at which non-exempt running apps are force-hibernated (0.0–1.0).",
+            "format": "double",
+            "type": "number"
+          },
           "soft_limit_pct": {
-            "description": "Fraction of the budget ceiling at which a warning is triggered (0.0–1.0).",
+            "description": "Fraction of the budget ceiling at which wake is blocked for non-exempt apps (0.0–1.0).",
             "format": "double",
             "type": "number"
           }
@@ -892,6 +959,19 @@
         "required": [
           "slug",
           "tier"
+        ],
+        "type": "object"
+      },
+      "RepoExemptionReq": {
+        "description": "Identifies a repository for a budget-control exemption operation.",
+        "properties": {
+          "repo_slug": {
+            "description": "Repository identifier in org/repo format.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo_slug"
         ],
         "type": "object"
       },
@@ -1036,6 +1116,452 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/operator/app-exemptions": {
+      "post": {
+        "description": "Permanently exempts a specific app from budget enforcement. The app continues to wake and run normally even when the platform soft or hard limit is active.",
+        "operationId": "addAppExemption",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Identifies a specific app for a budget-control exemption operation.",
+                "properties": {
+                  "app_name": {
+                    "description": "App name within the repository.",
+                    "type": "string"
+                  },
+                  "repo_slug": {
+                    "description": "Repository identifier in org/repo format.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo_slug",
+                  "app_name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Exemption added"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Add an explicit app-level budget exemption",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/app-exemptions/{org}/{repo}/{name}": {
+      "delete": {
+        "description": "Removes the explicit budget exemption for a specific app. The app will again be subject to soft and hard limit enforcement.",
+        "operationId": "removeAppExemption",
+        "responses": {
+          "204": {
+            "description": "Exemption removed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Remove an app-level budget exemption",
+        "tags": [
+          "operator"
+        ]
+      },
+      "parameters": [
+        {
+          "description": "The organisation or user that owns the repo.",
+          "in": "path",
+          "name": "org",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "The repository name within the organisation.",
+          "in": "path",
+          "name": "repo",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "The app name within the repo.",
+          "in": "path",
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "/api/operator/approvals": {
       "get": {
         "description": "Returns every approval request across all repos that is waiting for operator action.",
@@ -1872,8 +2398,17 @@
                       "format": "double",
                       "type": "number"
                     },
+                    "default_idle_after": {
+                      "description": "Default idle-before-hibernate duration for apps that do not override it (e.g. \"24h\").",
+                      "type": "string"
+                    },
+                    "hard_limit_pct": {
+                      "description": "Fraction of the budget ceiling at which non-exempt running apps are force-hibernated (0.0–1.0).",
+                      "format": "double",
+                      "type": "number"
+                    },
                     "soft_limit_pct": {
-                      "description": "Fraction of the budget ceiling at which a warning is triggered (0.0–1.0).",
+                      "description": "Fraction of the budget ceiling at which wake is blocked for non-exempt apps (0.0–1.0).",
                       "format": "double",
                       "type": "number"
                     }
@@ -2085,8 +2620,17 @@
                     "format": "double",
                     "type": "number"
                   },
+                  "default_idle_after": {
+                    "description": "Default idle-before-hibernate duration for apps that do not override it (e.g. \"24h\").",
+                    "type": "string"
+                  },
+                  "hard_limit_pct": {
+                    "description": "Fraction of the budget ceiling at which non-exempt running apps are force-hibernated (0.0–1.0).",
+                    "format": "double",
+                    "type": "number"
+                  },
                   "soft_limit_pct": {
-                    "description": "Fraction of the budget ceiling at which a warning is triggered (0.0–1.0).",
+                    "description": "Fraction of the budget ceiling at which wake is blocked for non-exempt apps (0.0–1.0).",
                     "format": "double",
                     "type": "number"
                   }
@@ -2109,8 +2653,17 @@
                       "format": "double",
                       "type": "number"
                     },
+                    "default_idle_after": {
+                      "description": "Default idle-before-hibernate duration for apps that do not override it (e.g. \"24h\").",
+                      "type": "string"
+                    },
+                    "hard_limit_pct": {
+                      "description": "Fraction of the budget ceiling at which non-exempt running apps are force-hibernated (0.0–1.0).",
+                      "format": "double",
+                      "type": "number"
+                    },
                     "soft_limit_pct": {
-                      "description": "Fraction of the budget ceiling at which a warning is triggered (0.0–1.0).",
+                      "description": "Fraction of the budget ceiling at which wake is blocked for non-exempt apps (0.0–1.0).",
                       "format": "double",
                       "type": "number"
                     }
@@ -2758,6 +3311,246 @@
           }
         ],
         "summary": "Immutable deployment parameters",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/exemptions": {
+      "get": {
+        "description": "Returns all active explicit and period exemptions. Period exemptions expire automatically at the end of each billing period.",
+        "operationId": "listExemptions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Active budget-control exemptions across all apps and repos.",
+                  "properties": {
+                    "exemptions": {
+                      "items": {
+                        "properties": {
+                          "app_name": {
+                            "description": "App name (present when kind is 'app').",
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "description": "When the exemption expires. Absent for explicit exemptions.",
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "kind": {
+                            "description": "Exemption scope: 'app' or 'repo'.",
+                            "type": "string"
+                          },
+                          "repo_slug": {
+                            "description": "Repository identifier.",
+                            "type": "string"
+                          },
+                          "type": {
+                            "description": "Exemption type: 'explicit' (permanent) or 'period' (current billing period only).",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "repo_slug",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List active budget exemptions",
         "tags": [
           "operator"
         ]
@@ -3729,6 +4522,438 @@
           "operator"
         ]
       }
+    },
+    "/api/operator/repo-exemptions": {
+      "post": {
+        "description": "Permanently exempts all apps in a repository from budget enforcement. Apps in the repo continue to wake and run normally even when the platform soft or hard limit is active.",
+        "operationId": "addRepoExemption",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Identifies a repository for a budget-control exemption operation.",
+                "properties": {
+                  "repo_slug": {
+                    "description": "Repository identifier in org/repo format.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "repo_slug"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Exemption added"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Add an explicit repo-level budget exemption",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/repo-exemptions/{org}/{repo}": {
+      "delete": {
+        "description": "Removes the explicit budget exemption for a repository. All apps in the repo will again be subject to soft and hard limit enforcement.",
+        "operationId": "removeRepoExemption",
+        "responses": {
+          "204": {
+            "description": "Exemption removed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Remove a repo-level budget exemption",
+        "tags": [
+          "operator"
+        ]
+      },
+      "parameters": [
+        {
+          "description": "The organisation or user that owns the repo.",
+          "in": "path",
+          "name": "org",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "The repository name within the organisation.",
+          "in": "path",
+          "name": "repo",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
     },
     "/api/operator/repos/{org}/{repo}": {
       "parameters": [

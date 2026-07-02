@@ -48,10 +48,15 @@ func runWakeProxy(ctx context.Context, args []string) {
 			return
 		}
 
-		serviceAddr, err := wakeProxyWakeApp(r.Context(), ctrlPlane, host, token)
+		serviceAddr, retryAfter, err := wakeProxyWakeApp(r.Context(), ctrlPlane, host, token)
 		if err != nil {
 			rlog.Error("wake app", "host", host, "err", err)
-			http.Error(w, fmt.Sprintf("wake failed: %v", err), http.StatusServiceUnavailable)
+			if retryAfter != "" {
+				w.Header().Set("Retry-After", retryAfter)
+				http.Error(w, "platform is over budget for this period", http.StatusServiceUnavailable)
+			} else {
+				http.Error(w, fmt.Sprintf("wake failed: %v", err), http.StatusServiceUnavailable)
+			}
 			return
 		}
 
@@ -84,11 +89,11 @@ type wakeProxyResponse struct {
 	ServiceAddr string `json:"service_addr"`
 }
 
-func wakeProxyWakeApp(ctx context.Context, ctrlPlane, host, token string) (string, error) {
+func wakeProxyWakeApp(ctx context.Context, ctrlPlane, host, token string) (serviceAddr, retryAfter string, _ error) {
 	wakeURL := ctrlPlane + "/internal/wake?host=" + url.QueryEscape(host)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wakeURL, http.NoBody)
 	if err != nil {
-		return "", fmt.Errorf("build wake request: %w", err)
+		return "", "", fmt.Errorf("build wake request: %w", err)
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -96,7 +101,7 @@ func wakeProxyWakeApp(ctx context.Context, ctrlPlane, host, token string) (strin
 	client := &http.Client{Timeout: 6 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("POST wake: %w", err)
+		return "", "", fmt.Errorf("POST wake: %w", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -105,14 +110,14 @@ func wakeProxyWakeApp(ctx context.Context, ctrlPlane, host, token string) (strin
 	}()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("wake returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return "", resp.Header.Get("Retry-After"), fmt.Errorf("wake returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	var wr wakeProxyResponse
 	if err := json.Unmarshal(body, &wr); err != nil {
-		return "", fmt.Errorf("decode wake response: %w", err)
+		return "", "", fmt.Errorf("decode wake response: %w", err)
 	}
 	if wr.ServiceAddr == "" {
-		return "", fmt.Errorf("wake response missing service_addr")
+		return "", "", fmt.Errorf("wake response missing service_addr")
 	}
-	return wr.ServiceAddr, nil
+	return wr.ServiceAddr, "", nil
 }

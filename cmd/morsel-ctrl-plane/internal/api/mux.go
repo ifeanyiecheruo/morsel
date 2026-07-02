@@ -13,6 +13,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/middleware"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/wellknown"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/cost"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
@@ -97,6 +98,8 @@ func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.App
 			id        int64
 			appType   string
 			namespace string
+			repoSlug  string
+			name      string
 		}
 		for _, app := range apps {
 			if !app.Namespace.Valid {
@@ -107,7 +110,9 @@ func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.App
 					id        int64
 					appType   string
 					namespace string
-				}{id: app.ID, appType: app.Type, namespace: app.Namespace.String}
+					repoSlug  string
+					name      string
+				}{id: app.ID, appType: app.Type, namespace: app.Namespace.String, repoSlug: app.RepoSlug, name: app.Name}
 				break
 			}
 		}
@@ -117,6 +122,15 @@ func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.App
 		}
 
 		_ = s.UpdateLastActiveAt(reqCtx, matchedApp.id)
+
+		// Budget enforcement: block wake when a limit is active and the app is not exempt.
+		if retryAfter, blocked := isBudgetBlocked(reqCtx, s, matchedApp.repoSlug, matchedApp.name); blocked {
+			w.Header().Set("Retry-After", retryAfter)
+			writeJSONError(w, http.StatusServiceUnavailable, "budget_soft_limit",
+				"platform is over budget for this period",
+				"wait for the next billing period")
+			return
+		}
 
 		if err := wakeApp(reqCtx, s, deployer, plat, matchedApp.id, matchedApp.appType, matchedApp.namespace); err != nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "wake_failed", fmt.Sprintf("wake error: %v", err), "retry in a moment")
@@ -160,6 +174,22 @@ func wakeApp(ctx context.Context, s *store.Store, deployer handler.AppDeployer, 
 		return err
 	}
 	return s.UpdateAppStatus(ctx, appID, "running")
+}
+
+// isBudgetBlocked returns (retryAfter, true) when a budget limit is active and
+// the app is not exempt. retryAfter is an RFC 7231 HTTP-date for the next
+// billing period start so the client knows when to retry.
+func isBudgetBlocked(ctx context.Context, s *store.Store, repoSlug, appName string) (string, bool) {
+	cfg, err := s.GetPlatformConfig(ctx)
+	if err != nil || (cfg.BudgetSoftLimitActive == 0 && cfg.BudgetHardLimitActive == 0) {
+		return "", false
+	}
+	exempt, _ := s.IsAppExempt(ctx, repoSlug, appName)
+	if exempt {
+		return "", false
+	}
+	retryAfter := cost.NextBillingPeriodStart(time.Now().UTC()).Format(http.TimeFormat)
+	return retryAfter, true
 }
 
 type jsonErrorBody struct {

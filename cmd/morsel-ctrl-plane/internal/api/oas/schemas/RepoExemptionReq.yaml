@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: Identifies a repository for a budget-control exemption operation.
+type: object
+required: [repo_slug]
+properties:
+  repo_slug:
+    description: Repository identifier in org/repo format.
+    type: string

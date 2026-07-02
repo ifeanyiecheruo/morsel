@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/cost"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
@@ -447,6 +449,18 @@ func (h *Handler) WakeApp(ctx context.Context, params server.WakeAppParams) (ser
 		return nil, fmt.Errorf("get app: %w", err)
 	}
 
+	// Budget enforcement: block wake when a limit is active unless exempt or operator.
+	if blocked, err := h.checkBudgetAndMaybeExempt(ctx, slug, params.Name); err != nil {
+		return nil, err
+	} else if blocked {
+		return nil, &apiError{
+			httpStatus: http.StatusServiceUnavailable,
+			code:       "budget_soft_limit",
+			message:    "platform is over budget for this period",
+			remedy:     "contact your platform operator or wait for the next billing period",
+		}
+	}
+
 	opID, err := newOperationID()
 	if err != nil {
 		return nil, fmt.Errorf("generate operation id: %w", err)
@@ -467,6 +481,39 @@ func (h *Handler) WakeApp(ctx context.Context, params server.WakeAppParams) (ser
 		RetryAfter: server.NewOptInt(int(retryAfterDeploy.Seconds())),
 		Response:   server.AcceptedOperation{OperationID: opID},
 	}, nil
+}
+
+// checkBudgetAndMaybeExempt returns (true, nil) when the caller should be blocked,
+// (false, nil) when wake may proceed, and (false, err) on internal error.
+// Operators who wake during an active limit automatically receive a period exemption.
+func (h *Handler) checkBudgetAndMaybeExempt(ctx context.Context, repoSlug, appName string) (blocked bool, _ error) {
+	cfg, err := h.store.GetPlatformConfig(ctx)
+	if err != nil {
+		return false, fmt.Errorf("get platform config: %w", err)
+	}
+	if cfg.BudgetSoftLimitActive == 0 && cfg.BudgetHardLimitActive == 0 {
+		return false, nil
+	}
+
+	exempt, err := h.store.IsAppExempt(ctx, repoSlug, appName)
+	if err != nil {
+		return false, fmt.Errorf("check exemption: %w", err)
+	}
+	if exempt {
+		return false, nil
+	}
+
+	claims := claimsFromContext(ctx)
+	if claims != nil && claims.Role == tokens.RoleOperator {
+		// Operator override: grant a period exemption for the rest of the billing period.
+		periodEnd := cost.NextBillingPeriodStart(time.Now())
+		if err := h.store.AddPeriodExemption(ctx, repoSlug, appName, periodEnd); err != nil {
+			return false, fmt.Errorf("add period exemption: %w", err)
+		}
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (h *Handler) runWake(ctx context.Context, opID string, appID int64, appType, appName, namespace, host string) {

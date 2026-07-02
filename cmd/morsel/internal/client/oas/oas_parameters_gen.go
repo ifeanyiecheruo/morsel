@@ -132,10 +132,28 @@ type PrepareRepoDeployParams struct {
 	Repo string
 }
 
+// RemoveAppExemptionParams is parameters of removeAppExemption operation.
+type RemoveAppExemptionParams struct {
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
+	Repo string
+	// The app name within the repo.
+	Name string
+}
+
 // RemoveOperatorPrincipalParams is parameters of removeOperatorPrincipal operation.
 type RemoveOperatorPrincipalParams struct {
 	// The principal identity (URL-encoded email address) to remove.
 	Principal string
+}
+
+// RemoveRepoExemptionParams is parameters of removeRepoExemption operation.
+type RemoveRepoExemptionParams struct {
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
+	Repo string
 }
 
 // SetDefaultTierParams is parameters of setDefaultTier operation.

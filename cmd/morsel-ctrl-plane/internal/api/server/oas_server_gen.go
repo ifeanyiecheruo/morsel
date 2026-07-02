@@ -8,12 +8,26 @@ import (
 
 // Handler handles operations described by OpenAPI v3 specification.
 type Handler interface {
+	// AddAppExemption implements addAppExemption operation.
+	//
+	// Permanently exempts a specific app from budget enforcement. The app continues to wake and run
+	// normally even when the platform soft or hard limit is active.
+	//
+	// POST /api/operator/app-exemptions
+	AddAppExemption(ctx context.Context, req *AppExemptionReq) (AddAppExemptionRes, error)
 	// AddOperatorPrincipal implements addOperatorPrincipal operation.
 	//
 	// Grants admin UI access to the specified principal. Idempotent.
 	//
 	// POST /api/operator/principals
 	AddOperatorPrincipal(ctx context.Context, req *PrincipalReq) (AddOperatorPrincipalRes, error)
+	// AddRepoExemption implements addRepoExemption operation.
+	//
+	// Permanently exempts all apps in a repository from budget enforcement. Apps in the repo continue to
+	// wake and run normally even when the platform soft or hard limit is active.
+	//
+	// POST /api/operator/repo-exemptions
+	AddRepoExemption(ctx context.Context, req *RepoExemptionReq) (AddRepoExemptionRes, error)
 	// BatchActionApprovals implements batchActionApprovals operation.
 	//
 	// Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected
@@ -147,6 +161,13 @@ type Handler interface {
 	//
 	// GET /api/repos/{org}/{repo}/apps
 	ListApps(ctx context.Context, params ListAppsParams) (ListAppsRes, error)
+	// ListExemptions implements listExemptions operation.
+	//
+	// Returns all active explicit and period exemptions. Period exemptions expire automatically at the end
+	// of each billing period.
+	//
+	// GET /api/operator/exemptions
+	ListExemptions(ctx context.Context) (ListExemptionsRes, error)
 	// ListOperatorApprovals implements listOperatorApprovals operation.
 	//
 	// Returns every approval request across all repos that is waiting for operator action.
@@ -187,12 +208,26 @@ type Handler interface {
 	//
 	// POST /api/repos/{org}/{repo}/deploy
 	PrepareRepoDeploy(ctx context.Context, params PrepareRepoDeployParams) (PrepareRepoDeployRes, error)
+	// RemoveAppExemption implements removeAppExemption operation.
+	//
+	// Removes the explicit budget exemption for a specific app. The app will again be subject to soft and
+	// hard limit enforcement.
+	//
+	// DELETE /api/operator/app-exemptions/{org}/{repo}/{name}
+	RemoveAppExemption(ctx context.Context, params RemoveAppExemptionParams) (RemoveAppExemptionRes, error)
 	// RemoveOperatorPrincipal implements removeOperatorPrincipal operation.
 	//
 	// Revokes admin UI access from the specified principal.
 	//
 	// DELETE /api/operator/principals/{principal}
 	RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (RemoveOperatorPrincipalRes, error)
+	// RemoveRepoExemption implements removeRepoExemption operation.
+	//
+	// Removes the explicit budget exemption for a repository. All apps in the repo will again be subject
+	// to soft and hard limit enforcement.
+	//
+	// DELETE /api/operator/repo-exemptions/{org}/{repo}
+	RemoveRepoExemption(ctx context.Context, params RemoveRepoExemptionParams) (RemoveRepoExemptionRes, error)
 	// SetDefaultTier implements setDefaultTier operation.
 	//
 	// Set the platform default tier for new repos.

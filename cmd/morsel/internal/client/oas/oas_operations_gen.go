@@ -6,7 +6,9 @@ package oas
 type OperationName = string
 
 const (
+	AddAppExemptionOperation          OperationName = "AddAppExemption"
 	AddOperatorPrincipalOperation     OperationName = "AddOperatorPrincipal"
+	AddRepoExemptionOperation         OperationName = "AddRepoExemption"
 	BatchActionApprovalsOperation     OperationName = "BatchActionApprovals"
 	CreateTierOperation               OperationName = "CreateTier"
 	DeleteAppOperation                OperationName = "DeleteApp"
@@ -27,13 +29,16 @@ const (
 	GetRepoOperation                  OperationName = "GetRepo"
 	HibernateAppOperation             OperationName = "HibernateApp"
 	ListAppsOperation                 OperationName = "ListApps"
+	ListExemptionsOperation           OperationName = "ListExemptions"
 	ListOperatorApprovalsOperation    OperationName = "ListOperatorApprovals"
 	ListOperatorPrincipalsOperation   OperationName = "ListOperatorPrincipals"
 	ListRepoApprovalsOperation        OperationName = "ListRepoApprovals"
 	ListReposOperation                OperationName = "ListRepos"
 	ListTiersOperation                OperationName = "ListTiers"
 	PrepareRepoDeployOperation        OperationName = "PrepareRepoDeploy"
+	RemoveAppExemptionOperation       OperationName = "RemoveAppExemption"
 	RemoveOperatorPrincipalOperation  OperationName = "RemoveOperatorPrincipal"
+	RemoveRepoExemptionOperation      OperationName = "RemoveRepoExemption"
 	SetDefaultTierOperation           OperationName = "SetDefaultTier"
 	SyncRepoOperation                 OperationName = "SyncRepo"
 	TokenDeployOperation              OperationName = "TokenDeploy"

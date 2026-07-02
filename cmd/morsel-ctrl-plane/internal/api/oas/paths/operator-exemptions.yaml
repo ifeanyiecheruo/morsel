@@ -1,0 +1,22 @@
+get:
+  operationId: listExemptions
+  summary: List active budget exemptions
+  description: Returns all active explicit and period exemptions. Period exemptions expire automatically at the end of each billing period.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ExemptionList.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

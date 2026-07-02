@@ -2083,6 +2083,180 @@ func decodePrepareRepoDeployParams(args [2]string, argsEscaped bool, r *http.Req
 	return params, nil
 }
 
+// RemoveAppExemptionParams is parameters of removeAppExemption operation.
+type RemoveAppExemptionParams struct {
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
+	Repo string
+	// The app name within the repo.
+	Name string
+}
+
+func unpackRemoveAppExemptionParams(packed middleware.Parameters) (params RemoveAppExemptionParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "org",
+			In:   "path",
+		}
+		params.Org = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "repo",
+			In:   "path",
+		}
+		params.Repo = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "name",
+			In:   "path",
+		}
+		params.Name = packed[key].(string)
+	}
+	return params
+}
+
+func decodeRemoveAppExemptionParams(args [3]string, argsEscaped bool, r *http.Request) (params RemoveAppExemptionParams, _ error) {
+	// Decode path: org.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "org",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Org = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "org",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: repo.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "repo",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Repo = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "repo",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: name.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "name",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Name = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "name",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // RemoveOperatorPrincipalParams is parameters of removeOperatorPrincipal operation.
 type RemoveOperatorPrincipalParams struct {
 	// The principal identity (URL-encoded email address) to remove.
@@ -2142,6 +2316,126 @@ func decodeRemoveOperatorPrincipalParams(args [1]string, argsEscaped bool, r *ht
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "principal",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// RemoveRepoExemptionParams is parameters of removeRepoExemption operation.
+type RemoveRepoExemptionParams struct {
+	// The organisation or user that owns the repo.
+	Org string
+	// The repository name within the organisation.
+	Repo string
+}
+
+func unpackRemoveRepoExemptionParams(packed middleware.Parameters) (params RemoveRepoExemptionParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "org",
+			In:   "path",
+		}
+		params.Org = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "repo",
+			In:   "path",
+		}
+		params.Repo = packed[key].(string)
+	}
+	return params
+}
+
+func decodeRemoveRepoExemptionParams(args [2]string, argsEscaped bool, r *http.Request) (params RemoveRepoExemptionParams, _ error) {
+	// Decode path: org.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "org",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Org = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "org",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: repo.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "repo",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Repo = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "repo",
 			In:   "path",
 			Err:  err,
 		}

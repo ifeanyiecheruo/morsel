@@ -17,7 +17,9 @@ type SecuritySource interface {
 
 // operationRolesBearerAuth is a private map storing roles per operation.
 var operationRolesBearerAuth = map[string][]string{
+	AddAppExemptionOperation:          []string{},
 	AddOperatorPrincipalOperation:     []string{},
+	AddRepoExemptionOperation:         []string{},
 	BatchActionApprovalsOperation:     []string{},
 	CreateTierOperation:               []string{},
 	DeleteAppOperation:                []string{},
@@ -37,13 +39,16 @@ var operationRolesBearerAuth = map[string][]string{
 	GetRepoOperation:                  []string{},
 	HibernateAppOperation:             []string{},
 	ListAppsOperation:                 []string{},
+	ListExemptionsOperation:           []string{},
 	ListOperatorApprovalsOperation:    []string{},
 	ListOperatorPrincipalsOperation:   []string{},
 	ListRepoApprovalsOperation:        []string{},
 	ListReposOperation:                []string{},
 	ListTiersOperation:                []string{},
 	PrepareRepoDeployOperation:        []string{},
+	RemoveAppExemptionOperation:       []string{},
 	RemoveOperatorPrincipalOperation:  []string{},
+	RemoveRepoExemptionOperation:      []string{},
 	SetDefaultTierOperation:           []string{},
 	SyncRepoOperation:                 []string{},
 	UpdateOperatorConfigOperation:     []string{},

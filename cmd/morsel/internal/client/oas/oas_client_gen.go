@@ -88,12 +88,26 @@ func trimTrailingSlashes(u *url.URL) {
 
 // Invoker invokes operations described by OpenAPI v3 specification.
 type Invoker interface {
+	// AddAppExemption invokes addAppExemption operation.
+	//
+	// Permanently exempts a specific app from budget enforcement. The app continues to wake and run
+	// normally even when the platform soft or hard limit is active.
+	//
+	// POST /api/operator/app-exemptions
+	AddAppExemption(ctx context.Context, request *AppExemptionReq, options ...RequestOption) (AddAppExemptionRes, error)
 	// AddOperatorPrincipal invokes addOperatorPrincipal operation.
 	//
 	// Grants admin UI access to the specified principal. Idempotent.
 	//
 	// POST /api/operator/principals
 	AddOperatorPrincipal(ctx context.Context, request *PrincipalReq, options ...RequestOption) (AddOperatorPrincipalRes, error)
+	// AddRepoExemption invokes addRepoExemption operation.
+	//
+	// Permanently exempts all apps in a repository from budget enforcement. Apps in the repo continue to
+	// wake and run normally even when the platform soft or hard limit is active.
+	//
+	// POST /api/operator/repo-exemptions
+	AddRepoExemption(ctx context.Context, request *RepoExemptionReq, options ...RequestOption) (AddRepoExemptionRes, error)
 	// BatchActionApprovals invokes batchActionApprovals operation.
 	//
 	// Acts on multiple approval requests in one call. Approved changes are applied immediately; rejected
@@ -227,6 +241,13 @@ type Invoker interface {
 	//
 	// GET /api/repos/{org}/{repo}/apps
 	ListApps(ctx context.Context, params ListAppsParams, options ...RequestOption) (ListAppsRes, error)
+	// ListExemptions invokes listExemptions operation.
+	//
+	// Returns all active explicit and period exemptions. Period exemptions expire automatically at the end
+	// of each billing period.
+	//
+	// GET /api/operator/exemptions
+	ListExemptions(ctx context.Context, options ...RequestOption) (ListExemptionsRes, error)
 	// ListOperatorApprovals invokes listOperatorApprovals operation.
 	//
 	// Returns every approval request across all repos that is waiting for operator action.
@@ -267,12 +288,26 @@ type Invoker interface {
 	//
 	// POST /api/repos/{org}/{repo}/deploy
 	PrepareRepoDeploy(ctx context.Context, params PrepareRepoDeployParams, options ...RequestOption) (PrepareRepoDeployRes, error)
+	// RemoveAppExemption invokes removeAppExemption operation.
+	//
+	// Removes the explicit budget exemption for a specific app. The app will again be subject to soft and
+	// hard limit enforcement.
+	//
+	// DELETE /api/operator/app-exemptions/{org}/{repo}/{name}
+	RemoveAppExemption(ctx context.Context, params RemoveAppExemptionParams, options ...RequestOption) (RemoveAppExemptionRes, error)
 	// RemoveOperatorPrincipal invokes removeOperatorPrincipal operation.
 	//
 	// Revokes admin UI access from the specified principal.
 	//
 	// DELETE /api/operator/principals/{principal}
 	RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams, options ...RequestOption) (RemoveOperatorPrincipalRes, error)
+	// RemoveRepoExemption invokes removeRepoExemption operation.
+	//
+	// Removes the explicit budget exemption for a repository. All apps in the repo will again be subject
+	// to soft and hard limit enforcement.
+	//
+	// DELETE /api/operator/repo-exemptions/{org}/{repo}
+	RemoveRepoExemption(ctx context.Context, params RemoveRepoExemptionParams, options ...RequestOption) (RemoveRepoExemptionRes, error)
 	// SetDefaultTier invokes setDefaultTier operation.
 	//
 	// Set the platform default tier for new repos.
@@ -386,6 +421,149 @@ func (c *Client) onResponse(ctx context.Context, resp *http.Response) error {
 		}
 	}
 	return nil
+}
+
+// AddAppExemption invokes addAppExemption operation.
+//
+// Permanently exempts a specific app from budget enforcement. The app continues to wake and run
+// normally even when the platform soft or hard limit is active.
+//
+// POST /api/operator/app-exemptions
+func (c *Client) AddAppExemption(ctx context.Context, request *AppExemptionReq, options ...RequestOption) (AddAppExemptionRes, error) {
+	res, err := c.sendAddAppExemption(ctx, request, options...)
+	return res, err
+}
+
+func (c *Client) sendAddAppExemption(ctx context.Context, request *AppExemptionReq, requestOptions ...RequestOption) (res AddAppExemptionRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("addAppExemption"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/operator/app-exemptions"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, AddAppExemptionOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [1]string
+	pathParts[0] = "/api/operator/app-exemptions"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeAddAppExemptionRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, AddAppExemptionOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeAddAppExemptionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
 }
 
 // AddOperatorPrincipal invokes addOperatorPrincipal operation.
@@ -523,6 +701,149 @@ func (c *Client) sendAddOperatorPrincipal(ctx context.Context, request *Principa
 
 	stage = "DecodeResponse"
 	result, err := decodeAddOperatorPrincipalResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// AddRepoExemption invokes addRepoExemption operation.
+//
+// Permanently exempts all apps in a repository from budget enforcement. Apps in the repo continue to
+// wake and run normally even when the platform soft or hard limit is active.
+//
+// POST /api/operator/repo-exemptions
+func (c *Client) AddRepoExemption(ctx context.Context, request *RepoExemptionReq, options ...RequestOption) (AddRepoExemptionRes, error) {
+	res, err := c.sendAddRepoExemption(ctx, request, options...)
+	return res, err
+}
+
+func (c *Client) sendAddRepoExemption(ctx context.Context, request *RepoExemptionReq, requestOptions ...RequestOption) (res AddRepoExemptionRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("addRepoExemption"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/operator/repo-exemptions"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, AddRepoExemptionOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [1]string
+	pathParts[0] = "/api/operator/repo-exemptions"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeAddRepoExemptionRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, AddRepoExemptionOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeAddRepoExemptionResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -3859,6 +4180,146 @@ func (c *Client) sendListApps(ctx context.Context, params ListAppsParams, reques
 	return result, nil
 }
 
+// ListExemptions invokes listExemptions operation.
+//
+// Returns all active explicit and period exemptions. Period exemptions expire automatically at the end
+// of each billing period.
+//
+// GET /api/operator/exemptions
+func (c *Client) ListExemptions(ctx context.Context, options ...RequestOption) (ListExemptionsRes, error) {
+	res, err := c.sendListExemptions(ctx, options...)
+	return res, err
+}
+
+func (c *Client) sendListExemptions(ctx context.Context, requestOptions ...RequestOption) (res ListExemptionsRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("listExemptions"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/api/operator/exemptions"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, ListExemptionsOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [1]string
+	pathParts[0] = "/api/operator/exemptions"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, ListExemptionsOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeListExemptionsResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // ListOperatorApprovals invokes listOperatorApprovals operation.
 //
 // Returns every approval request across all repos that is waiting for operator action.
@@ -4794,6 +5255,202 @@ func (c *Client) sendPrepareRepoDeploy(ctx context.Context, params PrepareRepoDe
 	return result, nil
 }
 
+// RemoveAppExemption invokes removeAppExemption operation.
+//
+// Removes the explicit budget exemption for a specific app. The app will again be subject to soft and
+// hard limit enforcement.
+//
+// DELETE /api/operator/app-exemptions/{org}/{repo}/{name}
+func (c *Client) RemoveAppExemption(ctx context.Context, params RemoveAppExemptionParams, options ...RequestOption) (RemoveAppExemptionRes, error) {
+	res, err := c.sendRemoveAppExemption(ctx, params, options...)
+	return res, err
+}
+
+func (c *Client) sendRemoveAppExemption(ctx context.Context, params RemoveAppExemptionParams, requestOptions ...RequestOption) (res RemoveAppExemptionRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("removeAppExemption"),
+		semconv.HTTPRequestMethodKey.String("DELETE"),
+		semconv.URLTemplateKey.String("/api/operator/app-exemptions/{org}/{repo}/{name}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, RemoveAppExemptionOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [6]string
+	pathParts[0] = "/api/operator/app-exemptions/"
+	{
+		// Encode "org" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "org",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Org))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/"
+	{
+		// Encode "repo" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "repo",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Repo))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/"
+	{
+		// Encode "name" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "name",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Name))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, RemoveAppExemptionOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeRemoveAppExemptionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // RemoveOperatorPrincipal invokes removeOperatorPrincipal operation.
 //
 // Revokes admin UI access from the specified principal.
@@ -4944,6 +5601,183 @@ func (c *Client) sendRemoveOperatorPrincipal(ctx context.Context, params RemoveO
 
 	stage = "DecodeResponse"
 	result, err := decodeRemoveOperatorPrincipalResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// RemoveRepoExemption invokes removeRepoExemption operation.
+//
+// Removes the explicit budget exemption for a repository. All apps in the repo will again be subject
+// to soft and hard limit enforcement.
+//
+// DELETE /api/operator/repo-exemptions/{org}/{repo}
+func (c *Client) RemoveRepoExemption(ctx context.Context, params RemoveRepoExemptionParams, options ...RequestOption) (RemoveRepoExemptionRes, error) {
+	res, err := c.sendRemoveRepoExemption(ctx, params, options...)
+	return res, err
+}
+
+func (c *Client) sendRemoveRepoExemption(ctx context.Context, params RemoveRepoExemptionParams, requestOptions ...RequestOption) (res RemoveRepoExemptionRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("removeRepoExemption"),
+		semconv.HTTPRequestMethodKey.String("DELETE"),
+		semconv.URLTemplateKey.String("/api/operator/repo-exemptions/{org}/{repo}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, RemoveRepoExemptionOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [4]string
+	pathParts[0] = "/api/operator/repo-exemptions/"
+	{
+		// Encode "org" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "org",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Org))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/"
+	{
+		// Encode "repo" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "repo",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Repo))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "DELETE", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, RemoveRepoExemptionOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeRemoveRepoExemptionResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

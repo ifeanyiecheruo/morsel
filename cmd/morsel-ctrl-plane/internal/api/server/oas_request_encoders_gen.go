@@ -10,8 +10,36 @@ import (
 	ht "github.com/ogen-go/ogen/http"
 )
 
+func encodeAddAppExemptionRequest(
+	req *AppExemptionReq,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeAddOperatorPrincipalRequest(
 	req *PrincipalReq,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeAddRepoExemptionRequest(
+	req *RepoExemptionReq,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

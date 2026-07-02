@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: Active budget-control exemptions across all apps and repos.
+type: object
+properties:
+  exemptions:
+    type: array
+    items:
+      type: object
+      required: [kind, repo_slug, type]
+      properties:
+        kind:
+          description: "Exemption scope: 'app' or 'repo'."
+          type: string
+        repo_slug:
+          description: Repository identifier.
+          type: string
+        app_name:
+          description: App name (present when kind is 'app').
+          type: string
+        type:
+          description: "Exemption type: 'explicit' (permanent) or 'period' (current billing period only)."
+          type: string
+        expires_at:
+          description: When the exemption expires. Absent for explicit exemptions.
+          type: string
+          format: date-time

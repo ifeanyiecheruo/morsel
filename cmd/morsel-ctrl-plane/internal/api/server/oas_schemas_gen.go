@@ -147,6 +147,19 @@ func (s *AcceptedOperationPendingApproval) init() AcceptedOperationPendingApprov
 	return m
 }
 
+type AddAppExemptionForbidden ErrorResponse
+
+func (*AddAppExemptionForbidden) addAppExemptionRes() {}
+
+// AddAppExemptionNoContent is response for AddAppExemption operation.
+type AddAppExemptionNoContent struct{}
+
+func (*AddAppExemptionNoContent) addAppExemptionRes() {}
+
+type AddAppExemptionUnauthorized ErrorResponse
+
+func (*AddAppExemptionUnauthorized) addAppExemptionRes() {}
+
 type AddOperatorPrincipalForbidden ErrorResponse
 
 func (*AddOperatorPrincipalForbidden) addOperatorPrincipalRes() {}
@@ -154,6 +167,19 @@ func (*AddOperatorPrincipalForbidden) addOperatorPrincipalRes() {}
 type AddOperatorPrincipalUnauthorized ErrorResponse
 
 func (*AddOperatorPrincipalUnauthorized) addOperatorPrincipalRes() {}
+
+type AddRepoExemptionForbidden ErrorResponse
+
+func (*AddRepoExemptionForbidden) addRepoExemptionRes() {}
+
+// AddRepoExemptionNoContent is response for AddRepoExemption operation.
+type AddRepoExemptionNoContent struct{}
+
+func (*AddRepoExemptionNoContent) addRepoExemptionRes() {}
+
+type AddRepoExemptionUnauthorized ErrorResponse
+
+func (*AddRepoExemptionUnauthorized) addRepoExemptionRes() {}
 
 // A deployed app and its current observed state.
 // Ref: #
@@ -245,6 +271,35 @@ func (s *App) SetUpdatedAt(val OptDateTime) {
 }
 
 func (*App) getAppRes() {}
+
+// Identifies a specific app for a budget-control exemption operation.
+// Ref: #
+type AppExemptionReq struct {
+	// Repository identifier in org/repo format.
+	RepoSlug string `json:"repo_slug"`
+	// App name within the repository.
+	AppName string `json:"app_name"`
+}
+
+// GetRepoSlug returns the value of RepoSlug.
+func (s *AppExemptionReq) GetRepoSlug() string {
+	return s.RepoSlug
+}
+
+// GetAppName returns the value of AppName.
+func (s *AppExemptionReq) GetAppName() string {
+	return s.AppName
+}
+
+// SetRepoSlug sets the value of RepoSlug.
+func (s *AppExemptionReq) SetRepoSlug(val string) {
+	s.RepoSlug = val
+}
+
+// SetAppName sets the value of AppName.
+func (s *AppExemptionReq) SetAppName(val string) {
+	s.AppName = val
+}
 
 // Desired configuration for an app. Used when creating or updating an app.
 // Ref: #
@@ -1052,7 +1107,9 @@ func (s *ErrorInternalServerStatusCode) SetResponse(val ErrorResponse) {
 	s.Response = val
 }
 
+func (*ErrorInternalServerStatusCode) addAppExemptionRes()          {}
 func (*ErrorInternalServerStatusCode) addOperatorPrincipalRes()     {}
+func (*ErrorInternalServerStatusCode) addRepoExemptionRes()         {}
 func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()     {}
 func (*ErrorInternalServerStatusCode) createTierRes()               {}
 func (*ErrorInternalServerStatusCode) deleteAppRes()                {}
@@ -1072,13 +1129,16 @@ func (*ErrorInternalServerStatusCode) getOperatorStatusRes()        {}
 func (*ErrorInternalServerStatusCode) getRepoRes()                  {}
 func (*ErrorInternalServerStatusCode) hibernateAppRes()             {}
 func (*ErrorInternalServerStatusCode) listAppsRes()                 {}
+func (*ErrorInternalServerStatusCode) listExemptionsRes()           {}
 func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes()    {}
 func (*ErrorInternalServerStatusCode) listOperatorPrincipalsRes()   {}
 func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()        {}
 func (*ErrorInternalServerStatusCode) listReposRes()                {}
 func (*ErrorInternalServerStatusCode) listTiersRes()                {}
 func (*ErrorInternalServerStatusCode) prepareRepoDeployRes()        {}
+func (*ErrorInternalServerStatusCode) removeAppExemptionRes()       {}
 func (*ErrorInternalServerStatusCode) removeOperatorPrincipalRes()  {}
+func (*ErrorInternalServerStatusCode) removeRepoExemptionRes()      {}
 func (*ErrorInternalServerStatusCode) setDefaultTierRes()           {}
 func (*ErrorInternalServerStatusCode) syncRepoRes()                 {}
 func (*ErrorInternalServerStatusCode) tokenDeployRes()              {}
@@ -1109,6 +1169,87 @@ func (s *ErrorResponse) SetError(val ErrorDetail) {
 
 func (*ErrorResponse) listReposRes() {}
 func (*ErrorResponse) tokenOIDCRes() {}
+
+// Active budget-control exemptions across all apps and repos.
+// Ref: #
+type ExemptionList struct {
+	Exemptions []ExemptionListExemptionsItem `json:"exemptions"`
+}
+
+// GetExemptions returns the value of Exemptions.
+func (s *ExemptionList) GetExemptions() []ExemptionListExemptionsItem {
+	return s.Exemptions
+}
+
+// SetExemptions sets the value of Exemptions.
+func (s *ExemptionList) SetExemptions(val []ExemptionListExemptionsItem) {
+	s.Exemptions = val
+}
+
+func (*ExemptionList) listExemptionsRes() {}
+
+type ExemptionListExemptionsItem struct {
+	// Exemption scope: 'app' or 'repo'.
+	Kind string `json:"kind"`
+	// Repository identifier.
+	RepoSlug string `json:"repo_slug"`
+	// App name (present when kind is 'app').
+	AppName OptString `json:"app_name"`
+	// Exemption type: 'explicit' (permanent) or 'period' (current billing period only).
+	Type string `json:"type"`
+	// When the exemption expires. Absent for explicit exemptions.
+	ExpiresAt OptDateTime `json:"expires_at"`
+}
+
+// GetKind returns the value of Kind.
+func (s *ExemptionListExemptionsItem) GetKind() string {
+	return s.Kind
+}
+
+// GetRepoSlug returns the value of RepoSlug.
+func (s *ExemptionListExemptionsItem) GetRepoSlug() string {
+	return s.RepoSlug
+}
+
+// GetAppName returns the value of AppName.
+func (s *ExemptionListExemptionsItem) GetAppName() OptString {
+	return s.AppName
+}
+
+// GetType returns the value of Type.
+func (s *ExemptionListExemptionsItem) GetType() string {
+	return s.Type
+}
+
+// GetExpiresAt returns the value of ExpiresAt.
+func (s *ExemptionListExemptionsItem) GetExpiresAt() OptDateTime {
+	return s.ExpiresAt
+}
+
+// SetKind sets the value of Kind.
+func (s *ExemptionListExemptionsItem) SetKind(val string) {
+	s.Kind = val
+}
+
+// SetRepoSlug sets the value of RepoSlug.
+func (s *ExemptionListExemptionsItem) SetRepoSlug(val string) {
+	s.RepoSlug = val
+}
+
+// SetAppName sets the value of AppName.
+func (s *ExemptionListExemptionsItem) SetAppName(val OptString) {
+	s.AppName = val
+}
+
+// SetType sets the value of Type.
+func (s *ExemptionListExemptionsItem) SetType(val string) {
+	s.Type = val
+}
+
+// SetExpiresAt sets the value of ExpiresAt.
+func (s *ExemptionListExemptionsItem) SetExpiresAt(val OptDateTime) {
+	s.ExpiresAt = val
+}
 
 type GetAppForbidden ErrorResponse
 
@@ -1661,6 +1802,14 @@ func (*ListAppsOKApplicationJSON) listAppsRes() {}
 type ListAppsUnauthorized ErrorResponse
 
 func (*ListAppsUnauthorized) listAppsRes() {}
+
+type ListExemptionsForbidden ErrorResponse
+
+func (*ListExemptionsForbidden) listExemptionsRes() {}
+
+type ListExemptionsUnauthorized ErrorResponse
+
+func (*ListExemptionsUnauthorized) listExemptionsRes() {}
 
 type ListOperatorApprovalsForbidden ErrorResponse
 
@@ -2584,8 +2733,12 @@ func (o OptString) Or(d string) string {
 type PlatformConfig struct {
 	// Maximum total monthly spend allowed across all repos, in USD.
 	BudgetCeilingMonthly OptFloat64 `json:"budget_ceiling_monthly"`
-	// Fraction of the budget ceiling at which a warning is triggered (0.0–1.0).
+	// Fraction of the budget ceiling at which wake is blocked for non-exempt apps (0.0–1.0).
 	SoftLimitPct OptFloat64 `json:"soft_limit_pct"`
+	// Fraction of the budget ceiling at which non-exempt running apps are force-hibernated (0.0–1.0).
+	HardLimitPct OptFloat64 `json:"hard_limit_pct"`
+	// Default idle-before-hibernate duration for apps that do not override it (e.g. "24h").
+	DefaultIdleAfter OptString `json:"default_idle_after"`
 }
 
 // GetBudgetCeilingMonthly returns the value of BudgetCeilingMonthly.
@@ -2598,6 +2751,16 @@ func (s *PlatformConfig) GetSoftLimitPct() OptFloat64 {
 	return s.SoftLimitPct
 }
 
+// GetHardLimitPct returns the value of HardLimitPct.
+func (s *PlatformConfig) GetHardLimitPct() OptFloat64 {
+	return s.HardLimitPct
+}
+
+// GetDefaultIdleAfter returns the value of DefaultIdleAfter.
+func (s *PlatformConfig) GetDefaultIdleAfter() OptString {
+	return s.DefaultIdleAfter
+}
+
 // SetBudgetCeilingMonthly sets the value of BudgetCeilingMonthly.
 func (s *PlatformConfig) SetBudgetCeilingMonthly(val OptFloat64) {
 	s.BudgetCeilingMonthly = val
@@ -2606,6 +2769,16 @@ func (s *PlatformConfig) SetBudgetCeilingMonthly(val OptFloat64) {
 // SetSoftLimitPct sets the value of SoftLimitPct.
 func (s *PlatformConfig) SetSoftLimitPct(val OptFloat64) {
 	s.SoftLimitPct = val
+}
+
+// SetHardLimitPct sets the value of HardLimitPct.
+func (s *PlatformConfig) SetHardLimitPct(val OptFloat64) {
+	s.HardLimitPct = val
+}
+
+// SetDefaultIdleAfter sets the value of DefaultIdleAfter.
+func (s *PlatformConfig) SetDefaultIdleAfter(val OptString) {
+	s.DefaultIdleAfter = val
 }
 
 func (*PlatformConfig) getOperatorConfigRes()    {}
@@ -2636,6 +2809,19 @@ func (s *PrincipalReq) SetPrincipal(val string) {
 	s.Principal = val
 }
 
+type RemoveAppExemptionForbidden ErrorResponse
+
+func (*RemoveAppExemptionForbidden) removeAppExemptionRes() {}
+
+// RemoveAppExemptionNoContent is response for RemoveAppExemption operation.
+type RemoveAppExemptionNoContent struct{}
+
+func (*RemoveAppExemptionNoContent) removeAppExemptionRes() {}
+
+type RemoveAppExemptionUnauthorized ErrorResponse
+
+func (*RemoveAppExemptionUnauthorized) removeAppExemptionRes() {}
+
 type RemoveOperatorPrincipalForbidden ErrorResponse
 
 func (*RemoveOperatorPrincipalForbidden) removeOperatorPrincipalRes() {}
@@ -2647,6 +2833,19 @@ func (*RemoveOperatorPrincipalNotFound) removeOperatorPrincipalRes() {}
 type RemoveOperatorPrincipalUnauthorized ErrorResponse
 
 func (*RemoveOperatorPrincipalUnauthorized) removeOperatorPrincipalRes() {}
+
+type RemoveRepoExemptionForbidden ErrorResponse
+
+func (*RemoveRepoExemptionForbidden) removeRepoExemptionRes() {}
+
+// RemoveRepoExemptionNoContent is response for RemoveRepoExemption operation.
+type RemoveRepoExemptionNoContent struct{}
+
+func (*RemoveRepoExemptionNoContent) removeRepoExemptionRes() {}
+
+type RemoveRepoExemptionUnauthorized ErrorResponse
+
+func (*RemoveRepoExemptionUnauthorized) removeRepoExemptionRes() {}
 
 // A repository that groups one or more apps, subject to a resource tier and quota.
 // Ref: #
@@ -2715,6 +2914,23 @@ func (s *Repo) SetCreatedAt(val OptDateTime) {
 
 func (*Repo) getRepoRes()        {}
 func (*Repo) updateRepoTierRes() {}
+
+// Identifies a repository for a budget-control exemption operation.
+// Ref: #
+type RepoExemptionReq struct {
+	// Repository identifier in org/repo format.
+	RepoSlug string `json:"repo_slug"`
+}
+
+// GetRepoSlug returns the value of RepoSlug.
+func (s *RepoExemptionReq) GetRepoSlug() string {
+	return s.RepoSlug
+}
+
+// SetRepoSlug sets the value of RepoSlug.
+func (s *RepoExemptionReq) SetRepoSlug(val string) {
+	s.RepoSlug = val
+}
 
 type SetDefaultTierForbidden ErrorResponse
 

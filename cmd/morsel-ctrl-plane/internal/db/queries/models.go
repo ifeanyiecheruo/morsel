@@ -30,6 +30,16 @@ type App struct {
 	IdleAfter         sql.NullString
 }
 
+type Exemption struct {
+	ID        int64
+	Kind      string
+	RepoSlug  string
+	AppName   string
+	Type      string
+	ExpiresAt sql.NullTime
+	CreatedAt time.Time
+}
+
 type Operation struct {
 	ID        string
 	RepoSlug  string
@@ -39,6 +49,17 @@ type Operation struct {
 	Error     sql.NullString
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type PlatformConfig struct {
+	ID                    int64
+	BudgetCeilingMonthly  float64
+	SoftLimitPct          float64
+	HardLimitPct          float64
+	DefaultIdleAfter      string
+	BudgetSoftLimitActive int64
+	BudgetHardLimitActive int64
+	BillingPeriod         string
 }
 
 type PriceSnapshot struct {

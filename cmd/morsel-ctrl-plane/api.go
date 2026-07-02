@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/budget"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/hibernation"
@@ -38,6 +39,7 @@ func runAPI(ctx context.Context, args []string) {
 
 	go runCertRenewal(ctx, plat, kubeClient, logger)
 	go hibernation.New(s, kubeClient, plat, 0).Run(ctx)
+	go budget.New(s, kubeClient, plat, 0).Run(ctx)
 	go runPriceFetch(ctx, plat, s, logger)
 
 	runServer(ctx, *addr, 30*time.Second, func() *http.Server {

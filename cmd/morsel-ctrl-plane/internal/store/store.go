@@ -17,6 +17,8 @@ type Operation = dbqueries.Operation
 type Tier = dbqueries.Tier
 type ScaleEvent = dbqueries.ScaleEvent
 type PriceSnapshot = dbqueries.PriceSnapshot
+type PlatformConfig = dbqueries.PlatformConfig
+type Exemption = dbqueries.Exemption
 
 // fallbackDefaultTier is the built-in baseline used when no default tier exists.
 const fallbackDefaultTier = "small"
@@ -361,6 +363,118 @@ func (s *Store) ListScaleEventsSince(ctx context.Context, namespace, app string,
 // ListAllScaleEventsSince returns all scale events across all apps since the given time.
 func (s *Store) ListAllScaleEventsSince(ctx context.Context, since time.Time) ([]ScaleEvent, error) {
 	return s.q.ListAllScaleEventsSince(ctx, since)
+}
+
+// ── Platform config ───────────────────────────────────────────────────────────
+
+// GetPlatformConfig returns the single platform-wide configuration row.
+func (s *Store) GetPlatformConfig(ctx context.Context) (PlatformConfig, error) {
+	return s.q.GetPlatformConfig(ctx)
+}
+
+// PatchPlatformConfig reads the current config and applies non-zero fields.
+func (s *Store) PatchPlatformConfig(ctx context.Context, ceilingMonthly, softLimitPct, hardLimitPct float64, defaultIdleAfter string) (PlatformConfig, error) {
+	cur, err := s.q.GetPlatformConfig(ctx)
+	if err != nil {
+		return PlatformConfig{}, err
+	}
+	if ceilingMonthly != 0 {
+		cur.BudgetCeilingMonthly = ceilingMonthly
+	}
+	if softLimitPct != 0 {
+		cur.SoftLimitPct = softLimitPct
+	}
+	if hardLimitPct != 0 {
+		cur.HardLimitPct = hardLimitPct
+	}
+	if defaultIdleAfter != "" {
+		cur.DefaultIdleAfter = defaultIdleAfter
+	}
+	return s.q.UpdatePlatformConfig(ctx, dbqueries.UpdatePlatformConfigParams{
+		BudgetCeilingMonthly:  cur.BudgetCeilingMonthly,
+		SoftLimitPct:          cur.SoftLimitPct,
+		HardLimitPct:          cur.HardLimitPct,
+		DefaultIdleAfter:      cur.DefaultIdleAfter,
+		BudgetSoftLimitActive: cur.BudgetSoftLimitActive,
+		BudgetHardLimitActive: cur.BudgetHardLimitActive,
+		BillingPeriod:         cur.BillingPeriod,
+	})
+}
+
+// UpdatePlatformConfig writes all fields of the config row.
+func (s *Store) UpdatePlatformConfig(ctx context.Context, cfg PlatformConfig) (PlatformConfig, error) {
+	return s.q.UpdatePlatformConfig(ctx, dbqueries.UpdatePlatformConfigParams{
+		BudgetCeilingMonthly:  cfg.BudgetCeilingMonthly,
+		SoftLimitPct:          cfg.SoftLimitPct,
+		HardLimitPct:          cfg.HardLimitPct,
+		DefaultIdleAfter:      cfg.DefaultIdleAfter,
+		BudgetSoftLimitActive: cfg.BudgetSoftLimitActive,
+		BudgetHardLimitActive: cfg.BudgetHardLimitActive,
+		BillingPeriod:         cfg.BillingPeriod,
+	})
+}
+
+// ── Exemptions ────────────────────────────────────────────────────────────────
+
+// AddAppExemption adds a permanent explicit exemption for a specific app.
+func (s *Store) AddAppExemption(ctx context.Context, repoSlug, appName string) error {
+	return s.q.UpsertExemption(ctx, dbqueries.UpsertExemptionParams{
+		Kind:     "app",
+		RepoSlug: repoSlug,
+		AppName:  appName,
+		Type:     "explicit",
+	})
+}
+
+// RemoveAppExemption removes the explicit exemption for a specific app.
+func (s *Store) RemoveAppExemption(ctx context.Context, repoSlug, appName string) error {
+	return s.q.DeleteAppExemption(ctx, dbqueries.DeleteAppExemptionParams{
+		RepoSlug: repoSlug,
+		AppName:  appName,
+	})
+}
+
+// AddRepoExemption adds a permanent explicit exemption for all apps in a repo.
+func (s *Store) AddRepoExemption(ctx context.Context, repoSlug string) error {
+	return s.q.UpsertExemption(ctx, dbqueries.UpsertExemptionParams{
+		Kind:     "repo",
+		RepoSlug: repoSlug,
+		Type:     "explicit",
+	})
+}
+
+// RemoveRepoExemption removes the explicit repo-level exemption.
+func (s *Store) RemoveRepoExemption(ctx context.Context, repoSlug string) error {
+	return s.q.DeleteRepoExemption(ctx, repoSlug)
+}
+
+// AddPeriodExemption grants a period exemption for a specific app (expires at periodEnd).
+func (s *Store) AddPeriodExemption(ctx context.Context, repoSlug, appName string, periodEnd time.Time) error {
+	return s.q.UpsertExemption(ctx, dbqueries.UpsertExemptionParams{
+		Kind:      "app",
+		RepoSlug:  repoSlug,
+		AppName:   appName,
+		Type:      "period",
+		ExpiresAt: sql.NullTime{Time: periodEnd, Valid: true},
+	})
+}
+
+// ListExemptions returns all active exemptions (explicit + non-expired period).
+func (s *Store) ListExemptions(ctx context.Context) ([]Exemption, error) {
+	return s.q.ListActiveExemptions(ctx)
+}
+
+// IsAppExempt reports whether the app has an active exemption (repo-level or app-level).
+func (s *Store) IsAppExempt(ctx context.Context, repoSlug, appName string) (bool, error) {
+	return s.q.IsAppExempt(ctx, dbqueries.IsAppExemptParams{
+		RepoSlug: repoSlug,
+		AppName:  appName,
+	})
+}
+
+// ExpirePeriodExemptions deletes period exemptions whose expiry time has passed.
+func (s *Store) ExpirePeriodExemptions(ctx context.Context, now time.Time) error {
+	return s.q.ExpirePeriodExemptions(ctx, sql.NullTime{Time: now, Valid: true})
 }
 
 // ── Price snapshots ───────────────────────────────────────────────────────────

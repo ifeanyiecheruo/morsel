@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/client/oas"
 	"github.com/spf13/cobra"
 )
 
@@ -117,18 +119,82 @@ func (c *cli) operatorRepoExemptRemoveCmd() *cobra.Command {
 	}
 }
 
-func (h *cliHandler) AppExemptAdd(_ context.Context, _ *Profile, _, _ string) error {
-	return fmt.Errorf("not yet implemented")
+func (h *cliHandler) AppExemptAdd(ctx context.Context, prof *Profile, repo, app string) error {
+	client, err := h.clientFor(prof)
+	if err != nil {
+		return err
+	}
+	res, err := client.Inner().AddAppExemption(ctx, &oas.AppExemptionReq{RepoSlug: repo, AppName: app})
+	if err != nil {
+		return fmt.Errorf("add app exemption: %w", err)
+	}
+	switch res.(type) {
+	case *oas.AddAppExemptionNoContent:
+		fmt.Printf("✓ App %s in %s is now exempt from budget enforcement.\n", app, repo)
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
 }
 
-func (h *cliHandler) AppExemptRemove(_ context.Context, _ *Profile, _, _ string) error {
-	return fmt.Errorf("not yet implemented")
+func (h *cliHandler) AppExemptRemove(ctx context.Context, prof *Profile, repo, app string) error {
+	client, err := h.clientFor(prof)
+	if err != nil {
+		return err
+	}
+	org, repoName, ok := strings.Cut(repo, "/")
+	if !ok {
+		return fmt.Errorf("invalid repo format %q: expected org/repo", repo)
+	}
+	res, err := client.Inner().RemoveAppExemption(ctx, oas.RemoveAppExemptionParams{Org: org, Repo: repoName, Name: app})
+	if err != nil {
+		return fmt.Errorf("remove app exemption: %w", err)
+	}
+	switch res.(type) {
+	case *oas.RemoveAppExemptionNoContent:
+		fmt.Printf("✓ Budget exemption removed for app %s in %s.\n", app, repo)
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
 }
 
-func (h *cliHandler) RepoExemptAdd(_ context.Context, _ *Profile, _ string) error {
-	return fmt.Errorf("not yet implemented")
+func (h *cliHandler) RepoExemptAdd(ctx context.Context, prof *Profile, repo string) error {
+	client, err := h.clientFor(prof)
+	if err != nil {
+		return err
+	}
+	res, err := client.Inner().AddRepoExemption(ctx, &oas.RepoExemptionReq{RepoSlug: repo})
+	if err != nil {
+		return fmt.Errorf("add repo exemption: %w", err)
+	}
+	switch res.(type) {
+	case *oas.AddRepoExemptionNoContent:
+		fmt.Printf("✓ All apps in %s are now exempt from budget enforcement.\n", repo)
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
 }
 
-func (h *cliHandler) RepoExemptRemove(_ context.Context, _ *Profile, _ string) error {
-	return fmt.Errorf("not yet implemented")
+func (h *cliHandler) RepoExemptRemove(ctx context.Context, prof *Profile, repo string) error {
+	client, err := h.clientFor(prof)
+	if err != nil {
+		return err
+	}
+	org, repoName, ok := strings.Cut(repo, "/")
+	if !ok {
+		return fmt.Errorf("invalid repo format %q: expected org/repo", repo)
+	}
+	res, err := client.Inner().RemoveRepoExemption(ctx, oas.RemoveRepoExemptionParams{Org: org, Repo: repoName})
+	if err != nil {
+		return fmt.Errorf("remove repo exemption: %w", err)
+	}
+	switch res.(type) {
+	case *oas.RemoveRepoExemptionNoContent:
+		fmt.Printf("✓ Budget exemption removed for all apps in %s.\n", repo)
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
 }

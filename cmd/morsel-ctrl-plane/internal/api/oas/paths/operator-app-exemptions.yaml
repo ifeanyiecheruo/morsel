@@ -1,0 +1,24 @@
+post:
+  operationId: addAppExemption
+  summary: Add an explicit app-level budget exemption
+  description: Permanently exempts a specific app from budget enforcement. The app continues to wake and run normally even when the platform soft or hard limit is active.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/AppExemptionReq.yaml'
+  responses:
+    '204':
+      description: Exemption added
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

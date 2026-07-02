@@ -10,23 +10,46 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
-// ── Operator stubs ────────────────────────────────────────────────────────────
+// ── Platform config ───────────────────────────────────────────────────────────
 
 func (h *Handler) GetOperatorConfig(ctx context.Context) (server.GetOperatorConfigRes, error) {
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
-	return nil, errNotImplemented
+	cfg, err := h.store.GetPlatformConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get platform config: %w", err)
+	}
+	return platformConfigToOAS(cfg), nil
 }
 
-func (h *Handler) UpdateOperatorConfig(ctx context.Context, _ *server.PlatformConfig) (server.UpdateOperatorConfigRes, error) {
+func (h *Handler) UpdateOperatorConfig(ctx context.Context, req *server.PlatformConfig) (server.UpdateOperatorConfigRes, error) {
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
-	return nil, errNotImplemented
+	updated, err := h.store.PatchPlatformConfig(ctx,
+		req.BudgetCeilingMonthly.Or(0),
+		req.SoftLimitPct.Or(0),
+		req.HardLimitPct.Or(0),
+		req.DefaultIdleAfter.Or(""),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update platform config: %w", err)
+	}
+	return platformConfigToOAS(updated), nil
+}
+
+func platformConfigToOAS(cfg store.PlatformConfig) *server.PlatformConfig {
+	return &server.PlatformConfig{
+		BudgetCeilingMonthly: server.NewOptFloat64(cfg.BudgetCeilingMonthly),
+		SoftLimitPct:         server.NewOptFloat64(cfg.SoftLimitPct),
+		HardLimitPct:         server.NewOptFloat64(cfg.HardLimitPct),
+		DefaultIdleAfter:     server.NewOptString(cfg.DefaultIdleAfter),
+	}
 }
 
 func (h *Handler) UpdateRepoTier(ctx context.Context, req *server.UpdateRepoTierReq, params server.UpdateRepoTierParams) (server.UpdateRepoTierRes, error) {
@@ -254,4 +277,74 @@ func (h *Handler) RemoveOperatorPrincipal(ctx context.Context, params server.Rem
 		return nil, fmt.Errorf("read principals: %w", err)
 	}
 	return &server.OperatorPrincipals{Principals: principals}, nil
+}
+
+// ── Exemptions ────────────────────────────────────────────────────────────────
+
+func (h *Handler) AddAppExemption(ctx context.Context, req *server.AppExemptionReq) (server.AddAppExemptionRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.store.AddAppExemption(ctx, req.RepoSlug, req.AppName); err != nil {
+		return nil, fmt.Errorf("add app exemption: %w", err)
+	}
+	return &server.AddAppExemptionNoContent{}, nil
+}
+
+func (h *Handler) RemoveAppExemption(ctx context.Context, params server.RemoveAppExemptionParams) (server.RemoveAppExemptionRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	slug := names.RepoSlug(params.Org, params.Repo)
+	if err := h.store.RemoveAppExemption(ctx, slug, params.Name); err != nil {
+		return nil, fmt.Errorf("remove app exemption: %w", err)
+	}
+	return &server.RemoveAppExemptionNoContent{}, nil
+}
+
+func (h *Handler) AddRepoExemption(ctx context.Context, req *server.RepoExemptionReq) (server.AddRepoExemptionRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.store.AddRepoExemption(ctx, req.RepoSlug); err != nil {
+		return nil, fmt.Errorf("add repo exemption: %w", err)
+	}
+	return &server.AddRepoExemptionNoContent{}, nil
+}
+
+func (h *Handler) RemoveRepoExemption(ctx context.Context, params server.RemoveRepoExemptionParams) (server.RemoveRepoExemptionRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	slug := names.RepoSlug(params.Org, params.Repo)
+	if err := h.store.RemoveRepoExemption(ctx, slug); err != nil {
+		return nil, fmt.Errorf("remove repo exemption: %w", err)
+	}
+	return &server.RemoveRepoExemptionNoContent{}, nil
+}
+
+func (h *Handler) ListExemptions(ctx context.Context) (server.ListExemptionsRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	exemptions, err := h.store.ListExemptions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list exemptions: %w", err)
+	}
+	items := make([]server.ExemptionListExemptionsItem, len(exemptions))
+	for i, ex := range exemptions {
+		item := server.ExemptionListExemptionsItem{
+			Kind:     ex.Kind,
+			RepoSlug: ex.RepoSlug,
+			Type:     ex.Type,
+		}
+		if ex.AppName != "" {
+			item.AppName = server.NewOptString(ex.AppName)
+		}
+		if ex.ExpiresAt.Valid {
+			item.ExpiresAt = server.NewOptDateTime(ex.ExpiresAt.Time)
+		}
+		items[i] = item
+	}
+	return &server.ExemptionList{Exemptions: items}, nil
 }

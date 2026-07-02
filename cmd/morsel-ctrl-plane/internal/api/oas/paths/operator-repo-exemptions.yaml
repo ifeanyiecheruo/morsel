@@ -1,0 +1,24 @@
+post:
+  operationId: addRepoExemption
+  summary: Add an explicit repo-level budget exemption
+  description: Permanently exempts all apps in a repository from budget enforcement. Apps in the repo continue to wake and run normally even when the platform soft or hard limit is active.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/RepoExemptionReq.yaml'
+  responses:
+    '204':
+      description: Exemption added
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

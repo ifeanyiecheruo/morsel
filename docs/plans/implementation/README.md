@@ -32,7 +32,7 @@
 | [F14](014-feature-quota-tiers.md) | Quota Tiers | ✅ done | F05, F06 |
 | [F15](015-feature-approvals.md) | Approvals | ⬜ not started | F05, F14 |
 | [F16](016-feature-cost-estimation.md) | Cost Estimation | ✅ done | F13 |
-| [F17](017-feature-budget-enforcement.md) | Budget Enforcement | ⬜ not started | F13, F16 |
+| [F17](017-feature-budget-enforcement.md) | Budget Enforcement | ✅ done | F13, F16 |
 | [F18](018-feature-admin-ui.md) | Admin UI | ⬜ not started | F03, F05, F13, F14, F15, F17 |
 | [F19](019-feature-gcp-platform.md) | GCPPlatform | ⬜ not started | F18 (all) |
 
