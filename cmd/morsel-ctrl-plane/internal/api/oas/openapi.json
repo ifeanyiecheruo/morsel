@@ -875,6 +875,11 @@
             "format": "date-time",
             "type": "string"
           },
+          "estimated_cost_month": {
+            "description": "Projected monthly cost in USD for all apps in this repo.",
+            "format": "double",
+            "type": "number"
+          },
           "slug": {
             "description": "Unique identifier for the repo, formatted as \"org/repo\".",
             "type": "string"
@@ -2340,6 +2345,11 @@
                       "description": "Total projected monthly spend in USD across all repos.",
                       "format": "double",
                       "type": "number"
+                    },
+                    "prices_fetched_at": {
+                      "description": "When platform prices were last refreshed from the pricing API.",
+                      "format": "date-time",
+                      "type": "string"
                     }
                   },
                   "type": "object"
@@ -2748,6 +2758,252 @@
           }
         ],
         "summary": "Immutable deployment parameters",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/prices/history": {
+      "get": {
+        "description": "Returns all stored platform price snapshots in reverse chronological order, for debugging cost estimate changes.",
+        "operationId": "getOperatorPricesHistory",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "snapshots": {
+                      "description": "Price snapshots ordered most-recent-first.",
+                      "items": {
+                        "properties": {
+                          "compute_cpu_per_core_hour": {
+                            "description": "Compute cost per CPU core per hour in USD.",
+                            "format": "double",
+                            "type": "number"
+                          },
+                          "compute_mem_per_gb_hour": {
+                            "description": "Compute cost per GB of memory per hour in USD.",
+                            "format": "double",
+                            "type": "number"
+                          },
+                          "fetched_at": {
+                            "description": "When these prices were fetched from the platform pricing API.",
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "registry_per_gb_month": {
+                            "description": "Container registry storage cost per GB per month in USD.",
+                            "format": "double",
+                            "type": "number"
+                          },
+                          "storage_per_gb_month": {
+                            "description": "Storage cost per GB per month in USD.",
+                            "format": "double",
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "fetched_at",
+                          "compute_cpu_per_core_hour",
+                          "compute_mem_per_gb_hour",
+                          "storage_per_gb_month",
+                          "registry_per_gb_month"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Platform price snapshot history",
         "tags": [
           "operator"
         ]
@@ -3533,6 +3789,11 @@
                       "format": "date-time",
                       "type": "string"
                     },
+                    "estimated_cost_month": {
+                      "description": "Projected monthly cost in USD for all apps in this repo.",
+                      "format": "double",
+                      "type": "number"
+                    },
                     "slug": {
                       "description": "Unique identifier for the repo, formatted as \"org/repo\".",
                       "type": "string"
@@ -3833,6 +4094,10 @@
                     "pending_approvals": {
                       "description": "Number of approval requests waiting for operator action.",
                       "type": "integer"
+                    },
+                    "prices_stale": {
+                      "description": "True if the price snapshot is more than 48 hours old. Cost estimates may be inaccurate.",
+                      "type": "boolean"
                     },
                     "running_apps": {
                       "description": "Total number of apps currently running across all repos.",
@@ -5690,6 +5955,11 @@
                         "format": "date-time",
                         "type": "string"
                       },
+                      "estimated_cost_month": {
+                        "description": "Projected monthly cost in USD for all apps in this repo.",
+                        "format": "double",
+                        "type": "number"
+                      },
                       "slug": {
                         "description": "Unique identifier for the repo, formatted as \"org/repo\".",
                         "type": "string"
@@ -6204,6 +6474,11 @@
                       "description": "When the repo was first registered on the platform.",
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "estimated_cost_month": {
+                      "description": "Projected monthly cost in USD for all apps in this repo.",
+                      "format": "double",
+                      "type": "number"
                     },
                     "slug": {
                       "description": "Unique identifier for the repo, formatted as \"org/repo\".",

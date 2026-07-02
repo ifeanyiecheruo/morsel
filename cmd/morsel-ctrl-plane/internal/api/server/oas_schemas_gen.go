@@ -1052,42 +1052,43 @@ func (s *ErrorInternalServerStatusCode) SetResponse(val ErrorResponse) {
 	s.Response = val
 }
 
-func (*ErrorInternalServerStatusCode) addOperatorPrincipalRes()    {}
-func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()    {}
-func (*ErrorInternalServerStatusCode) createTierRes()              {}
-func (*ErrorInternalServerStatusCode) deleteAppRes()               {}
-func (*ErrorInternalServerStatusCode) deleteRepoRes()              {}
-func (*ErrorInternalServerStatusCode) deleteTierRes()              {}
-func (*ErrorInternalServerStatusCode) getAppHistoryRes()           {}
-func (*ErrorInternalServerStatusCode) getAppRes()                  {}
-func (*ErrorInternalServerStatusCode) getAppStatusRes()            {}
-func (*ErrorInternalServerStatusCode) getAppUtilisationRes()       {}
-func (*ErrorInternalServerStatusCode) getDeploymentInfoRes()       {}
-func (*ErrorInternalServerStatusCode) getOperationRes()            {}
-func (*ErrorInternalServerStatusCode) getOperatorApprovalRes()     {}
-func (*ErrorInternalServerStatusCode) getOperatorConfigRes()       {}
-func (*ErrorInternalServerStatusCode) getOperatorCostRes()         {}
-func (*ErrorInternalServerStatusCode) getOperatorStatusRes()       {}
-func (*ErrorInternalServerStatusCode) getRepoRes()                 {}
-func (*ErrorInternalServerStatusCode) hibernateAppRes()            {}
-func (*ErrorInternalServerStatusCode) listAppsRes()                {}
-func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes()   {}
-func (*ErrorInternalServerStatusCode) listOperatorPrincipalsRes()  {}
-func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()       {}
-func (*ErrorInternalServerStatusCode) listReposRes()               {}
-func (*ErrorInternalServerStatusCode) listTiersRes()               {}
-func (*ErrorInternalServerStatusCode) prepareRepoDeployRes()       {}
-func (*ErrorInternalServerStatusCode) removeOperatorPrincipalRes() {}
-func (*ErrorInternalServerStatusCode) setDefaultTierRes()          {}
-func (*ErrorInternalServerStatusCode) syncRepoRes()                {}
-func (*ErrorInternalServerStatusCode) tokenDeployRes()             {}
-func (*ErrorInternalServerStatusCode) tokenOIDCRes()               {}
-func (*ErrorInternalServerStatusCode) tokenRefreshRes()            {}
-func (*ErrorInternalServerStatusCode) updateOperatorConfigRes()    {}
-func (*ErrorInternalServerStatusCode) updateRepoTierRes()          {}
-func (*ErrorInternalServerStatusCode) updateTierRes()              {}
-func (*ErrorInternalServerStatusCode) upsertAppRes()               {}
-func (*ErrorInternalServerStatusCode) wakeAppRes()                 {}
+func (*ErrorInternalServerStatusCode) addOperatorPrincipalRes()     {}
+func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()     {}
+func (*ErrorInternalServerStatusCode) createTierRes()               {}
+func (*ErrorInternalServerStatusCode) deleteAppRes()                {}
+func (*ErrorInternalServerStatusCode) deleteRepoRes()               {}
+func (*ErrorInternalServerStatusCode) deleteTierRes()               {}
+func (*ErrorInternalServerStatusCode) getAppHistoryRes()            {}
+func (*ErrorInternalServerStatusCode) getAppRes()                   {}
+func (*ErrorInternalServerStatusCode) getAppStatusRes()             {}
+func (*ErrorInternalServerStatusCode) getAppUtilisationRes()        {}
+func (*ErrorInternalServerStatusCode) getDeploymentInfoRes()        {}
+func (*ErrorInternalServerStatusCode) getOperationRes()             {}
+func (*ErrorInternalServerStatusCode) getOperatorApprovalRes()      {}
+func (*ErrorInternalServerStatusCode) getOperatorConfigRes()        {}
+func (*ErrorInternalServerStatusCode) getOperatorCostRes()          {}
+func (*ErrorInternalServerStatusCode) getOperatorPricesHistoryRes() {}
+func (*ErrorInternalServerStatusCode) getOperatorStatusRes()        {}
+func (*ErrorInternalServerStatusCode) getRepoRes()                  {}
+func (*ErrorInternalServerStatusCode) hibernateAppRes()             {}
+func (*ErrorInternalServerStatusCode) listAppsRes()                 {}
+func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes()    {}
+func (*ErrorInternalServerStatusCode) listOperatorPrincipalsRes()   {}
+func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()        {}
+func (*ErrorInternalServerStatusCode) listReposRes()                {}
+func (*ErrorInternalServerStatusCode) listTiersRes()                {}
+func (*ErrorInternalServerStatusCode) prepareRepoDeployRes()        {}
+func (*ErrorInternalServerStatusCode) removeOperatorPrincipalRes()  {}
+func (*ErrorInternalServerStatusCode) setDefaultTierRes()           {}
+func (*ErrorInternalServerStatusCode) syncRepoRes()                 {}
+func (*ErrorInternalServerStatusCode) tokenDeployRes()              {}
+func (*ErrorInternalServerStatusCode) tokenOIDCRes()                {}
+func (*ErrorInternalServerStatusCode) tokenRefreshRes()             {}
+func (*ErrorInternalServerStatusCode) updateOperatorConfigRes()     {}
+func (*ErrorInternalServerStatusCode) updateRepoTierRes()           {}
+func (*ErrorInternalServerStatusCode) updateTierRes()               {}
+func (*ErrorInternalServerStatusCode) upsertAppRes()                {}
+func (*ErrorInternalServerStatusCode) wakeAppRes()                  {}
 
 // Envelope returned for all error responses.
 // Ref: #
@@ -1342,6 +1343,8 @@ func (*GetOperatorCostForbidden) getOperatorCostRes() {}
 type GetOperatorCostOK struct {
 	// Total projected monthly spend in USD across all repos.
 	EstimatedMonthly OptFloat64 `json:"estimated_monthly"`
+	// When platform prices were last refreshed from the pricing API.
+	PricesFetchedAt OptDateTime `json:"prices_fetched_at"`
 	// Per-repo breakdown of the cost estimate.
 	ByRepo []GetOperatorCostOKByRepoItem `json:"by_repo"`
 }
@@ -1349,6 +1352,11 @@ type GetOperatorCostOK struct {
 // GetEstimatedMonthly returns the value of EstimatedMonthly.
 func (s *GetOperatorCostOK) GetEstimatedMonthly() OptFloat64 {
 	return s.EstimatedMonthly
+}
+
+// GetPricesFetchedAt returns the value of PricesFetchedAt.
+func (s *GetOperatorCostOK) GetPricesFetchedAt() OptDateTime {
+	return s.PricesFetchedAt
 }
 
 // GetByRepo returns the value of ByRepo.
@@ -1359,6 +1367,11 @@ func (s *GetOperatorCostOK) GetByRepo() []GetOperatorCostOKByRepoItem {
 // SetEstimatedMonthly sets the value of EstimatedMonthly.
 func (s *GetOperatorCostOK) SetEstimatedMonthly(val OptFloat64) {
 	s.EstimatedMonthly = val
+}
+
+// SetPricesFetchedAt sets the value of PricesFetchedAt.
+func (s *GetOperatorCostOK) SetPricesFetchedAt(val OptDateTime) {
+	s.PricesFetchedAt = val
 }
 
 // SetByRepo sets the value of ByRepo.
@@ -1399,6 +1412,94 @@ type GetOperatorCostUnauthorized ErrorResponse
 
 func (*GetOperatorCostUnauthorized) getOperatorCostRes() {}
 
+type GetOperatorPricesHistoryForbidden ErrorResponse
+
+func (*GetOperatorPricesHistoryForbidden) getOperatorPricesHistoryRes() {}
+
+type GetOperatorPricesHistoryOK struct {
+	// Price snapshots ordered most-recent-first.
+	Snapshots []GetOperatorPricesHistoryOKSnapshotsItem `json:"snapshots"`
+}
+
+// GetSnapshots returns the value of Snapshots.
+func (s *GetOperatorPricesHistoryOK) GetSnapshots() []GetOperatorPricesHistoryOKSnapshotsItem {
+	return s.Snapshots
+}
+
+// SetSnapshots sets the value of Snapshots.
+func (s *GetOperatorPricesHistoryOK) SetSnapshots(val []GetOperatorPricesHistoryOKSnapshotsItem) {
+	s.Snapshots = val
+}
+
+func (*GetOperatorPricesHistoryOK) getOperatorPricesHistoryRes() {}
+
+type GetOperatorPricesHistoryOKSnapshotsItem struct {
+	// When these prices were fetched from the platform pricing API.
+	FetchedAt time.Time `json:"fetched_at"`
+	// Compute cost per CPU core per hour in USD.
+	ComputeCPUPerCoreHour float64 `json:"compute_cpu_per_core_hour"`
+	// Compute cost per GB of memory per hour in USD.
+	ComputeMemPerGBHour float64 `json:"compute_mem_per_gb_hour"`
+	// Storage cost per GB per month in USD.
+	StoragePerGBMonth float64 `json:"storage_per_gb_month"`
+	// Container registry storage cost per GB per month in USD.
+	RegistryPerGBMonth float64 `json:"registry_per_gb_month"`
+}
+
+// GetFetchedAt returns the value of FetchedAt.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) GetFetchedAt() time.Time {
+	return s.FetchedAt
+}
+
+// GetComputeCPUPerCoreHour returns the value of ComputeCPUPerCoreHour.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) GetComputeCPUPerCoreHour() float64 {
+	return s.ComputeCPUPerCoreHour
+}
+
+// GetComputeMemPerGBHour returns the value of ComputeMemPerGBHour.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) GetComputeMemPerGBHour() float64 {
+	return s.ComputeMemPerGBHour
+}
+
+// GetStoragePerGBMonth returns the value of StoragePerGBMonth.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) GetStoragePerGBMonth() float64 {
+	return s.StoragePerGBMonth
+}
+
+// GetRegistryPerGBMonth returns the value of RegistryPerGBMonth.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) GetRegistryPerGBMonth() float64 {
+	return s.RegistryPerGBMonth
+}
+
+// SetFetchedAt sets the value of FetchedAt.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) SetFetchedAt(val time.Time) {
+	s.FetchedAt = val
+}
+
+// SetComputeCPUPerCoreHour sets the value of ComputeCPUPerCoreHour.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) SetComputeCPUPerCoreHour(val float64) {
+	s.ComputeCPUPerCoreHour = val
+}
+
+// SetComputeMemPerGBHour sets the value of ComputeMemPerGBHour.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) SetComputeMemPerGBHour(val float64) {
+	s.ComputeMemPerGBHour = val
+}
+
+// SetStoragePerGBMonth sets the value of StoragePerGBMonth.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) SetStoragePerGBMonth(val float64) {
+	s.StoragePerGBMonth = val
+}
+
+// SetRegistryPerGBMonth sets the value of RegistryPerGBMonth.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) SetRegistryPerGBMonth(val float64) {
+	s.RegistryPerGBMonth = val
+}
+
+type GetOperatorPricesHistoryUnauthorized ErrorResponse
+
+func (*GetOperatorPricesHistoryUnauthorized) getOperatorPricesHistoryRes() {}
+
 type GetOperatorStatusForbidden ErrorResponse
 
 func (*GetOperatorStatusForbidden) getOperatorStatusRes() {}
@@ -1410,6 +1511,8 @@ type GetOperatorStatusOK struct {
 	PendingApprovals OptInt `json:"pending_approvals"`
 	// Total number of apps currently running across all repos.
 	RunningApps OptInt `json:"running_apps"`
+	// True if the price snapshot is more than 48 hours old. Cost estimates may be inaccurate.
+	PricesStale OptBool `json:"prices_stale"`
 	// Certificate health summary. Only populated when one or more certificates require attention.
 	Certs OptGetOperatorStatusOKCerts `json:"certs"`
 }
@@ -1427,6 +1530,11 @@ func (s *GetOperatorStatusOK) GetPendingApprovals() OptInt {
 // GetRunningApps returns the value of RunningApps.
 func (s *GetOperatorStatusOK) GetRunningApps() OptInt {
 	return s.RunningApps
+}
+
+// GetPricesStale returns the value of PricesStale.
+func (s *GetOperatorStatusOK) GetPricesStale() OptBool {
+	return s.PricesStale
 }
 
 // GetCerts returns the value of Certs.
@@ -1447,6 +1555,11 @@ func (s *GetOperatorStatusOK) SetPendingApprovals(val OptInt) {
 // SetRunningApps sets the value of RunningApps.
 func (s *GetOperatorStatusOK) SetRunningApps(val OptInt) {
 	s.RunningApps = val
+}
+
+// SetPricesStale sets the value of PricesStale.
+func (s *GetOperatorStatusOK) SetPricesStale(val OptBool) {
+	s.PricesStale = val
 }
 
 // SetCerts sets the value of Certs.
@@ -2544,6 +2657,8 @@ type Repo struct {
 	Tier string `json:"tier"`
 	// Number of apps currently deployed in this repo.
 	AppCount OptInt `json:"app_count"`
+	// Projected monthly cost in USD for all apps in this repo.
+	EstimatedCostMonth OptFloat64 `json:"estimated_cost_month"`
 	// When the repo was first registered on the platform.
 	CreatedAt OptDateTime `json:"created_at"`
 }
@@ -2561,6 +2676,11 @@ func (s *Repo) GetTier() string {
 // GetAppCount returns the value of AppCount.
 func (s *Repo) GetAppCount() OptInt {
 	return s.AppCount
+}
+
+// GetEstimatedCostMonth returns the value of EstimatedCostMonth.
+func (s *Repo) GetEstimatedCostMonth() OptFloat64 {
+	return s.EstimatedCostMonth
 }
 
 // GetCreatedAt returns the value of CreatedAt.
@@ -2581,6 +2701,11 @@ func (s *Repo) SetTier(val string) {
 // SetAppCount sets the value of AppCount.
 func (s *Repo) SetAppCount(val OptInt) {
 	s.AppCount = val
+}
+
+// SetEstimatedCostMonth sets the value of EstimatedCostMonth.
+func (s *Repo) SetEstimatedCostMonth(val OptFloat64) {
+	s.EstimatedCostMonth = val
 }
 
 // SetCreatedAt sets the value of CreatedAt.

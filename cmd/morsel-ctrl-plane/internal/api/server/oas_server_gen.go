@@ -114,6 +114,13 @@ type Handler interface {
 	//
 	// GET /api/operator/cost
 	GetOperatorCost(ctx context.Context) (GetOperatorCostRes, error)
+	// GetOperatorPricesHistory implements getOperatorPricesHistory operation.
+	//
+	// Returns all stored platform price snapshots in reverse chronological order, for debugging cost
+	// estimate changes.
+	//
+	// GET /api/operator/prices/history
+	GetOperatorPricesHistory(ctx context.Context) (GetOperatorPricesHistoryRes, error)
 	// GetOperatorStatus implements getOperatorStatus operation.
 	//
 	// Returns a high-level health snapshot of the platform, including whether critical components are

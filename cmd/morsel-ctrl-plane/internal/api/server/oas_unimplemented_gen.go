@@ -167,6 +167,16 @@ func (UnimplementedHandler) GetOperatorCost(ctx context.Context) (r GetOperatorC
 	return r, ht.ErrNotImplemented
 }
 
+// GetOperatorPricesHistory implements getOperatorPricesHistory operation.
+//
+// Returns all stored platform price snapshots in reverse chronological order, for debugging cost
+// estimate changes.
+//
+// GET /api/operator/prices/history
+func (UnimplementedHandler) GetOperatorPricesHistory(ctx context.Context) (r GetOperatorPricesHistoryRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // GetOperatorStatus implements getOperatorStatus operation.
 //
 // Returns a high-level health snapshot of the platform, including whether critical components are

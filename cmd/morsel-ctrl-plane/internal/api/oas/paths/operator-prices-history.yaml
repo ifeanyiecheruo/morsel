@@ -1,0 +1,50 @@
+get:
+  operationId: getOperatorPricesHistory
+  summary: Platform price snapshot history
+  description: Returns all stored platform price snapshots in reverse chronological order, for debugging cost estimate changes.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              snapshots:
+                description: Price snapshots ordered most-recent-first.
+                type: array
+                items:
+                  type: object
+                  required: [fetched_at, compute_cpu_per_core_hour, compute_mem_per_gb_hour, storage_per_gb_month, registry_per_gb_month]
+                  properties:
+                    fetched_at:
+                      description: When these prices were fetched from the platform pricing API.
+                      type: string
+                      format: date-time
+                    compute_cpu_per_core_hour:
+                      description: Compute cost per CPU core per hour in USD.
+                      type: number
+                      format: double
+                    compute_mem_per_gb_hour:
+                      description: Compute cost per GB of memory per hour in USD.
+                      type: number
+                      format: double
+                    storage_per_gb_month:
+                      description: Storage cost per GB per month in USD.
+                      type: number
+                      format: double
+                    registry_per_gb_month:
+                      description: Container registry storage cost per GB per month in USD.
+                      type: number
+                      format: double
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

@@ -22,6 +22,9 @@ get:
               running_apps:
                 description: Total number of apps currently running across all repos.
                 type: integer
+              prices_stale:
+                description: True if the price snapshot is more than 48 hours old. Cost estimates may be inaccurate.
+                type: boolean
               certs:
                 description: Certificate health summary. Only populated when one or more certificates require attention.
                 type: object

@@ -15,6 +15,8 @@ type App = dbqueries.App
 type Repo = dbqueries.Repo
 type Operation = dbqueries.Operation
 type Tier = dbqueries.Tier
+type ScaleEvent = dbqueries.ScaleEvent
+type PriceSnapshot = dbqueries.PriceSnapshot
 
 // fallbackDefaultTier is the built-in baseline used when no default tier exists.
 const fallbackDefaultTier = "small"
@@ -333,4 +335,54 @@ func (s *Store) ListAppOperations(ctx context.Context, repoSlug, appName string)
 		RepoSlug: repoSlug,
 		AppName:  appName,
 	})
+}
+
+// ── Scale events ──────────────────────────────────────────────────────────────
+
+// RecordScaleEvent writes a scale_to_0 or scale_to_1 event for the given app.
+func (s *Store) RecordScaleEvent(ctx context.Context, namespace, app, event string) error {
+	return s.q.InsertScaleEvent(ctx, dbqueries.InsertScaleEventParams{
+		Namespace:  namespace,
+		App:        app,
+		Event:      event,
+		OccurredAt: time.Now().UTC(),
+	})
+}
+
+// ListScaleEventsSince returns scale events for a specific app since the given time.
+func (s *Store) ListScaleEventsSince(ctx context.Context, namespace, app string, since time.Time) ([]ScaleEvent, error) {
+	return s.q.ListScaleEventsSince(ctx, dbqueries.ListScaleEventsSinceParams{
+		Namespace:  namespace,
+		App:        app,
+		OccurredAt: since,
+	})
+}
+
+// ListAllScaleEventsSince returns all scale events across all apps since the given time.
+func (s *Store) ListAllScaleEventsSince(ctx context.Context, since time.Time) ([]ScaleEvent, error) {
+	return s.q.ListAllScaleEventsSince(ctx, since)
+}
+
+// ── Price snapshots ───────────────────────────────────────────────────────────
+
+// InsertPriceSnapshot stores an immutable price fetch result.
+func (s *Store) InsertPriceSnapshot(ctx context.Context, cpuPerCore, memPerGB, storagePerGB, registryPerGB float64, fetchedAt time.Time) (PriceSnapshot, error) {
+	return s.q.InsertPriceSnapshot(ctx, dbqueries.InsertPriceSnapshotParams{
+		ComputeCpuPerCoreHour: cpuPerCore,
+		ComputeMemPerGbHour:   memPerGB,
+		StoragePerGbMonth:     storagePerGB,
+		RegistryPerGbMonth:    registryPerGB,
+		FetchedAt:             fetchedAt,
+	})
+}
+
+// GetLatestPriceSnapshot returns the most recently fetched price snapshot.
+// Returns sql.ErrNoRows if no snapshot exists yet.
+func (s *Store) GetLatestPriceSnapshot(ctx context.Context) (PriceSnapshot, error) {
+	return s.q.GetLatestPriceSnapshot(ctx)
+}
+
+// ListPriceSnapshots returns all price snapshots ordered most-recent-first.
+func (s *Store) ListPriceSnapshots(ctx context.Context) ([]PriceSnapshot, error) {
+	return s.q.ListPriceSnapshots(ctx)
 }

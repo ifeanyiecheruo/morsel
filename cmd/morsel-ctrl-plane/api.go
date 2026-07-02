@@ -38,6 +38,7 @@ func runAPI(ctx context.Context, args []string) {
 
 	go runCertRenewal(ctx, plat, kubeClient, logger)
 	go hibernation.New(s, kubeClient, plat, 0).Run(ctx)
+	go runPriceFetch(ctx, plat, s, logger)
 
 	runServer(ctx, *addr, 30*time.Second, func() *http.Server {
 		return &http.Server{Handler: api.NewMux(ctx, plat, s, kubeClient)}
@@ -118,6 +119,30 @@ func checkAndRenewCert(ctx context.Context, plat platform.Platform, kubeClient *
 		return
 	}
 	logger.Info("tls cert renewed")
+}
+
+func runPriceFetch(ctx context.Context, plat platform.Platform, s *store.Store, logger *slog.Logger) {
+	fetch := func() {
+		prices, err := plat.Pricing().Prices(ctx)
+		if err != nil {
+			logger.Error("price fetch failed", "err", err)
+			return
+		}
+		if _, err := s.InsertPriceSnapshot(ctx, prices.ComputeCPUPerCoreHour, prices.ComputeMemPerGBHour, prices.StoragePerGBMonth, prices.RegistryPerGBMonth, prices.FetchedAt); err != nil {
+			logger.Error("store price snapshot", "err", err)
+		}
+	}
+	fetch() // fetch immediately on startup
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			fetch()
+		}
+	}
 }
 
 func initializeKube(logger *slog.Logger, kubeconfigPath string) *kube.Client {

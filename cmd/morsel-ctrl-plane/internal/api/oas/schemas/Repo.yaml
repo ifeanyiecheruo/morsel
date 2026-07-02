@@ -12,6 +12,10 @@ properties:
   app_count:
     description: Number of apps currently deployed in this repo.
     type: integer
+  estimated_cost_month:
+    description: Projected monthly cost in USD for all apps in this repo.
+    type: number
+    format: double
   created_at:
     description: When the repo was first registered on the platform.
     type: string

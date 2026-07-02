@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
@@ -30,13 +31,15 @@ func (h *Handler) ListRepos(ctx context.Context, params server.ListReposParams) 
 		if err != nil {
 			return nil, fmt.Errorf("list repos: %w", err)
 		}
+		prices := h.latestPrices(ctx)
+		now := time.Now().UTC()
 		out := make(server.ListReposOKApplicationJSON, len(repos))
 		for i, repo := range repos {
 			count, countErr := h.store.CountAppsByRepo(ctx, repo.Slug)
 			if countErr != nil {
 				return nil, fmt.Errorf("count apps: %w", countErr)
 			}
-			out[i] = dbRepoToOAS(repo, count)
+			out[i] = dbRepoToOAS(repo, count, h.repoCostMonthly(ctx, repo.Slug, prices, now))
 		}
 		return &out, nil
 	}
@@ -63,7 +66,9 @@ func (h *Handler) ListRepos(ctx context.Context, params server.ListReposParams) 
 	if err != nil {
 		return nil, fmt.Errorf("count apps: %w", err)
 	}
-	out := server.ListReposOKApplicationJSON{dbRepoToOAS(repo, count)}
+	prices := h.latestPrices(ctx)
+	now := time.Now().UTC()
+	out := server.ListReposOKApplicationJSON{dbRepoToOAS(repo, count, h.repoCostMonthly(ctx, repo.Slug, prices, now))}
 	return &out, nil
 }
 
@@ -87,7 +92,9 @@ func (h *Handler) GetRepo(ctx context.Context, params server.GetRepoParams) (ser
 	if err != nil {
 		return nil, fmt.Errorf("count apps: %w", err)
 	}
-	out := dbRepoToOAS(repo, count)
+	prices := h.latestPrices(ctx)
+	cost := h.repoCostMonthly(ctx, slug, prices, time.Now().UTC())
+	out := dbRepoToOAS(repo, count, cost)
 	return &out, nil
 }
 

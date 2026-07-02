@@ -61,6 +61,10 @@ type GetOperatorCostRes interface {
 	getOperatorCostRes()
 }
 
+type GetOperatorPricesHistoryRes interface {
+	getOperatorPricesHistoryRes()
+}
+
 type GetOperatorStatusRes interface {
 	getOperatorStatusRes()
 }

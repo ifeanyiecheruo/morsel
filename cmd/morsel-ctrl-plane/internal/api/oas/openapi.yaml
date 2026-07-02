@@ -157,6 +157,9 @@ paths:
   /api/operator/cost:
     $ref: './paths/operator-cost.yaml'
 
+  /api/operator/prices/history:
+    $ref: './paths/operator-prices-history.yaml'
+
   /api/operator/status:
     $ref: './paths/operator-status.yaml'
 

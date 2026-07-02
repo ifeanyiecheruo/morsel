@@ -89,7 +89,9 @@ func (h *Handler) UpdateRepoTier(ctx context.Context, req *server.UpdateRepoTier
 	}
 
 	count, _ := h.store.CountAppsByRepo(ctx, slug)
-	out := dbRepoToOAS(updated, count)
+	prices := h.latestPrices(ctx)
+	cost := h.repoCostMonthly(ctx, slug, prices, time.Now().UTC())
+	out := dbRepoToOAS(updated, count, cost)
 	return &out, nil
 }
 
@@ -128,7 +130,57 @@ func (h *Handler) GetOperatorCost(ctx context.Context) (server.GetOperatorCostRe
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
-	return nil, errNotImplemented
+
+	prices := h.latestPrices(ctx)
+	now := time.Now().UTC()
+
+	repos, err := h.store.ListRepos(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list repos: %w", err)
+	}
+
+	byRepo := make([]server.GetOperatorCostOKByRepoItem, 0, len(repos))
+	var total float64
+	for _, repo := range repos {
+		cost := h.repoCostMonthly(ctx, repo.Slug, prices, now)
+		total += cost
+		byRepo = append(byRepo, server.GetOperatorCostOKByRepoItem{
+			Slug:             repo.Slug,
+			EstimatedMonthly: cost,
+		})
+	}
+
+	out := &server.GetOperatorCostOK{
+		EstimatedMonthly: server.NewOptFloat64(total),
+		ByRepo:           byRepo,
+	}
+	if !prices.FetchedAt.IsZero() {
+		out.PricesFetchedAt = server.NewOptDateTime(prices.FetchedAt)
+	}
+	return out, nil
+}
+
+func (h *Handler) GetOperatorPricesHistory(ctx context.Context) (server.GetOperatorPricesHistoryRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+
+	snapshots, err := h.store.ListPriceSnapshots(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list price snapshots: %w", err)
+	}
+
+	items := make([]server.GetOperatorPricesHistoryOKSnapshotsItem, len(snapshots))
+	for i, s := range snapshots {
+		items[i] = server.GetOperatorPricesHistoryOKSnapshotsItem{
+			FetchedAt:             s.FetchedAt,
+			ComputeCPUPerCoreHour: s.ComputeCpuPerCoreHour,
+			ComputeMemPerGBHour:   s.ComputeMemPerGbHour,
+			StoragePerGBMonth:     s.StoragePerGbMonth,
+			RegistryPerGBMonth:    s.RegistryPerGbMonth,
+		}
+	}
+	return &server.GetOperatorPricesHistoryOK{Snapshots: items}, nil
 }
 
 func (h *Handler) GetDeploymentInfo(ctx context.Context) (server.GetDeploymentInfoRes, error) {
@@ -154,6 +206,12 @@ func (h *Handler) GetOperatorStatus(ctx context.Context) (server.GetOperatorStat
 			ExpiringSoon: []string{"*." + h.plat.BaseDomain()},
 		})
 	}
+
+	snap, snapErr := h.store.GetLatestPriceSnapshot(ctx)
+	if snapErr != nil || time.Since(snap.FetchedAt) > 48*time.Hour {
+		resp.PricesStale = server.NewOptBool(true)
+	}
+
 	return resp, nil
 }
 

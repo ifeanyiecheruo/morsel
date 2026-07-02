@@ -4258,6 +4258,12 @@ func (s *GetOperatorCostOK) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.PricesFetchedAt.Set {
+			e.FieldStart("prices_fetched_at")
+			s.PricesFetchedAt.Encode(e, json.EncodeDateTime)
+		}
+	}
+	{
 		if s.ByRepo != nil {
 			e.FieldStart("by_repo")
 			e.ArrStart()
@@ -4269,9 +4275,10 @@ func (s *GetOperatorCostOK) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfGetOperatorCostOK = [2]string{
+var jsonFieldsNameOfGetOperatorCostOK = [3]string{
 	0: "estimated_monthly",
-	1: "by_repo",
+	1: "prices_fetched_at",
+	2: "by_repo",
 }
 
 // Decode decodes GetOperatorCostOK from json.
@@ -4291,6 +4298,16 @@ func (s *GetOperatorCostOK) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"estimated_monthly\"")
+			}
+		case "prices_fetched_at":
+			if err := func() error {
+				s.PricesFetchedAt.Reset()
+				if err := s.PricesFetchedAt.Decode(d, json.DecodeDateTime); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"prices_fetched_at\"")
 			}
 		case "by_repo":
 			if err := func() error {
@@ -4484,6 +4501,320 @@ func (s *GetOperatorCostUnauthorized) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes GetOperatorPricesHistoryForbidden as json.
+func (s *GetOperatorPricesHistoryForbidden) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponse)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes GetOperatorPricesHistoryForbidden from json.
+func (s *GetOperatorPricesHistoryForbidden) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode GetOperatorPricesHistoryForbidden to nil")
+	}
+	var unwrapped ErrorResponse
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = GetOperatorPricesHistoryForbidden(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *GetOperatorPricesHistoryForbidden) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *GetOperatorPricesHistoryForbidden) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *GetOperatorPricesHistoryOK) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *GetOperatorPricesHistoryOK) encodeFields(e *jx.Encoder) {
+	{
+		if s.Snapshots != nil {
+			e.FieldStart("snapshots")
+			e.ArrStart()
+			for _, elem := range s.Snapshots {
+				elem.Encode(e)
+			}
+			e.ArrEnd()
+		}
+	}
+}
+
+var jsonFieldsNameOfGetOperatorPricesHistoryOK = [1]string{
+	0: "snapshots",
+}
+
+// Decode decodes GetOperatorPricesHistoryOK from json.
+func (s *GetOperatorPricesHistoryOK) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode GetOperatorPricesHistoryOK to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "snapshots":
+			if err := func() error {
+				s.Snapshots = make([]GetOperatorPricesHistoryOKSnapshotsItem, 0)
+				if err := d.Arr(func(d *jx.Decoder) error {
+					var elem GetOperatorPricesHistoryOKSnapshotsItem
+					if err := elem.Decode(d); err != nil {
+						return err
+					}
+					s.Snapshots = append(s.Snapshots, elem)
+					return nil
+				}); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"snapshots\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode GetOperatorPricesHistoryOK")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *GetOperatorPricesHistoryOK) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *GetOperatorPricesHistoryOK) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("fetched_at")
+		json.EncodeDateTime(e, s.FetchedAt)
+	}
+	{
+		e.FieldStart("compute_cpu_per_core_hour")
+		e.Float64(s.ComputeCPUPerCoreHour)
+	}
+	{
+		e.FieldStart("compute_mem_per_gb_hour")
+		e.Float64(s.ComputeMemPerGBHour)
+	}
+	{
+		e.FieldStart("storage_per_gb_month")
+		e.Float64(s.StoragePerGBMonth)
+	}
+	{
+		e.FieldStart("registry_per_gb_month")
+		e.Float64(s.RegistryPerGBMonth)
+	}
+}
+
+var jsonFieldsNameOfGetOperatorPricesHistoryOKSnapshotsItem = [5]string{
+	0: "fetched_at",
+	1: "compute_cpu_per_core_hour",
+	2: "compute_mem_per_gb_hour",
+	3: "storage_per_gb_month",
+	4: "registry_per_gb_month",
+}
+
+// Decode decodes GetOperatorPricesHistoryOKSnapshotsItem from json.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode GetOperatorPricesHistoryOKSnapshotsItem to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "fetched_at":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.FetchedAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fetched_at\"")
+			}
+		case "compute_cpu_per_core_hour":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Float64()
+				s.ComputeCPUPerCoreHour = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"compute_cpu_per_core_hour\"")
+			}
+		case "compute_mem_per_gb_hour":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Float64()
+				s.ComputeMemPerGBHour = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"compute_mem_per_gb_hour\"")
+			}
+		case "storage_per_gb_month":
+			requiredBitSet[0] |= 1 << 3
+			if err := func() error {
+				v, err := d.Float64()
+				s.StoragePerGBMonth = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"storage_per_gb_month\"")
+			}
+		case "registry_per_gb_month":
+			requiredBitSet[0] |= 1 << 4
+			if err := func() error {
+				v, err := d.Float64()
+				s.RegistryPerGBMonth = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"registry_per_gb_month\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode GetOperatorPricesHistoryOKSnapshotsItem")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00011111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfGetOperatorPricesHistoryOKSnapshotsItem) {
+					name = jsonFieldsNameOfGetOperatorPricesHistoryOKSnapshotsItem[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *GetOperatorPricesHistoryOKSnapshotsItem) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes GetOperatorPricesHistoryUnauthorized as json.
+func (s *GetOperatorPricesHistoryUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorResponse)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes GetOperatorPricesHistoryUnauthorized from json.
+func (s *GetOperatorPricesHistoryUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode GetOperatorPricesHistoryUnauthorized to nil")
+	}
+	var unwrapped ErrorResponse
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = GetOperatorPricesHistoryUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *GetOperatorPricesHistoryUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *GetOperatorPricesHistoryUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes GetOperatorStatusForbidden as json.
 func (s *GetOperatorStatusForbidden) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorResponse)(s)
@@ -4550,6 +4881,12 @@ func (s *GetOperatorStatusOK) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.PricesStale.Set {
+			e.FieldStart("prices_stale")
+			s.PricesStale.Encode(e)
+		}
+	}
+	{
 		if s.Certs.Set {
 			e.FieldStart("certs")
 			s.Certs.Encode(e)
@@ -4557,11 +4894,12 @@ func (s *GetOperatorStatusOK) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfGetOperatorStatusOK = [4]string{
+var jsonFieldsNameOfGetOperatorStatusOK = [5]string{
 	0: "healthy",
 	1: "pending_approvals",
 	2: "running_apps",
-	3: "certs",
+	3: "prices_stale",
+	4: "certs",
 }
 
 // Decode decodes GetOperatorStatusOK from json.
@@ -4601,6 +4939,16 @@ func (s *GetOperatorStatusOK) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"running_apps\"")
+			}
+		case "prices_stale":
+			if err := func() error {
+				s.PricesStale.Reset()
+				if err := s.PricesStale.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"prices_stale\"")
 			}
 		case "certs":
 			if err := func() error {
@@ -7011,6 +7359,12 @@ func (s *Repo) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.EstimatedCostMonth.Set {
+			e.FieldStart("estimated_cost_month")
+			s.EstimatedCostMonth.Encode(e)
+		}
+	}
+	{
 		if s.CreatedAt.Set {
 			e.FieldStart("created_at")
 			s.CreatedAt.Encode(e, json.EncodeDateTime)
@@ -7018,11 +7372,12 @@ func (s *Repo) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfRepo = [4]string{
+var jsonFieldsNameOfRepo = [5]string{
 	0: "slug",
 	1: "tier",
 	2: "app_count",
-	3: "created_at",
+	3: "estimated_cost_month",
+	4: "created_at",
 }
 
 // Decode decodes Repo from json.
@@ -7067,6 +7422,16 @@ func (s *Repo) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"app_count\"")
+			}
+		case "estimated_cost_month":
+			if err := func() error {
+				s.EstimatedCostMonth.Reset()
+				if err := s.EstimatedCostMonth.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"estimated_cost_month\"")
 			}
 		case "created_at":
 			if err := func() error {

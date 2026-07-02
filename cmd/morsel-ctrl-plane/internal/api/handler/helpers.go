@@ -93,11 +93,12 @@ func dbAppToOAS(app dbqueries.App) server.App {
 	return out
 }
 
-func dbRepoToOAS(repo dbqueries.Repo, appCount int64) server.Repo {
+func dbRepoToOAS(repo dbqueries.Repo, appCount int64, costMonth float64) server.Repo {
 	return server.Repo{
-		Slug:      repo.Slug,
-		Tier:      repo.Tier,
-		AppCount:  server.NewOptInt(int(appCount)),
-		CreatedAt: server.NewOptDateTime(repo.CreatedAt),
+		Slug:               repo.Slug,
+		Tier:               repo.Tier,
+		AppCount:           server.NewOptInt(int(appCount)),
+		EstimatedCostMonth: server.NewOptFloat64(costMonth),
+		CreatedAt:          server.NewOptDateTime(repo.CreatedAt),
 	}
 }

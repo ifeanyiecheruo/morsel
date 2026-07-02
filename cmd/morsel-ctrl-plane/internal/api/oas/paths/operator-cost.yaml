@@ -17,6 +17,10 @@ get:
                 description: Total projected monthly spend in USD across all repos.
                 type: number
                 format: double
+              prices_fetched_at:
+                description: When platform prices were last refreshed from the pricing API.
+                type: string
+                format: date-time
               by_repo:
                 description: Per-repo breakdown of the cost estimate.
                 type: array

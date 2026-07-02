@@ -41,6 +41,15 @@ type Operation struct {
 	UpdatedAt time.Time
 }
 
+type PriceSnapshot struct {
+	ID                    int64
+	ComputeCpuPerCoreHour float64
+	ComputeMemPerGbHour   float64
+	StoragePerGbMonth     float64
+	RegistryPerGbMonth    float64
+	FetchedAt             time.Time
+}
+
 type Principal struct {
 	Username     string
 	PasswordHash sql.NullString
@@ -63,6 +72,14 @@ type Repo struct {
 	Slug      string
 	Tier      string
 	CreatedAt time.Time
+}
+
+type ScaleEvent struct {
+	ID         int64
+	Namespace  string
+	App        string
+	Event      string
+	OccurredAt time.Time
 }
 
 type Tier struct {

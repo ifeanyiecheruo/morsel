@@ -141,6 +141,9 @@ func (h *Handler) runDeploy(ctx context.Context, opID string, appID int64, m kub
 
 	_ = h.store.UpdateAppImages(ctx, appID, m.Image, m.Image)
 	_ = h.store.UpdateAppStatus(ctx, appID, "running")
+	if err := h.store.RecordScaleEvent(ctx, m.Namespace, m.AppName, "scale_to_1"); err != nil {
+		logger.Error("record scale event", "err", err)
+	}
 	if err := h.store.SucceedOperation(ctx, opID); err != nil {
 		logger.Error("succeed operation", "err", err)
 	}
@@ -291,12 +294,40 @@ func (h *Handler) GetAppUtilisation(ctx context.Context, params server.GetAppUti
 	if err := checkRepoAccess(ctx, params.Org, params.Repo); err != nil {
 		return nil, err
 	}
-	return nil, &apiError{
-		httpStatus: http.StatusNotImplemented,
-		code:       "not_implemented",
-		message:    "utilisation metrics are not yet available",
-		remedy:     "check back in a future release",
+	slug := names.RepoSlug(params.Org, params.Repo)
+	app, err := h.store.GetApp(ctx, slug, params.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &server.GetAppUtilisationNotFound{Error: server.ErrorDetail{
+			Code:    "not_found",
+			Message: "app not found",
+			Remedy:  "check the app name and repo",
+		}}, nil
 	}
+	if err != nil {
+		return nil, fmt.Errorf("get app: %w", err)
+	}
+
+	repo, err := h.store.GetRepo(ctx, slug)
+	if err != nil {
+		return nil, fmt.Errorf("get repo: %w", err)
+	}
+	tier, err := h.store.GetTier(ctx, repo.Tier)
+	if err != nil {
+		return nil, fmt.Errorf("get tier: %w", err)
+	}
+
+	prices := h.latestPrices(ctx)
+	cost := h.appCostMonthly(ctx, app, tier, prices, time.Now().UTC())
+
+	cpuCores := float64(tier.CpuMilli) / 1000.0
+	memGB := float64(tier.MemoryMb) / 1024.0
+
+	out := &server.GetAppUtilisationOK{
+		CPUCores:            server.NewOptFloat64(cpuCores),
+		MemoryGB:            server.NewOptFloat64(memGB),
+		CostEstimateMonthly: server.NewOptFloat64(cost),
+	}
+	return out, nil
 }
 
 func (h *Handler) GetOperation(ctx context.Context, params server.GetOperationParams) (server.GetOperationRes, error) {
@@ -348,7 +379,7 @@ func (h *Handler) HibernateApp(ctx context.Context, params server.HibernateAppPa
 		ns = app.Namespace.String
 	}
 	host := names.AppHostname(params.Name, params.Repo, h.plat.BaseDomain())
-	go h.runHibernate(context.WithoutCancel(ctx), opID, app.ID, app.Type, ns, host)
+	go h.runHibernate(context.WithoutCancel(ctx), opID, app.ID, app.Type, params.Name, ns, host)
 
 	return &server.AcceptedOperationHeaders{
 		Location:   operationLocation(params.Org, params.Repo, params.Name, opID),
@@ -357,7 +388,7 @@ func (h *Handler) HibernateApp(ctx context.Context, params server.HibernateAppPa
 	}, nil
 }
 
-func (h *Handler) runHibernate(ctx context.Context, opID string, appID int64, appType, namespace, host string) {
+func (h *Handler) runHibernate(ctx context.Context, opID string, appID int64, appType, appName, namespace, host string) {
 	logger := ctxlog.From(ctx).With("op", opID, "namespace", namespace)
 	if err := h.store.StartOperation(ctx, opID); err != nil {
 		logger.Error("start hibernate operation", "err", err)
@@ -388,6 +419,7 @@ func (h *Handler) runHibernate(ctx context.Context, opID string, appID int64, ap
 			return
 		}
 	}
+	_ = h.store.RecordScaleEvent(ctx, namespace, appName, "scale_to_0")
 
 	if err := h.store.SetAppHibernated(ctx, appID, "manual"); err != nil {
 		logger.Error("set app hibernated", "err", err)
@@ -428,7 +460,7 @@ func (h *Handler) WakeApp(ctx context.Context, params server.WakeAppParams) (ser
 		ns = app.Namespace.String
 	}
 	host := names.AppHostname(params.Name, params.Repo, h.plat.BaseDomain())
-	go h.runWake(context.WithoutCancel(ctx), opID, app.ID, app.Type, ns, host)
+	go h.runWake(context.WithoutCancel(ctx), opID, app.ID, app.Type, params.Name, ns, host)
 
 	return &server.AcceptedOperationHeaders{
 		Location:   operationLocation(params.Org, params.Repo, params.Name, opID),
@@ -437,7 +469,7 @@ func (h *Handler) WakeApp(ctx context.Context, params server.WakeAppParams) (ser
 	}, nil
 }
 
-func (h *Handler) runWake(ctx context.Context, opID string, appID int64, appType, namespace, host string) {
+func (h *Handler) runWake(ctx context.Context, opID string, appID int64, appType, appName, namespace, host string) {
 	logger := ctxlog.From(ctx).With("op", opID, "namespace", namespace)
 	if err := h.store.StartOperation(ctx, opID); err != nil {
 		logger.Error("start wake operation", "err", err)
@@ -473,6 +505,7 @@ func (h *Handler) runWake(ctx context.Context, opID string, appID int64, appType
 			return
 		}
 	}
+	_ = h.store.RecordScaleEvent(ctx, namespace, appName, "scale_to_1")
 
 	if err := h.store.SetAppAwake(ctx, appID); err != nil {
 		logger.Error("set app awake", "err", err)

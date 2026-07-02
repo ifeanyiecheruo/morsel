@@ -137,6 +137,9 @@ func (w *Watcher) hibernateHTTP(ctx context.Context, logger *slog.Logger, appID 
 		logger.Error("hibernation: scale to zero", "app", name, "err", err)
 		return
 	}
+	if err := w.store.RecordScaleEvent(ctx, namespace, name, "scale_to_0"); err != nil {
+		logger.Error("hibernation: record scale event", "app", name, "err", err)
+	}
 	if err := w.store.SetAppHibernated(ctx, appID, "idle"); err != nil {
 		logger.Error("hibernation: set app hibernated", "app", name, "err", err)
 	}
@@ -175,6 +178,9 @@ func (w *Watcher) checkWorker(ctx context.Context, logger *slog.Logger, appID in
 	if err := w.deployer.ScaleDeployment(ctx, namespace, 0); err != nil {
 		logger.Error("hibernation: scale to zero", "app", name, "err", err)
 		return
+	}
+	if err := w.store.RecordScaleEvent(ctx, namespace, name, "scale_to_0"); err != nil {
+		logger.Error("hibernation: record scale event", "app", name, "err", err)
 	}
 	if err := w.store.SetAppHibernated(ctx, appID, "idle"); err != nil {
 		logger.Error("hibernation: set app hibernated", "app", name, "err", err)
