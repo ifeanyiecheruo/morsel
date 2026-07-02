@@ -47,6 +47,12 @@ components:
       $ref: './schemas/OperatorPrincipals.yaml'
     PrincipalReq:
       $ref: './schemas/PrincipalReq.yaml'
+    Tier:
+      $ref: './schemas/Tier.yaml'
+    CreateTierReq:
+      $ref: './schemas/CreateTierReq.yaml'
+    UpdateTierReq:
+      $ref: './schemas/UpdateTierReq.yaml'
 
   parameters:
     OrgParam:
@@ -59,6 +65,8 @@ components:
       $ref: './parameters.yaml#/OperationIDParam'
     ApprovalIDParam:
       $ref: './parameters.yaml#/ApprovalIDParam'
+    TierNameParam:
+      $ref: './parameters.yaml#/TierNameParam'
 
   responses:
     ErrorBadRequest:
@@ -160,3 +168,12 @@ paths:
 
   '/api/operator/principals/{principal}':
     $ref: './paths/operator-principals-principal.yaml'
+
+  /api/operator/tiers:
+    $ref: './paths/operator-tiers.yaml'
+
+  '/api/operator/tiers/{name}':
+    $ref: './paths/operator-tiers-name.yaml'
+
+  '/api/operator/tiers/{name}/set-default':
+    $ref: './paths/operator-tiers-name-set-default.yaml'

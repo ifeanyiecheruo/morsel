@@ -1,0 +1,56 @@
+parameters:
+  - $ref: '../parameters.yaml#/TierNameParam'
+
+patch:
+  operationId: updateTier
+  summary: Edit limits on an existing tier
+  description: Updates one or more fields on a tier. Changes are propagated immediately to all app namespaces on that tier.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/UpdateTierReq.yaml'
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Tier.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'
+
+delete:
+  operationId: deleteTier
+  summary: Delete a tier
+  description: Deletes the tier. Rejected if any repo is assigned to it or it is the platform default.
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '204':
+      description: Deleted
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '404':
+      $ref: '../responses.yaml#/ErrorNotFound'
+    '409':
+      $ref: '../responses.yaml#/ErrorConflict'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

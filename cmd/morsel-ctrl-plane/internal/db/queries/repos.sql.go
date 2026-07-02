@@ -99,13 +99,18 @@ func (q *Queries) UpdateRepoTier(ctx context.Context, arg UpdateRepoTierParams) 
 }
 
 const upsertRepo = `-- name: UpsertRepo :one
-INSERT INTO repos (slug, tier) VALUES (?, 'small')
+INSERT INTO repos (slug, tier) VALUES (?, ?)
 ON CONFLICT(slug) DO UPDATE SET slug = slug
 RETURNING slug, tier, created_at
 `
 
-func (q *Queries) UpsertRepo(ctx context.Context, slug string) (Repo, error) {
-	row := q.db.QueryRowContext(ctx, upsertRepo, slug)
+type UpsertRepoParams struct {
+	Slug string
+	Tier string
+}
+
+func (q *Queries) UpsertRepo(ctx context.Context, arg UpsertRepoParams) (Repo, error) {
+	row := q.db.QueryRowContext(ctx, upsertRepo, arg.Slug, arg.Tier)
 	var i Repo
 	err := row.Scan(&i.Slug, &i.Tier, &i.CreatedAt)
 	return i, err

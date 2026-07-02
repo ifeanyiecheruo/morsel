@@ -35,13 +35,24 @@ const (
 	registryKubeNodePort = int32(30050) // must match container.registryNodePort
 )
 
-// smallTierQuota is hardcoded until F14 introduces dynamic tier configuration.
-var smallTierQuota = corev1.ResourceList{
-	corev1.ResourcePods:           resource.MustParse("10"),
-	corev1.ResourceRequestsCPU:    resource.MustParse("500m"),
-	corev1.ResourceRequestsMemory: resource.MustParse("512Mi"),
-	corev1.ResourceLimitsCPU:      resource.MustParse("2"),
-	corev1.ResourceLimitsMemory:   resource.MustParse("2Gi"),
+// TierLimits holds the resource quota and limit range values for a quota tier.
+// Zero values fall back to the small-tier baseline.
+type TierLimits struct {
+	CPUMilli int // milliCPU limit per container (e.g. 500 = 0.5 cores)
+	MemoryMB int // memory limit per container in MB
+}
+
+// smallBaseline is used when TierLimits fields are zero.
+var smallBaseline = TierLimits{CPUMilli: 500, MemoryMB: 512}
+
+func (t TierLimits) resolved() TierLimits {
+	if t.CPUMilli == 0 {
+		t.CPUMilli = smallBaseline.CPUMilli
+	}
+	if t.MemoryMB == 0 {
+		t.MemoryMB = smallBaseline.MemoryMB
+	}
+	return t
 }
 
 // AppManifest describes the Kubernetes resources to apply for a single app.
@@ -53,21 +64,34 @@ type AppManifest struct {
 	Image      string
 	Port       int32 // container port; 0 means use appServicePort default
 	Env        map[string]string
-	Schedule   string // cron expression; only used when Type is "cron"
-	Private    bool   // if true, route through internal gateway class
-	BaseDomain string // e.g. "morsel.localhost"; empty disables routing provisioning
-	GatewayNS  string // namespace where the Gateway resources live (e.g. "morsel")
+	Schedule   string     // cron expression; only used when Type is "cron"
+	Private    bool       // if true, route through internal gateway class
+	BaseDomain string     // e.g. "morsel.localhost"; empty disables routing provisioning
+	GatewayNS  string     // namespace where the Gateway resources live (e.g. "morsel")
+	Limits     TierLimits // zero value falls back to small-tier baseline
 }
 
 // Apply is idempotent; safe to call on every deploy.
+// ApplyNamespaceTier updates only the ResourceQuota and LimitRange for a
+// namespace when a tier's limits change. Idempotent.
+func (c *Client) ApplyNamespaceTier(ctx context.Context, namespace string, limits TierLimits) error {
+	if err := c.applyResourceQuota(ctx, namespace, limits); err != nil {
+		return fmt.Errorf("resource quota: %w", err)
+	}
+	if err := c.applyLimitRange(ctx, namespace, limits); err != nil {
+		return fmt.Errorf("limit range: %w", err)
+	}
+	return nil
+}
+
 func (c *Client) Apply(ctx context.Context, m AppManifest) error {
 	if err := c.ensureNamespace(ctx, m.Namespace); err != nil {
 		return fmt.Errorf("namespace: %w", err)
 	}
-	if err := c.applyResourceQuota(ctx, m.Namespace); err != nil {
+	if err := c.applyResourceQuota(ctx, m.Namespace, m.Limits); err != nil {
 		return fmt.Errorf("resource quota: %w", err)
 	}
-	if err := c.applyLimitRange(ctx, m.Namespace); err != nil {
+	if err := c.applyLimitRange(ctx, m.Namespace, m.Limits); err != nil {
 		return fmt.Errorf("limit range: %w", err)
 	}
 	if err := c.applyNetworkPolicy(ctx, m.Namespace, resolvePort(m)); err != nil {
@@ -143,10 +167,18 @@ func (c *Client) ensureNamespace(ctx context.Context, name string) error {
 	return err
 }
 
-func (c *Client) applyResourceQuota(ctx context.Context, namespace string) error {
+func (c *Client) applyResourceQuota(ctx context.Context, namespace string, limits TierLimits) error {
+	lim := limits.resolved()
+	hard := corev1.ResourceList{
+		corev1.ResourcePods:           resource.MustParse("10"),
+		corev1.ResourceRequestsCPU:    resource.MustParse(fmt.Sprintf("%dm", lim.CPUMilli/4)),
+		corev1.ResourceRequestsMemory: resource.MustParse(fmt.Sprintf("%dMi", lim.MemoryMB/4)),
+		corev1.ResourceLimitsCPU:      resource.MustParse(fmt.Sprintf("%dm", lim.CPUMilli)),
+		corev1.ResourceLimitsMemory:   resource.MustParse(fmt.Sprintf("%dMi", lim.MemoryMB)),
+	}
 	desired := &corev1.ResourceQuota{
 		ObjectMeta: metav1.ObjectMeta{Name: quotaName, Namespace: namespace},
-		Spec:       corev1.ResourceQuotaSpec{Hard: smallTierQuota},
+		Spec:       corev1.ResourceQuotaSpec{Hard: hard},
 	}
 	existing, err := c.cs.CoreV1().ResourceQuotas(namespace).Get(ctx, quotaName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
@@ -161,7 +193,8 @@ func (c *Client) applyResourceQuota(ctx context.Context, namespace string) error
 	return err
 }
 
-func (c *Client) applyLimitRange(ctx context.Context, namespace string) error {
+func (c *Client) applyLimitRange(ctx context.Context, namespace string, limits TierLimits) error {
+	lim := limits.resolved()
 	desired := &corev1.LimitRange{
 		ObjectMeta: metav1.ObjectMeta{Name: limitRangeName, Namespace: namespace},
 		Spec: corev1.LimitRangeSpec{
@@ -169,16 +202,16 @@ func (c *Client) applyLimitRange(ctx context.Context, namespace string) error {
 				{
 					Type: corev1.LimitTypeContainer,
 					Default: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("500m"),
-						corev1.ResourceMemory: resource.MustParse("256Mi"),
+						corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", lim.CPUMilli)),
+						corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", lim.MemoryMB)),
 					},
 					DefaultRequest: corev1.ResourceList{
 						corev1.ResourceCPU:    resource.MustParse("50m"),
 						corev1.ResourceMemory: resource.MustParse("64Mi"),
 					},
 					Max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("2"),
-						corev1.ResourceMemory: resource.MustParse("1Gi"),
+						corev1.ResourceCPU:    resource.MustParse(fmt.Sprintf("%dm", lim.CPUMilli)),
+						corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", lim.MemoryMB)),
 					},
 				},
 			},

@@ -372,6 +372,14 @@ func (s ListReposOKApplicationJSON) Validate() error {
 	return nil
 }
 
+func (s ListTiersOKApplicationJSON) Validate() error {
+	alias := ([]Tier)(s)
+	if alias == nil {
+		return errors.New("nil is invalid value")
+	}
+	return nil
+}
+
 func (s *Operation) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer

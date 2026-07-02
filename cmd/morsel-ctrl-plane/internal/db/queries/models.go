@@ -64,3 +64,17 @@ type Repo struct {
 	Tier      string
 	CreatedAt time.Time
 }
+
+type Tier struct {
+	Name           string
+	MaxApps        int64
+	CpuMilli       int64
+	MemoryMb       int64
+	BlobGb         int64
+	DatabaseGb     int64
+	QueueGb        int64
+	HibernateAfter string
+	IsDefault      int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}

@@ -29,7 +29,7 @@
 | [F11](011-feature-database-service.md) | Database Service | ⬜ not started | F06, F07 |
 | [F12](012-feature-queue-service.md) | Queue Service | ✅ done | F07 |
 | [F13](013-feature-hibernation.md) | Hibernation | ✅ done | F06, F07, F08, F09, F12 |
-| [F14](014-feature-quota-tiers.md) | Quota Tiers | ⬜ not started | F05, F06 |
+| [F14](014-feature-quota-tiers.md) | Quota Tiers | ✅ done | F05, F06 |
 | [F15](015-feature-approvals.md) | Approvals | ⬜ not started | F05, F14 |
 | [F16](016-feature-cost-estimation.md) | Cost Estimation | ⬜ not started | F13 |
 | [F17](017-feature-budget-enforcement.md) | Budget Enforcement | ⬜ not started | F13, F16 |

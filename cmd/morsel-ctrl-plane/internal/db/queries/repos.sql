@@ -18,7 +18,7 @@ WHERE slug = ?
 RETURNING *;
 
 -- name: UpsertRepo :one
-INSERT INTO repos (slug, tier) VALUES (?, 'small')
+INSERT INTO repos (slug, tier) VALUES (?, ?)
 ON CONFLICT(slug) DO UPDATE SET slug = slug
 RETURNING *;
 

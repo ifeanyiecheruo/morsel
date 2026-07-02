@@ -9,12 +9,20 @@ type BatchActionApprovalsRes interface {
 	batchActionApprovalsRes()
 }
 
+type CreateTierRes interface {
+	createTierRes()
+}
+
 type DeleteAppRes interface {
 	deleteAppRes()
 }
 
 type DeleteRepoRes interface {
 	deleteRepoRes()
+}
+
+type DeleteTierRes interface {
+	deleteTierRes()
 }
 
 type GetAppHistoryRes interface {
@@ -85,12 +93,20 @@ type ListReposRes interface {
 	listReposRes()
 }
 
+type ListTiersRes interface {
+	listTiersRes()
+}
+
 type PrepareRepoDeployRes interface {
 	prepareRepoDeployRes()
 }
 
 type RemoveOperatorPrincipalRes interface {
 	removeOperatorPrincipalRes()
+}
+
+type SetDefaultTierRes interface {
+	setDefaultTierRes()
 }
 
 type SyncRepoRes interface {
@@ -115,6 +131,10 @@ type UpdateOperatorConfigRes interface {
 
 type UpdateRepoTierRes interface {
 	updateRepoTierRes()
+}
+
+type UpdateTierRes interface {
+	updateTierRes()
 }
 
 type UpsertAppRes interface {

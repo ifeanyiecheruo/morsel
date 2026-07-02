@@ -34,6 +34,7 @@ type AppDeployer interface {
 	RestoreHTTPRoute(ctx context.Context, namespace, host, gatewayNS, gatewayName string, port int32) error
 	WatchDeploymentReady(ctx context.Context, namespace string, timeout time.Duration) error
 	AppReplicaCounts(ctx context.Context, namespace, appType string) (desired, ready int32)
+	ApplyNamespaceTier(ctx context.Context, namespace string, limits kube.TierLimits) error
 }
 
 // Handler implements server.Handler for all Morsel API operations.

@@ -20,6 +20,12 @@ type DeleteRepoParams struct {
 	Repo string
 }
 
+// DeleteTierParams is parameters of deleteTier operation.
+type DeleteTierParams struct {
+	// The tier name.
+	Name string
+}
+
 // GetAppParams is parameters of getApp operation.
 type GetAppParams struct {
 	// The organisation or user that owns the repo.
@@ -132,6 +138,12 @@ type RemoveOperatorPrincipalParams struct {
 	Principal string
 }
 
+// SetDefaultTierParams is parameters of setDefaultTier operation.
+type SetDefaultTierParams struct {
+	// The tier name.
+	Name string
+}
+
 // SyncRepoParams is parameters of syncRepo operation.
 type SyncRepoParams struct {
 	// The organisation or user that owns the repo.
@@ -146,6 +158,12 @@ type UpdateRepoTierParams struct {
 	Org string
 	// The repository name within the organisation.
 	Repo string
+}
+
+// UpdateTierParams is parameters of updateTier operation.
+type UpdateTierParams struct {
+	// The tier name.
+	Name string
 }
 
 // UpsertAppParams is parameters of upsertApp operation.

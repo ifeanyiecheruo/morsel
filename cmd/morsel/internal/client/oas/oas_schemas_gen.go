@@ -717,6 +717,123 @@ func (s *BearerAuth) SetRoles(val []string) {
 	s.Roles = val
 }
 
+type CreateTierBadRequest ErrorResponse
+
+func (*CreateTierBadRequest) createTierRes() {}
+
+type CreateTierConflict ErrorResponse
+
+func (*CreateTierConflict) createTierRes() {}
+
+type CreateTierForbidden ErrorResponse
+
+func (*CreateTierForbidden) createTierRes() {}
+
+// Request body for creating a new quota tier.
+// Ref: #
+type CreateTierReq struct {
+	// Unique tier name.
+	Name string `json:"name"`
+	// Maximum number of apps a repo on this tier may deploy.
+	MaxApps int `json:"max_apps"`
+	// CPU limit per app container in milliCPU.
+	CPUMilli int `json:"cpu_milli"`
+	// Memory limit per app container in MB.
+	MemoryMB int `json:"memory_mb"`
+	// Blob storage quota per app in GB.
+	BlobGB int `json:"blob_gb"`
+	// Database storage quota per app in GB.
+	DatabaseGB int `json:"database_gb"`
+	// Queue storage quota per app in GB.
+	QueueGB int `json:"queue_gb"`
+	// Idle duration before a running app is hibernated (e.g. "24h").
+	HibernateAfter string `json:"hibernate_after"`
+}
+
+// GetName returns the value of Name.
+func (s *CreateTierReq) GetName() string {
+	return s.Name
+}
+
+// GetMaxApps returns the value of MaxApps.
+func (s *CreateTierReq) GetMaxApps() int {
+	return s.MaxApps
+}
+
+// GetCPUMilli returns the value of CPUMilli.
+func (s *CreateTierReq) GetCPUMilli() int {
+	return s.CPUMilli
+}
+
+// GetMemoryMB returns the value of MemoryMB.
+func (s *CreateTierReq) GetMemoryMB() int {
+	return s.MemoryMB
+}
+
+// GetBlobGB returns the value of BlobGB.
+func (s *CreateTierReq) GetBlobGB() int {
+	return s.BlobGB
+}
+
+// GetDatabaseGB returns the value of DatabaseGB.
+func (s *CreateTierReq) GetDatabaseGB() int {
+	return s.DatabaseGB
+}
+
+// GetQueueGB returns the value of QueueGB.
+func (s *CreateTierReq) GetQueueGB() int {
+	return s.QueueGB
+}
+
+// GetHibernateAfter returns the value of HibernateAfter.
+func (s *CreateTierReq) GetHibernateAfter() string {
+	return s.HibernateAfter
+}
+
+// SetName sets the value of Name.
+func (s *CreateTierReq) SetName(val string) {
+	s.Name = val
+}
+
+// SetMaxApps sets the value of MaxApps.
+func (s *CreateTierReq) SetMaxApps(val int) {
+	s.MaxApps = val
+}
+
+// SetCPUMilli sets the value of CPUMilli.
+func (s *CreateTierReq) SetCPUMilli(val int) {
+	s.CPUMilli = val
+}
+
+// SetMemoryMB sets the value of MemoryMB.
+func (s *CreateTierReq) SetMemoryMB(val int) {
+	s.MemoryMB = val
+}
+
+// SetBlobGB sets the value of BlobGB.
+func (s *CreateTierReq) SetBlobGB(val int) {
+	s.BlobGB = val
+}
+
+// SetDatabaseGB sets the value of DatabaseGB.
+func (s *CreateTierReq) SetDatabaseGB(val int) {
+	s.DatabaseGB = val
+}
+
+// SetQueueGB sets the value of QueueGB.
+func (s *CreateTierReq) SetQueueGB(val int) {
+	s.QueueGB = val
+}
+
+// SetHibernateAfter sets the value of HibernateAfter.
+func (s *CreateTierReq) SetHibernateAfter(val string) {
+	s.HibernateAfter = val
+}
+
+type CreateTierUnauthorized ErrorResponse
+
+func (*CreateTierUnauthorized) createTierRes() {}
+
 type DeleteAppConflict ErrorResponse
 
 func (*DeleteAppConflict) deleteAppRes() {}
@@ -748,6 +865,27 @@ func (*DeleteRepoNotFound) deleteRepoRes() {}
 type DeleteRepoUnauthorized ErrorResponse
 
 func (*DeleteRepoUnauthorized) deleteRepoRes() {}
+
+type DeleteTierConflict ErrorResponse
+
+func (*DeleteTierConflict) deleteTierRes() {}
+
+type DeleteTierForbidden ErrorResponse
+
+func (*DeleteTierForbidden) deleteTierRes() {}
+
+// DeleteTierNoContent is response for DeleteTier operation.
+type DeleteTierNoContent struct{}
+
+func (*DeleteTierNoContent) deleteTierRes() {}
+
+type DeleteTierNotFound ErrorResponse
+
+func (*DeleteTierNotFound) deleteTierRes() {}
+
+type DeleteTierUnauthorized ErrorResponse
+
+func (*DeleteTierUnauthorized) deleteTierRes() {}
 
 // Ref: #
 type DeployConfig struct {
@@ -916,8 +1054,10 @@ func (s *ErrorInternalServerStatusCode) SetResponse(val ErrorResponse) {
 
 func (*ErrorInternalServerStatusCode) addOperatorPrincipalRes()    {}
 func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()    {}
+func (*ErrorInternalServerStatusCode) createTierRes()              {}
 func (*ErrorInternalServerStatusCode) deleteAppRes()               {}
 func (*ErrorInternalServerStatusCode) deleteRepoRes()              {}
+func (*ErrorInternalServerStatusCode) deleteTierRes()              {}
 func (*ErrorInternalServerStatusCode) getAppHistoryRes()           {}
 func (*ErrorInternalServerStatusCode) getAppRes()                  {}
 func (*ErrorInternalServerStatusCode) getAppStatusRes()            {}
@@ -935,14 +1075,17 @@ func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes()   {}
 func (*ErrorInternalServerStatusCode) listOperatorPrincipalsRes()  {}
 func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()       {}
 func (*ErrorInternalServerStatusCode) listReposRes()               {}
+func (*ErrorInternalServerStatusCode) listTiersRes()               {}
 func (*ErrorInternalServerStatusCode) prepareRepoDeployRes()       {}
 func (*ErrorInternalServerStatusCode) removeOperatorPrincipalRes() {}
+func (*ErrorInternalServerStatusCode) setDefaultTierRes()          {}
 func (*ErrorInternalServerStatusCode) syncRepoRes()                {}
 func (*ErrorInternalServerStatusCode) tokenDeployRes()             {}
 func (*ErrorInternalServerStatusCode) tokenOIDCRes()               {}
 func (*ErrorInternalServerStatusCode) tokenRefreshRes()            {}
 func (*ErrorInternalServerStatusCode) updateOperatorConfigRes()    {}
 func (*ErrorInternalServerStatusCode) updateRepoTierRes()          {}
+func (*ErrorInternalServerStatusCode) updateTierRes()              {}
 func (*ErrorInternalServerStatusCode) upsertAppRes()               {}
 func (*ErrorInternalServerStatusCode) wakeAppRes()                 {}
 
@@ -1441,6 +1584,18 @@ func (*ListRepoApprovalsUnauthorized) listRepoApprovalsRes() {}
 type ListReposOKApplicationJSON []Repo
 
 func (*ListReposOKApplicationJSON) listReposRes() {}
+
+type ListTiersForbidden ErrorResponse
+
+func (*ListTiersForbidden) listTiersRes() {}
+
+type ListTiersOKApplicationJSON []Tier
+
+func (*ListTiersOKApplicationJSON) listTiersRes() {}
+
+type ListTiersUnauthorized ErrorResponse
+
+func (*ListTiersUnauthorized) listTiersRes() {}
 
 // An asynchronous operation. Poll until status is "complete" or "failed".
 // Ref: #
@@ -2436,6 +2591,18 @@ func (s *Repo) SetCreatedAt(val OptDateTime) {
 func (*Repo) getRepoRes()        {}
 func (*Repo) updateRepoTierRes() {}
 
+type SetDefaultTierForbidden ErrorResponse
+
+func (*SetDefaultTierForbidden) setDefaultTierRes() {}
+
+type SetDefaultTierNotFound ErrorResponse
+
+func (*SetDefaultTierNotFound) setDefaultTierRes() {}
+
+type SetDefaultTierUnauthorized ErrorResponse
+
+func (*SetDefaultTierUnauthorized) setDefaultTierRes() {}
+
 type SyncRepoConflict ErrorResponse
 
 func (*SyncRepoConflict) syncRepoRes() {}
@@ -2462,6 +2629,147 @@ func (s *SyncRepoReq) SetApps(val []AppSpec) {
 type SyncRepoUnauthorized ErrorResponse
 
 func (*SyncRepoUnauthorized) syncRepoRes() {}
+
+// A quota tier defining resource limits for repos assigned to it.
+// Ref: #
+type Tier struct {
+	// Unique tier name.
+	Name string `json:"name"`
+	// Maximum number of apps a repo on this tier may deploy.
+	MaxApps int `json:"max_apps"`
+	// CPU limit per app container in milliCPU (e.g. 500 = 0.5 cores).
+	CPUMilli int `json:"cpu_milli"`
+	// Memory limit per app container in MB.
+	MemoryMB int `json:"memory_mb"`
+	// Blob storage quota per app in GB.
+	BlobGB int `json:"blob_gb"`
+	// Database storage quota per app in GB.
+	DatabaseGB int `json:"database_gb"`
+	// Queue storage quota per app in GB.
+	QueueGB int `json:"queue_gb"`
+	// Idle duration before a running app is hibernated (e.g. "24h").
+	HibernateAfter string `json:"hibernate_after"`
+	// Whether this is the platform default tier assigned to new repos.
+	IsDefault bool `json:"is_default"`
+	// When the tier was created.
+	CreatedAt OptDateTime `json:"created_at"`
+	// When the tier was last modified.
+	UpdatedAt OptDateTime `json:"updated_at"`
+}
+
+// GetName returns the value of Name.
+func (s *Tier) GetName() string {
+	return s.Name
+}
+
+// GetMaxApps returns the value of MaxApps.
+func (s *Tier) GetMaxApps() int {
+	return s.MaxApps
+}
+
+// GetCPUMilli returns the value of CPUMilli.
+func (s *Tier) GetCPUMilli() int {
+	return s.CPUMilli
+}
+
+// GetMemoryMB returns the value of MemoryMB.
+func (s *Tier) GetMemoryMB() int {
+	return s.MemoryMB
+}
+
+// GetBlobGB returns the value of BlobGB.
+func (s *Tier) GetBlobGB() int {
+	return s.BlobGB
+}
+
+// GetDatabaseGB returns the value of DatabaseGB.
+func (s *Tier) GetDatabaseGB() int {
+	return s.DatabaseGB
+}
+
+// GetQueueGB returns the value of QueueGB.
+func (s *Tier) GetQueueGB() int {
+	return s.QueueGB
+}
+
+// GetHibernateAfter returns the value of HibernateAfter.
+func (s *Tier) GetHibernateAfter() string {
+	return s.HibernateAfter
+}
+
+// GetIsDefault returns the value of IsDefault.
+func (s *Tier) GetIsDefault() bool {
+	return s.IsDefault
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *Tier) GetCreatedAt() OptDateTime {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *Tier) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// SetName sets the value of Name.
+func (s *Tier) SetName(val string) {
+	s.Name = val
+}
+
+// SetMaxApps sets the value of MaxApps.
+func (s *Tier) SetMaxApps(val int) {
+	s.MaxApps = val
+}
+
+// SetCPUMilli sets the value of CPUMilli.
+func (s *Tier) SetCPUMilli(val int) {
+	s.CPUMilli = val
+}
+
+// SetMemoryMB sets the value of MemoryMB.
+func (s *Tier) SetMemoryMB(val int) {
+	s.MemoryMB = val
+}
+
+// SetBlobGB sets the value of BlobGB.
+func (s *Tier) SetBlobGB(val int) {
+	s.BlobGB = val
+}
+
+// SetDatabaseGB sets the value of DatabaseGB.
+func (s *Tier) SetDatabaseGB(val int) {
+	s.DatabaseGB = val
+}
+
+// SetQueueGB sets the value of QueueGB.
+func (s *Tier) SetQueueGB(val int) {
+	s.QueueGB = val
+}
+
+// SetHibernateAfter sets the value of HibernateAfter.
+func (s *Tier) SetHibernateAfter(val string) {
+	s.HibernateAfter = val
+}
+
+// SetIsDefault sets the value of IsDefault.
+func (s *Tier) SetIsDefault(val bool) {
+	s.IsDefault = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *Tier) SetCreatedAt(val OptDateTime) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *Tier) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+func (*Tier) createTierRes()     {}
+func (*Tier) setDefaultTierRes() {}
+func (*Tier) updateTierRes()     {}
 
 type TokenDeployBadRequest ErrorResponse
 
@@ -2655,6 +2963,107 @@ func (s *UpdateRepoTierReq) SetTier(val string) {
 type UpdateRepoTierUnauthorized ErrorResponse
 
 func (*UpdateRepoTierUnauthorized) updateRepoTierRes() {}
+
+type UpdateTierForbidden ErrorResponse
+
+func (*UpdateTierForbidden) updateTierRes() {}
+
+type UpdateTierNotFound ErrorResponse
+
+func (*UpdateTierNotFound) updateTierRes() {}
+
+// Request body for updating a quota tier. Only specified fields are changed.
+// Ref: #
+type UpdateTierReq struct {
+	// Maximum number of apps a repo on this tier may deploy.
+	MaxApps OptInt `json:"max_apps"`
+	// CPU limit per app container in milliCPU.
+	CPUMilli OptInt `json:"cpu_milli"`
+	// Memory limit per app container in MB.
+	MemoryMB OptInt `json:"memory_mb"`
+	// Blob storage quota per app in GB.
+	BlobGB OptInt `json:"blob_gb"`
+	// Database storage quota per app in GB.
+	DatabaseGB OptInt `json:"database_gb"`
+	// Queue storage quota per app in GB.
+	QueueGB OptInt `json:"queue_gb"`
+	// Idle duration before a running app is hibernated (e.g. "24h").
+	HibernateAfter OptString `json:"hibernate_after"`
+}
+
+// GetMaxApps returns the value of MaxApps.
+func (s *UpdateTierReq) GetMaxApps() OptInt {
+	return s.MaxApps
+}
+
+// GetCPUMilli returns the value of CPUMilli.
+func (s *UpdateTierReq) GetCPUMilli() OptInt {
+	return s.CPUMilli
+}
+
+// GetMemoryMB returns the value of MemoryMB.
+func (s *UpdateTierReq) GetMemoryMB() OptInt {
+	return s.MemoryMB
+}
+
+// GetBlobGB returns the value of BlobGB.
+func (s *UpdateTierReq) GetBlobGB() OptInt {
+	return s.BlobGB
+}
+
+// GetDatabaseGB returns the value of DatabaseGB.
+func (s *UpdateTierReq) GetDatabaseGB() OptInt {
+	return s.DatabaseGB
+}
+
+// GetQueueGB returns the value of QueueGB.
+func (s *UpdateTierReq) GetQueueGB() OptInt {
+	return s.QueueGB
+}
+
+// GetHibernateAfter returns the value of HibernateAfter.
+func (s *UpdateTierReq) GetHibernateAfter() OptString {
+	return s.HibernateAfter
+}
+
+// SetMaxApps sets the value of MaxApps.
+func (s *UpdateTierReq) SetMaxApps(val OptInt) {
+	s.MaxApps = val
+}
+
+// SetCPUMilli sets the value of CPUMilli.
+func (s *UpdateTierReq) SetCPUMilli(val OptInt) {
+	s.CPUMilli = val
+}
+
+// SetMemoryMB sets the value of MemoryMB.
+func (s *UpdateTierReq) SetMemoryMB(val OptInt) {
+	s.MemoryMB = val
+}
+
+// SetBlobGB sets the value of BlobGB.
+func (s *UpdateTierReq) SetBlobGB(val OptInt) {
+	s.BlobGB = val
+}
+
+// SetDatabaseGB sets the value of DatabaseGB.
+func (s *UpdateTierReq) SetDatabaseGB(val OptInt) {
+	s.DatabaseGB = val
+}
+
+// SetQueueGB sets the value of QueueGB.
+func (s *UpdateTierReq) SetQueueGB(val OptInt) {
+	s.QueueGB = val
+}
+
+// SetHibernateAfter sets the value of HibernateAfter.
+func (s *UpdateTierReq) SetHibernateAfter(val OptString) {
+	s.HibernateAfter = val
+}
+
+type UpdateTierUnauthorized ErrorResponse
+
+func (*UpdateTierUnauthorized) updateTierRes() {}
 
 type UpsertAppConflict ErrorResponse
 

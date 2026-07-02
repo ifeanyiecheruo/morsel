@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: A quota tier defining resource limits for repos assigned to it.
+type: object
+required: [name, max_apps, cpu_milli, memory_mb, blob_gb, database_gb, queue_gb, hibernate_after, is_default]
+properties:
+  name:
+    description: Unique tier name.
+    type: string
+  max_apps:
+    description: Maximum number of apps a repo on this tier may deploy.
+    type: integer
+  cpu_milli:
+    description: CPU limit per app container in milliCPU (e.g. 500 = 0.5 cores).
+    type: integer
+  memory_mb:
+    description: Memory limit per app container in MB.
+    type: integer
+  blob_gb:
+    description: Blob storage quota per app in GB.
+    type: integer
+  database_gb:
+    description: Database storage quota per app in GB.
+    type: integer
+  queue_gb:
+    description: Queue storage quota per app in GB.
+    type: integer
+  hibernate_after:
+    description: Idle duration before a running app is hibernated (e.g. "24h").
+    type: string
+  is_default:
+    description: Whether this is the platform default tier assigned to new repos.
+    type: boolean
+  created_at:
+    description: When the tier was created.
+    type: string
+    format: date-time
+  updated_at:
+    description: When the tier was last modified.
+    type: string
+    format: date-time

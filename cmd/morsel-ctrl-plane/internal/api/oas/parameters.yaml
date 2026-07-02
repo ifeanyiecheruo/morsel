@@ -37,3 +37,11 @@ ApprovalIDParam:
   required: true
   schema:
     type: string
+
+TierNameParam:
+  name: name
+  in: path
+  description: The tier name.
+  required: true
+  schema:
+    type: string

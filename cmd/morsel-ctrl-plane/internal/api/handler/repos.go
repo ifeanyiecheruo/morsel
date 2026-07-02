@@ -104,7 +104,8 @@ func (h *Handler) SyncRepo(ctx context.Context, req *server.SyncRepoReq, params 
 	}
 	slug := names.RepoSlug(params.Org, params.Repo)
 
-	if _, err := h.store.GetOrCreateRepo(ctx, slug); err != nil {
+	defaultTier := h.store.GetDefaultTierName(ctx)
+	if _, err := h.store.GetOrCreateRepo(ctx, slug, defaultTier); err != nil {
 		return nil, fmt.Errorf("get or create repo: %w", err)
 	}
 

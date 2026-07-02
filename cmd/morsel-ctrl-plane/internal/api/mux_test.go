@@ -81,6 +81,9 @@ func (fakeDeployer) WatchDeploymentReady(_ context.Context, _ string, _ time.Dur
 func (fakeDeployer) AppReplicaCounts(_ context.Context, _, _ string) (int32, int32) {
 	return 1, 1
 }
+func (fakeDeployer) ApplyNamespaceTier(_ context.Context, _ string, _ kube.TierLimits) error {
+	return nil
+}
 
 var _ handler.AppDeployer = fakeDeployer{}
 

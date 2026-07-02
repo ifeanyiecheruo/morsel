@@ -21,6 +21,12 @@ type Handler interface {
 	//
 	// POST /api/operator/approvals/batch
 	BatchActionApprovals(ctx context.Context, req *BatchActionApprovalsReq) (BatchActionApprovalsRes, error)
+	// CreateTier implements createTier operation.
+	//
+	// Create a new quota tier.
+	//
+	// POST /api/operator/tiers
+	CreateTier(ctx context.Context, req *CreateTierReq) (CreateTierRes, error)
 	// DeleteApp implements deleteApp operation.
 	//
 	// Marks the app for deletion and begins a grace period before its persistent storage is removed. Poll
@@ -35,6 +41,12 @@ type Handler interface {
 	//
 	// DELETE /api/repos/{org}/{repo}
 	DeleteRepo(ctx context.Context, params DeleteRepoParams) (DeleteRepoRes, error)
+	// DeleteTier implements deleteTier operation.
+	//
+	// Deletes the tier. Rejected if any repo is assigned to it or it is the platform default.
+	//
+	// DELETE /api/operator/tiers/{name}
+	DeleteTier(ctx context.Context, params DeleteTierParams) (DeleteTierRes, error)
 	// GetApp implements getApp operation.
 	//
 	// Returns the app's current configuration, status, and deployment timestamps.
@@ -154,6 +166,12 @@ type Handler interface {
 	//
 	// GET /api/repos
 	ListRepos(ctx context.Context, params ListReposParams) (ListReposRes, error)
+	// ListTiers implements listTiers operation.
+	//
+	// List all quota tiers.
+	//
+	// GET /api/operator/tiers
+	ListTiers(ctx context.Context) (ListTiersRes, error)
 	// PrepareRepoDeploy implements prepareRepoDeploy operation.
 	//
 	// Issues a short-lived deploy token scoped to this repository and returns the registry URL and
@@ -168,6 +186,12 @@ type Handler interface {
 	//
 	// DELETE /api/operator/principals/{principal}
 	RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (RemoveOperatorPrincipalRes, error)
+	// SetDefaultTier implements setDefaultTier operation.
+	//
+	// Set the platform default tier for new repos.
+	//
+	// POST /api/operator/tiers/{name}/set-default
+	SetDefaultTier(ctx context.Context, params SetDefaultTierParams) (SetDefaultTierRes, error)
 	// SyncRepo implements syncRepo operation.
 	//
 	// Reconciles the cluster against the supplied app list. Apps present in the cluster but absent from
@@ -210,6 +234,13 @@ type Handler interface {
 	//
 	// PATCH /api/operator/repos/{org}/{repo}
 	UpdateRepoTier(ctx context.Context, req *UpdateRepoTierReq, params UpdateRepoTierParams) (UpdateRepoTierRes, error)
+	// UpdateTier implements updateTier operation.
+	//
+	// Updates one or more fields on a tier. Changes are propagated immediately to all app namespaces on
+	// that tier.
+	//
+	// PATCH /api/operator/tiers/{name}
+	UpdateTier(ctx context.Context, req *UpdateTierReq, params UpdateTierParams) (UpdateTierRes, error)
 	// UpsertApp implements upsertApp operation.
 	//
 	// Creates or updates an app. Runs a staging handshake to validate the image before applying the

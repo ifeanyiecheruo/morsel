@@ -14,6 +14,10 @@ type RefreshToken = dbqueries.RefreshToken
 type App = dbqueries.App
 type Repo = dbqueries.Repo
 type Operation = dbqueries.Operation
+type Tier = dbqueries.Tier
+
+// fallbackDefaultTier is the built-in baseline used when no default tier exists.
+const fallbackDefaultTier = "small"
 
 // Store wraps the sqlc-generated query layer with typed, domain-level methods.
 type Store struct {
@@ -72,11 +76,104 @@ func (s *Store) RotateRefreshToken(ctx context.Context, id, tokenHash string, ex
 	return err
 }
 
+// ── Tiers ─────────────────────────────────────────────────────────────────────
+
+func (s *Store) ListTiers(ctx context.Context) ([]Tier, error) {
+	return s.q.ListTiers(ctx)
+}
+
+func (s *Store) GetTier(ctx context.Context, name string) (Tier, error) {
+	return s.q.GetTier(ctx, name)
+}
+
+// GetDefaultTier returns the current platform default tier. Falls back to the
+// built-in "small" baseline name if no tier is marked default.
+func (s *Store) GetDefaultTierName(ctx context.Context) string {
+	t, err := s.q.GetDefaultTier(ctx)
+	if err != nil {
+		return fallbackDefaultTier
+	}
+	return t.Name
+}
+
+func (s *Store) InsertTier(ctx context.Context, name string, maxApps, cpuMilli, memoryMB, blobGB, databaseGB, queueGB int64, hibernateAfter string) (Tier, error) {
+	return s.q.InsertTier(ctx, dbqueries.InsertTierParams{
+		Name:           name,
+		MaxApps:        maxApps,
+		CpuMilli:       cpuMilli,
+		MemoryMb:       memoryMB,
+		BlobGb:         blobGB,
+		DatabaseGb:     databaseGB,
+		QueueGb:        queueGB,
+		HibernateAfter: hibernateAfter,
+	})
+}
+
+// PatchTier reads the current tier, applies non-zero fields from the patch, and
+// persists the result. Fields left at their zero value are unchanged.
+func (s *Store) PatchTier(ctx context.Context, name string, maxApps, cpuMilli, memoryMB, blobGB, databaseGB, queueGB int64, hibernateAfter string) (Tier, error) {
+	cur, err := s.q.GetTier(ctx, name)
+	if err != nil {
+		return Tier{}, err
+	}
+	if maxApps != 0 {
+		cur.MaxApps = maxApps
+	}
+	if cpuMilli != 0 {
+		cur.CpuMilli = cpuMilli
+	}
+	if memoryMB != 0 {
+		cur.MemoryMb = memoryMB
+	}
+	if blobGB != 0 {
+		cur.BlobGb = blobGB
+	}
+	if databaseGB != 0 {
+		cur.DatabaseGb = databaseGB
+	}
+	if queueGB != 0 {
+		cur.QueueGb = queueGB
+	}
+	if hibernateAfter != "" {
+		cur.HibernateAfter = hibernateAfter
+	}
+	return s.q.UpdateTier(ctx, dbqueries.UpdateTierParams{
+		Name:           name,
+		MaxApps:        cur.MaxApps,
+		CpuMilli:       cur.CpuMilli,
+		MemoryMb:       cur.MemoryMb,
+		BlobGb:         cur.BlobGb,
+		DatabaseGb:     cur.DatabaseGb,
+		QueueGb:        cur.QueueGb,
+		HibernateAfter: cur.HibernateAfter,
+	})
+}
+
+func (s *Store) DeleteTier(ctx context.Context, name string) error {
+	return s.q.DeleteTier(ctx, name)
+}
+
+func (s *Store) SetDefaultTier(ctx context.Context, name string) error {
+	return s.q.SetDefaultTier(ctx, name)
+}
+
+func (s *Store) CountReposByTier(ctx context.Context, tier string) (int64, error) {
+	return s.q.CountReposByTier(ctx, tier)
+}
+
+func (s *Store) ListReposByTier(ctx context.Context, tier string) ([]Repo, error) {
+	return s.q.ListReposByTier(ctx, tier)
+}
+
+func (s *Store) SetRepoTier(ctx context.Context, slug, tier string) (Repo, error) {
+	return s.q.UpdateRepoTier(ctx, dbqueries.UpdateRepoTierParams{Slug: slug, Tier: tier})
+}
+
 // ── Repos ─────────────────────────────────────────────────────────────────────
 
-// GetOrCreateRepo returns the repo by slug, creating it with tier 'small' if absent.
-func (s *Store) GetOrCreateRepo(ctx context.Context, slug string) (Repo, error) {
-	return s.q.UpsertRepo(ctx, slug)
+// GetOrCreateRepo returns the repo by slug, creating it with the given defaultTier if absent.
+func (s *Store) GetOrCreateRepo(ctx context.Context, slug, defaultTier string) (Repo, error) {
+	return s.q.UpsertRepo(ctx, dbqueries.UpsertRepoParams{Slug: slug, Tier: defaultTier})
 }
 
 // GetRepo returns the repo by slug. Returns sql.ErrNoRows if not found.

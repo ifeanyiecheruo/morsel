@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: Request body for updating a quota tier. Only specified fields are changed.
+type: object
+properties:
+  max_apps:
+    description: Maximum number of apps a repo on this tier may deploy.
+    type: integer
+  cpu_milli:
+    description: CPU limit per app container in milliCPU.
+    type: integer
+  memory_mb:
+    description: Memory limit per app container in MB.
+    type: integer
+  blob_gb:
+    description: Blob storage quota per app in GB.
+    type: integer
+  database_gb:
+    description: Database storage quota per app in GB.
+    type: integer
+  queue_gb:
+    description: Queue storage quota per app in GB.
+    type: integer
+  hibernate_after:
+    description: Idle duration before a running app is hibernated (e.g. "24h").
+    type: string

@@ -308,6 +308,72 @@ func decodeDeleteRepoParams(args [2]string, argsEscaped bool, r *http.Request) (
 	return params, nil
 }
 
+// DeleteTierParams is parameters of deleteTier operation.
+type DeleteTierParams struct {
+	// The tier name.
+	Name string
+}
+
+func unpackDeleteTierParams(packed middleware.Parameters) (params DeleteTierParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "name",
+			In:   "path",
+		}
+		params.Name = packed[key].(string)
+	}
+	return params
+}
+
+func decodeDeleteTierParams(args [1]string, argsEscaped bool, r *http.Request) (params DeleteTierParams, _ error) {
+	// Decode path: name.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "name",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Name = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "name",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // GetAppParams is parameters of getApp operation.
 type GetAppParams struct {
 	// The organisation or user that owns the repo.
@@ -2083,6 +2149,72 @@ func decodeRemoveOperatorPrincipalParams(args [1]string, argsEscaped bool, r *ht
 	return params, nil
 }
 
+// SetDefaultTierParams is parameters of setDefaultTier operation.
+type SetDefaultTierParams struct {
+	// The tier name.
+	Name string
+}
+
+func unpackSetDefaultTierParams(packed middleware.Parameters) (params SetDefaultTierParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "name",
+			In:   "path",
+		}
+		params.Name = packed[key].(string)
+	}
+	return params
+}
+
+func decodeSetDefaultTierParams(args [1]string, argsEscaped bool, r *http.Request) (params SetDefaultTierParams, _ error) {
+	// Decode path: name.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "name",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Name = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "name",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // SyncRepoParams is parameters of syncRepo operation.
 type SyncRepoParams struct {
 	// The organisation or user that owns the repo.
@@ -2316,6 +2448,72 @@ func decodeUpdateRepoTierParams(args [2]string, argsEscaped bool, r *http.Reques
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "repo",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// UpdateTierParams is parameters of updateTier operation.
+type UpdateTierParams struct {
+	// The tier name.
+	Name string
+}
+
+func unpackUpdateTierParams(packed middleware.Parameters) (params UpdateTierParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "name",
+			In:   "path",
+		}
+		params.Name = packed[key].(string)
+	}
+	return params
+}
+
+func decodeUpdateTierParams(args [1]string, argsEscaped bool, r *http.Request) (params UpdateTierParams, _ error) {
+	// Decode path: name.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "name",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Name = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "name",
 			In:   "path",
 			Err:  err,
 		}

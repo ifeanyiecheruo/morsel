@@ -1,0 +1,55 @@
+get:
+  operationId: listTiers
+  summary: List all quota tiers
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../schemas/Tier.yaml'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'
+
+post:
+  operationId: createTier
+  summary: Create a new quota tier
+  tags: [operator]
+  security:
+    - bearerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/CreateTierReq.yaml'
+  responses:
+    '201':
+      description: Created
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/Tier.yaml'
+    '400':
+      $ref: '../responses.yaml#/ErrorBadRequest'
+    '401':
+      $ref: '../responses.yaml#/ErrorUnauthorized'
+    '403':
+      $ref: '../responses.yaml#/ErrorForbidden'
+    '409':
+      $ref: '../responses.yaml#/ErrorConflict'
+    '500':
+      $ref: '../responses.yaml#/ErrorInternalServer'
+    default:
+      $ref: '../responses.yaml#/ErrorInternalServer'

@@ -40,8 +40,26 @@ func (h *Handler) UpsertApp(ctx context.Context, spec *server.AppSpec, params se
 	slug := names.RepoSlug(params.Org, params.Repo)
 	ns := names.AppNamespace(names.RepoSlug(params.Org, params.Repo), name)
 
-	if _, err := h.store.GetOrCreateRepo(ctx, slug); err != nil {
+	defaultTier := h.store.GetDefaultTierName(ctx)
+	repo, err := h.store.GetOrCreateRepo(ctx, slug, defaultTier)
+	if err != nil {
 		return nil, fmt.Errorf("get or create repo: %w", err)
+	}
+
+	// Enforce app count quota: only check for new apps (not re-deploys).
+	if _, appErr := h.store.GetApp(ctx, slug, name); errors.Is(appErr, sql.ErrNoRows) {
+		tier, tierErr := h.store.GetTier(ctx, repo.Tier)
+		if tierErr == nil {
+			count, countErr := h.store.CountAppsByRepo(ctx, slug)
+			if countErr == nil && count >= tier.MaxApps {
+				return nil, &apiError{
+					httpStatus: http.StatusUnprocessableEntity,
+					code:       "quota_exceeded",
+					message:    fmt.Sprintf("repo is at its app limit of %d for tier %q", tier.MaxApps, repo.Tier),
+					remedy:     "contact your platform operator to request a tier upgrade",
+				}
+			}
+		}
 	}
 
 	app, err := h.store.UpsertApp(ctx, slug, name, string(spec.Type), ns, spec.Image, spec.IdleAfter.Or(""))

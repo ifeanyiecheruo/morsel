@@ -2,10 +2,14 @@ package handler
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
@@ -25,11 +29,78 @@ func (h *Handler) UpdateOperatorConfig(ctx context.Context, _ *server.PlatformCo
 	return nil, errNotImplemented
 }
 
-func (h *Handler) UpdateRepoTier(ctx context.Context, _ *server.UpdateRepoTierReq, _ server.UpdateRepoTierParams) (server.UpdateRepoTierRes, error) {
+func (h *Handler) UpdateRepoTier(ctx context.Context, req *server.UpdateRepoTierReq, params server.UpdateRepoTierParams) (server.UpdateRepoTierRes, error) {
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
-	return nil, errNotImplemented
+	slug := names.RepoSlug(params.Org, params.Repo)
+
+	repo, err := h.store.GetRepo(ctx, slug)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, &apiError{
+			httpStatus: http.StatusNotFound,
+			code:       "not_found",
+			message:    "repo not found",
+			remedy:     "check the org and repo name",
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get repo: %w", err)
+	}
+
+	newTier, err := h.store.GetTier(ctx, req.Tier)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, &apiError{
+			httpStatus: http.StatusNotFound,
+			code:       "tier_not_found",
+			message:    fmt.Sprintf("tier %q not found", req.Tier),
+			remedy:     "check the tier name with: morsel operator tier list",
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get tier: %w", err)
+	}
+
+	// Demotion guard: reject if current app count exceeds the target tier's max.
+	if newTier.MaxApps < h.currentMaxAppsFor(ctx, slug, repo.Tier) {
+		count, countErr := h.store.CountAppsByRepo(ctx, slug)
+		if countErr == nil && count > newTier.MaxApps {
+			return nil, &apiError{
+				httpStatus: http.StatusConflict,
+				code:       "tier_demotion_blocked",
+				message:    fmt.Sprintf("repo has %d apps; tier %q allows %d", count, req.Tier, newTier.MaxApps),
+				remedy:     "delete apps to meet the lower tier limit before demoting",
+			}
+		}
+	}
+
+	updated, err := h.store.SetRepoTier(ctx, slug, req.Tier)
+	if err != nil {
+		return nil, fmt.Errorf("set repo tier: %w", err)
+	}
+
+	// Propagate new quota limits to all app namespaces in this repo.
+	limits := kube.TierLimits{CPUMilli: int(newTier.CpuMilli), MemoryMB: int(newTier.MemoryMb)}
+	apps, _ := h.store.ListApps(ctx, slug)
+	for _, app := range apps {
+		if app.Namespace.Valid && app.Namespace.String != "" {
+			_ = h.deployer.ApplyNamespaceTier(ctx, app.Namespace.String, limits)
+		}
+	}
+
+	count, _ := h.store.CountAppsByRepo(ctx, slug)
+	out := dbRepoToOAS(updated, count)
+	return &out, nil
+}
+
+// currentMaxAppsFor returns the max_apps of the repo's current tier, or a
+// large number if the tier can't be looked up (safe for demotion guard).
+func (h *Handler) currentMaxAppsFor(ctx context.Context, _ string, tierName string) int64 {
+	cur, err := h.store.GetTier(ctx, tierName)
+	if err != nil {
+		return 1<<62 - 1
+	}
+	return cur.MaxApps
 }
 
 func (h *Handler) ListOperatorApprovals(ctx context.Context) (server.ListOperatorApprovalsRes, error) {

@@ -32,6 +32,15 @@ func (UnimplementedHandler) BatchActionApprovals(ctx context.Context, req *Batch
 	return r, ht.ErrNotImplemented
 }
 
+// CreateTier implements createTier operation.
+//
+// Create a new quota tier.
+//
+// POST /api/operator/tiers
+func (UnimplementedHandler) CreateTier(ctx context.Context, req *CreateTierReq) (r CreateTierRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // DeleteApp implements deleteApp operation.
 //
 // Marks the app for deletion and begins a grace period before its persistent storage is removed. Poll
@@ -49,6 +58,15 @@ func (UnimplementedHandler) DeleteApp(ctx context.Context, params DeleteAppParam
 //
 // DELETE /api/repos/{org}/{repo}
 func (UnimplementedHandler) DeleteRepo(ctx context.Context, params DeleteRepoParams) (r DeleteRepoRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// DeleteTier implements deleteTier operation.
+//
+// Deletes the tier. Rejected if any repo is assigned to it or it is the platform default.
+//
+// DELETE /api/operator/tiers/{name}
+func (UnimplementedHandler) DeleteTier(ctx context.Context, params DeleteTierParams) (r DeleteTierRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -225,6 +243,15 @@ func (UnimplementedHandler) ListRepos(ctx context.Context, params ListReposParam
 	return r, ht.ErrNotImplemented
 }
 
+// ListTiers implements listTiers operation.
+//
+// List all quota tiers.
+//
+// GET /api/operator/tiers
+func (UnimplementedHandler) ListTiers(ctx context.Context) (r ListTiersRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // PrepareRepoDeploy implements prepareRepoDeploy operation.
 //
 // Issues a short-lived deploy token scoped to this repository and returns the registry URL and
@@ -242,6 +269,15 @@ func (UnimplementedHandler) PrepareRepoDeploy(ctx context.Context, params Prepar
 //
 // DELETE /api/operator/principals/{principal}
 func (UnimplementedHandler) RemoveOperatorPrincipal(ctx context.Context, params RemoveOperatorPrincipalParams) (r RemoveOperatorPrincipalRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// SetDefaultTier implements setDefaultTier operation.
+//
+// Set the platform default tier for new repos.
+//
+// POST /api/operator/tiers/{name}/set-default
+func (UnimplementedHandler) SetDefaultTier(ctx context.Context, params SetDefaultTierParams) (r SetDefaultTierRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
@@ -302,6 +338,16 @@ func (UnimplementedHandler) UpdateOperatorConfig(ctx context.Context, req *Platf
 //
 // PATCH /api/operator/repos/{org}/{repo}
 func (UnimplementedHandler) UpdateRepoTier(ctx context.Context, req *UpdateRepoTierReq, params UpdateRepoTierParams) (r UpdateRepoTierRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// UpdateTier implements updateTier operation.
+//
+// Updates one or more fields on a tier. Changes are propagated immediately to all app namespaces on
+// that tier.
+//
+// PATCH /api/operator/tiers/{name}
+func (UnimplementedHandler) UpdateTier(ctx context.Context, req *UpdateTierReq, params UpdateTierParams) (r UpdateTierRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

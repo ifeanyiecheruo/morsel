@@ -45,6 +45,15 @@
         "schema": {
           "type": "string"
         }
+      },
+      "TierNameParam": {
+        "description": "The tier name.",
+        "in": "path",
+        "name": "name",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
       }
     },
     "responses": {
@@ -579,6 +588,54 @@
         ],
         "type": "object"
       },
+      "CreateTierReq": {
+        "description": "Request body for creating a new quota tier.",
+        "properties": {
+          "blob_gb": {
+            "description": "Blob storage quota per app in GB.",
+            "type": "integer"
+          },
+          "cpu_milli": {
+            "description": "CPU limit per app container in milliCPU.",
+            "type": "integer"
+          },
+          "database_gb": {
+            "description": "Database storage quota per app in GB.",
+            "type": "integer"
+          },
+          "hibernate_after": {
+            "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+            "type": "string"
+          },
+          "max_apps": {
+            "description": "Maximum number of apps a repo on this tier may deploy.",
+            "type": "integer"
+          },
+          "memory_mb": {
+            "description": "Memory limit per app container in MB.",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Unique tier name.",
+            "type": "string"
+          },
+          "queue_gb": {
+            "description": "Queue storage quota per app in GB.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "max_apps",
+          "cpu_milli",
+          "memory_mb",
+          "blob_gb",
+          "database_gb",
+          "queue_gb",
+          "hibernate_after"
+        ],
+        "type": "object"
+      },
       "DeployConfig": {
         "properties": {
           "registry": {
@@ -833,6 +890,69 @@
         ],
         "type": "object"
       },
+      "Tier": {
+        "description": "A quota tier defining resource limits for repos assigned to it.",
+        "properties": {
+          "blob_gb": {
+            "description": "Blob storage quota per app in GB.",
+            "type": "integer"
+          },
+          "cpu_milli": {
+            "description": "CPU limit per app container in milliCPU (e.g. 500 = 0.5 cores).",
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "When the tier was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "database_gb": {
+            "description": "Database storage quota per app in GB.",
+            "type": "integer"
+          },
+          "hibernate_after": {
+            "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+            "type": "string"
+          },
+          "is_default": {
+            "description": "Whether this is the platform default tier assigned to new repos.",
+            "type": "boolean"
+          },
+          "max_apps": {
+            "description": "Maximum number of apps a repo on this tier may deploy.",
+            "type": "integer"
+          },
+          "memory_mb": {
+            "description": "Memory limit per app container in MB.",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Unique tier name.",
+            "type": "string"
+          },
+          "queue_gb": {
+            "description": "Queue storage quota per app in GB.",
+            "type": "integer"
+          },
+          "updated_at": {
+            "description": "When the tier was last modified.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "max_apps",
+          "cpu_milli",
+          "memory_mb",
+          "blob_gb",
+          "database_gb",
+          "queue_gb",
+          "hibernate_after",
+          "is_default"
+        ],
+        "type": "object"
+      },
       "TokenPairResponse": {
         "description": "A short-lived access token paired with a rotatable refresh token.",
         "properties": {
@@ -859,6 +979,40 @@
           "expires_in",
           "refresh_expires_in"
         ],
+        "type": "object"
+      },
+      "UpdateTierReq": {
+        "description": "Request body for updating a quota tier. Only specified fields are changed.",
+        "properties": {
+          "blob_gb": {
+            "description": "Blob storage quota per app in GB.",
+            "type": "integer"
+          },
+          "cpu_milli": {
+            "description": "CPU limit per app container in milliCPU.",
+            "type": "integer"
+          },
+          "database_gb": {
+            "description": "Database storage quota per app in GB.",
+            "type": "integer"
+          },
+          "hibernate_after": {
+            "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+            "type": "string"
+          },
+          "max_apps": {
+            "description": "Maximum number of apps a repo on this tier may deploy.",
+            "type": "integer"
+          },
+          "memory_mb": {
+            "description": "Memory limit per app container in MB.",
+            "type": "integer"
+          },
+          "queue_gb": {
+            "description": "Queue storage quota per app in GB.",
+            "type": "integer"
+          }
+        },
         "type": "object"
       }
     },
@@ -3874,6 +4028,1632 @@
           }
         ],
         "summary": "Platform health summary",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/tiers": {
+      "get": {
+        "operationId": "listTiers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "description": "A quota tier defining resource limits for repos assigned to it.",
+                    "properties": {
+                      "blob_gb": {
+                        "description": "Blob storage quota per app in GB.",
+                        "type": "integer"
+                      },
+                      "cpu_milli": {
+                        "description": "CPU limit per app container in milliCPU (e.g. 500 = 0.5 cores).",
+                        "type": "integer"
+                      },
+                      "created_at": {
+                        "description": "When the tier was created.",
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "database_gb": {
+                        "description": "Database storage quota per app in GB.",
+                        "type": "integer"
+                      },
+                      "hibernate_after": {
+                        "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+                        "type": "string"
+                      },
+                      "is_default": {
+                        "description": "Whether this is the platform default tier assigned to new repos.",
+                        "type": "boolean"
+                      },
+                      "max_apps": {
+                        "description": "Maximum number of apps a repo on this tier may deploy.",
+                        "type": "integer"
+                      },
+                      "memory_mb": {
+                        "description": "Memory limit per app container in MB.",
+                        "type": "integer"
+                      },
+                      "name": {
+                        "description": "Unique tier name.",
+                        "type": "string"
+                      },
+                      "queue_gb": {
+                        "description": "Queue storage quota per app in GB.",
+                        "type": "integer"
+                      },
+                      "updated_at": {
+                        "description": "When the tier was last modified.",
+                        "format": "date-time",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "max_apps",
+                      "cpu_milli",
+                      "memory_mb",
+                      "blob_gb",
+                      "database_gb",
+                      "queue_gb",
+                      "hibernate_after",
+                      "is_default"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List all quota tiers",
+        "tags": [
+          "operator"
+        ]
+      },
+      "post": {
+        "operationId": "createTier",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Request body for creating a new quota tier.",
+                "properties": {
+                  "blob_gb": {
+                    "description": "Blob storage quota per app in GB.",
+                    "type": "integer"
+                  },
+                  "cpu_milli": {
+                    "description": "CPU limit per app container in milliCPU.",
+                    "type": "integer"
+                  },
+                  "database_gb": {
+                    "description": "Database storage quota per app in GB.",
+                    "type": "integer"
+                  },
+                  "hibernate_after": {
+                    "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+                    "type": "string"
+                  },
+                  "max_apps": {
+                    "description": "Maximum number of apps a repo on this tier may deploy.",
+                    "type": "integer"
+                  },
+                  "memory_mb": {
+                    "description": "Memory limit per app container in MB.",
+                    "type": "integer"
+                  },
+                  "name": {
+                    "description": "Unique tier name.",
+                    "type": "string"
+                  },
+                  "queue_gb": {
+                    "description": "Queue storage quota per app in GB.",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "name",
+                  "max_apps",
+                  "cpu_milli",
+                  "memory_mb",
+                  "blob_gb",
+                  "database_gb",
+                  "queue_gb",
+                  "hibernate_after"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A quota tier defining resource limits for repos assigned to it.",
+                  "properties": {
+                    "blob_gb": {
+                      "description": "Blob storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "cpu_milli": {
+                      "description": "CPU limit per app container in milliCPU (e.g. 500 = 0.5 cores).",
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "description": "When the tier was created.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "database_gb": {
+                      "description": "Database storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "hibernate_after": {
+                      "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+                      "type": "string"
+                    },
+                    "is_default": {
+                      "description": "Whether this is the platform default tier assigned to new repos.",
+                      "type": "boolean"
+                    },
+                    "max_apps": {
+                      "description": "Maximum number of apps a repo on this tier may deploy.",
+                      "type": "integer"
+                    },
+                    "memory_mb": {
+                      "description": "Memory limit per app container in MB.",
+                      "type": "integer"
+                    },
+                    "name": {
+                      "description": "Unique tier name.",
+                      "type": "string"
+                    },
+                    "queue_gb": {
+                      "description": "Queue storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "updated_at": {
+                      "description": "When the tier was last modified.",
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "max_apps",
+                    "cpu_milli",
+                    "memory_mb",
+                    "blob_gb",
+                    "database_gb",
+                    "queue_gb",
+                    "hibernate_after",
+                    "is_default"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create a new quota tier",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/tiers/{name}": {
+      "delete": {
+        "description": "Deletes the tier. Rejected if any repo is assigned to it or it is the platform default.",
+        "operationId": "deleteTier",
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete a tier",
+        "tags": [
+          "operator"
+        ]
+      },
+      "parameters": [
+        {
+          "description": "The tier name.",
+          "in": "path",
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "description": "Updates one or more fields on a tier. Changes are propagated immediately to all app namespaces on that tier.",
+        "operationId": "updateTier",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Request body for updating a quota tier. Only specified fields are changed.",
+                "properties": {
+                  "blob_gb": {
+                    "description": "Blob storage quota per app in GB.",
+                    "type": "integer"
+                  },
+                  "cpu_milli": {
+                    "description": "CPU limit per app container in milliCPU.",
+                    "type": "integer"
+                  },
+                  "database_gb": {
+                    "description": "Database storage quota per app in GB.",
+                    "type": "integer"
+                  },
+                  "hibernate_after": {
+                    "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+                    "type": "string"
+                  },
+                  "max_apps": {
+                    "description": "Maximum number of apps a repo on this tier may deploy.",
+                    "type": "integer"
+                  },
+                  "memory_mb": {
+                    "description": "Memory limit per app container in MB.",
+                    "type": "integer"
+                  },
+                  "queue_gb": {
+                    "description": "Queue storage quota per app in GB.",
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A quota tier defining resource limits for repos assigned to it.",
+                  "properties": {
+                    "blob_gb": {
+                      "description": "Blob storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "cpu_milli": {
+                      "description": "CPU limit per app container in milliCPU (e.g. 500 = 0.5 cores).",
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "description": "When the tier was created.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "database_gb": {
+                      "description": "Database storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "hibernate_after": {
+                      "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+                      "type": "string"
+                    },
+                    "is_default": {
+                      "description": "Whether this is the platform default tier assigned to new repos.",
+                      "type": "boolean"
+                    },
+                    "max_apps": {
+                      "description": "Maximum number of apps a repo on this tier may deploy.",
+                      "type": "integer"
+                    },
+                    "memory_mb": {
+                      "description": "Memory limit per app container in MB.",
+                      "type": "integer"
+                    },
+                    "name": {
+                      "description": "Unique tier name.",
+                      "type": "string"
+                    },
+                    "queue_gb": {
+                      "description": "Queue storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "updated_at": {
+                      "description": "When the tier was last modified.",
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "max_apps",
+                    "cpu_milli",
+                    "memory_mb",
+                    "blob_gb",
+                    "database_gb",
+                    "queue_gb",
+                    "hibernate_after",
+                    "is_default"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Edit limits on an existing tier",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/operator/tiers/{name}/set-default": {
+      "parameters": [
+        {
+          "description": "The tier name.",
+          "in": "path",
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "setDefaultTier",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A quota tier defining resource limits for repos assigned to it.",
+                  "properties": {
+                    "blob_gb": {
+                      "description": "Blob storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "cpu_milli": {
+                      "description": "CPU limit per app container in milliCPU (e.g. 500 = 0.5 cores).",
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "description": "When the tier was created.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "database_gb": {
+                      "description": "Database storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "hibernate_after": {
+                      "description": "Idle duration before a running app is hibernated (e.g. \"24h\").",
+                      "type": "string"
+                    },
+                    "is_default": {
+                      "description": "Whether this is the platform default tier assigned to new repos.",
+                      "type": "boolean"
+                    },
+                    "max_apps": {
+                      "description": "Maximum number of apps a repo on this tier may deploy.",
+                      "type": "integer"
+                    },
+                    "memory_mb": {
+                      "description": "Memory limit per app container in MB.",
+                      "type": "integer"
+                    },
+                    "name": {
+                      "description": "Unique tier name.",
+                      "type": "string"
+                    },
+                    "queue_gb": {
+                      "description": "Queue storage quota per app in GB.",
+                      "type": "integer"
+                    },
+                    "updated_at": {
+                      "description": "When the tier was last modified.",
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "max_apps",
+                    "cpu_milli",
+                    "memory_mb",
+                    "blob_gb",
+                    "database_gb",
+                    "queue_gb",
+                    "hibernate_after",
+                    "is_default"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Envelope returned for all error responses.",
+                  "properties": {
+                    "error": {
+                      "description": "Structured error information attached to every non-2xx response.",
+                      "properties": {
+                        "code": {
+                          "description": "Machine-readable error code.",
+                          "type": "string"
+                        },
+                        "context": {
+                          "additionalProperties": true,
+                          "description": "Additional key/value pairs that give context for the error.",
+                          "type": "object"
+                        },
+                        "message": {
+                          "description": "Human-readable explanation of what went wrong.",
+                          "type": "string"
+                        },
+                        "remedy": {
+                          "description": "Suggested action to resolve the error.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "remedy"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Set the platform default tier for new repos",
         "tags": [
           "operator"
         ]
