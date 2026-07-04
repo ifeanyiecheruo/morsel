@@ -5,13 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	authnv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -20,52 +20,61 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
-func runQueueService(ctx context.Context, args []string) {
-	fs := flag.NewFlagSet("svc queue", flag.ExitOnError)
-	addr := fs.String("addr", ":8081", "HTTP listen address")
-	dataDir := fs.String("data-dir", "", "root directory for queue SQLite files (required)")
-	kubeconfigPath := fs.String("kubeconfig", "", "path to kubeconfig file (defaults to in-cluster config, then ~/.kube/config)")
-	_ = fs.Parse(args)
+func newQueueCmd(ctx context.Context) *cobra.Command {
+	var addr string
+	var dataDir string
+	var kubeconfigPath string
 
-	if *dataDir == "" {
-		fmt.Fprintln(os.Stderr, "morsel-ctrl-plane svc queue: --data-dir is required")
-		os.Exit(2)
+	cmd := &cobra.Command{
+		Use:   "queue",
+		Short: "Run the queue service",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if dataDir == "" {
+				return fmt.Errorf("--data-dir is required")
+			}
+
+			internalToken := os.Getenv("QUEUE_INTERNAL_TOKEN")
+			if internalToken == "" {
+				return fmt.Errorf("QUEUE_INTERNAL_TOKEN environment variable is required")
+			}
+
+			logger := ctxlog.From(ctx)
+			kubeClient := initializeKube(logger, kubeconfigPath)
+
+			h := &queueHandler{
+				baseDir:       dataDir,
+				kube:          kubeClient.Clientset(),
+				internalToken: internalToken,
+			}
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /healthz", h.healthz)
+			mux.HandleFunc("PUT /queues/{name}", h.createQueue)
+			mux.HandleFunc("DELETE /queues/{name}", h.deleteQueue)
+			mux.HandleFunc("GET /queues", h.listQueues)
+			mux.HandleFunc("POST /queues/{name}/messages", h.enqueue)
+			mux.HandleFunc("GET /queues/{name}/messages/next", h.dequeue)
+			mux.HandleFunc("DELETE /queues/{name}/messages/{id}", h.ack)
+			mux.HandleFunc("GET /queues/{name}/depth", h.depth)
+			mux.HandleFunc("POST /internal/quota/{namespace}/{app}", h.setQuota)
+			mux.HandleFunc("GET /internal/queues/{namespace}/{app}", h.idleStatus)
+
+			runServer(ctx, addr, 30*time.Second, func() *http.Server {
+				return &http.Server{
+					Handler:      mux,
+					ReadTimeout:  30 * time.Second,
+					WriteTimeout: 30 * time.Second,
+				}
+			})
+			return nil
+		},
 	}
 
-	internalToken := os.Getenv("QUEUE_INTERNAL_TOKEN")
-	if internalToken == "" {
-		fmt.Fprintln(os.Stderr, "morsel-ctrl-plane svc queue: QUEUE_INTERNAL_TOKEN is required")
-		os.Exit(2)
-	}
+	cmd.Flags().StringVar(&addr, "addr", ":8081", "HTTP listen address")
+	cmd.Flags().StringVar(&dataDir, "data-dir", "", "root directory for queue SQLite files (required)")
+	cmd.Flags().StringVar(&kubeconfigPath, "kubeconfig", "", "path to kubeconfig file")
 
-	logger := ctxlog.From(ctx)
-	kubeClient := initializeKube(logger, *kubeconfigPath)
-
-	h := &queueHandler{
-		baseDir:       *dataDir,
-		kube:          kubeClient.Clientset(),
-		internalToken: internalToken,
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", h.healthz)
-	mux.HandleFunc("PUT /queues/{name}", h.createQueue)
-	mux.HandleFunc("DELETE /queues/{name}", h.deleteQueue)
-	mux.HandleFunc("GET /queues", h.listQueues)
-	mux.HandleFunc("POST /queues/{name}/messages", h.enqueue)
-	mux.HandleFunc("GET /queues/{name}/messages/next", h.dequeue)
-	mux.HandleFunc("DELETE /queues/{name}/messages/{id}", h.ack)
-	mux.HandleFunc("GET /queues/{name}/depth", h.depth)
-	mux.HandleFunc("POST /internal/quota/{namespace}/{app}", h.setQuota)
-	mux.HandleFunc("GET /internal/queues/{namespace}/{app}", h.idleStatus)
-
-	runServer(ctx, *addr, 30*time.Second, func() *http.Server {
-		return &http.Server{
-			Handler:      mux,
-			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 30 * time.Second,
-		}
-	})
+	return cmd
 }
 
 // queueHandler holds shared dependencies for the queue service HTTP handlers.

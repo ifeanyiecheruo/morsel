@@ -10,6 +10,7 @@ const (
 	RoleDeveloper    = "developer"
 	RoleOperator     = "operator"
 	OperatorTokenTTL = 15 * time.Minute
+	AdminSessionTTL  = 8 * time.Hour
 
 	deployTokenTTL = 10 * time.Minute
 )
@@ -27,6 +28,21 @@ func CreateOperatorClaims(subject string) Claims {
 			Subject:   subject,
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(OperatorTokenTTL)),
+		},
+		Role: RoleOperator,
+	}
+}
+
+// CreateAdminSessionClaims issues an operator JWT with a long TTL for the admin
+// UI browser session. The role is still RoleOperator so the API middleware
+// accepts it if needed, but the session is meant for cookie-based auth only.
+func CreateAdminSessionClaims(subject string) Claims {
+	now := time.Now()
+	return Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   subject,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(AdminSessionTTL)),
 		},
 		Role: RoleOperator,
 	}

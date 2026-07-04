@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,76 +12,86 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
-func runWakeProxy(ctx context.Context, args []string) {
-	fs := flag.NewFlagSet("svc wake-proxy", flag.ExitOnError)
-	addr := fs.String("addr", ":8080", "HTTP listen address")
-	apiURL := fs.String("api", "", "base URL of the Morsel control-plane API (required)")
-	_ = fs.Parse(args)
+func newWakeProxyCmd(ctx context.Context) *cobra.Command {
+	var addr string
+	var apiURL string
 
-	if *apiURL == "" {
-		fmt.Fprintln(os.Stderr, "morsel-ctrl-plane svc wake-proxy: --api is required")
-		os.Exit(2)
-	}
-	ctrlPlane := strings.TrimRight(*apiURL, "/")
-	logger := ctxlog.From(ctx)
-
-	token := os.Getenv("WAKE_PROXY_TOKEN")
-	if token == "" {
-		fmt.Fprintln(os.Stderr, "morsel-ctrl-plane svc wake-proxy: WAKE_PROXY_TOKEN is required")
-		os.Exit(2)
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		rlog := ctxlog.From(r.Context())
-		host := r.Host
-		if host == "" {
-			http.Error(w, "missing Host header", http.StatusBadRequest)
-			return
-		}
-
-		serviceAddr, retryAfter, err := wakeProxyWakeApp(r.Context(), ctrlPlane, host, token)
-		if err != nil {
-			rlog.Error("wake app", "host", host, "err", err)
-			if retryAfter != "" {
-				w.Header().Set("Retry-After", retryAfter)
-				http.Error(w, "platform is over budget for this period", http.StatusServiceUnavailable)
-			} else {
-				http.Error(w, fmt.Sprintf("wake failed: %v", err), http.StatusServiceUnavailable)
+	cmd := &cobra.Command{
+		Use:   "wake-proxy",
+		Short: "Run the hibernation wake proxy",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if apiURL == "" {
+				return fmt.Errorf("--api is required")
 			}
-			return
-		}
+			ctrlPlane := strings.TrimRight(apiURL, "/")
+			logger := ctxlog.From(ctx)
 
-		target, err := url.Parse(serviceAddr)
-		if err != nil {
-			rlog.Error("parse service addr", "addr", serviceAddr, "err", err)
-			http.Error(w, "invalid service address", http.StatusInternalServerError)
-			return
-		}
+			token := os.Getenv("WAKE_PROXY_TOKEN")
+			if token == "" {
+				return fmt.Errorf("WAKE_PROXY_TOKEN environment variable is required")
+			}
 
-		proxy := httputil.NewSingleHostReverseProxy(target)
-		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-			ctxlog.From(r.Context()).Error("proxy", "host", host, "target", serviceAddr, "err", err)
-			http.Error(w, "upstream unavailable", http.StatusBadGateway)
-		}
-		proxy.ServeHTTP(w, r)
-	})
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("ok"))
+			})
+			mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				rlog := ctxlog.From(r.Context())
+				host := r.Host
+				if host == "" {
+					http.Error(w, "missing Host header", http.StatusBadRequest)
+					return
+				}
 
-	logger.Info("wake proxy starting", "api", ctrlPlane)
-	runServer(ctx, *addr, 30*time.Second, func() *http.Server {
-		return &http.Server{
-			Handler:      mux,
-			ReadTimeout:  10 * time.Minute,
-			WriteTimeout: 10 * time.Minute,
-		}
-	})
+				serviceAddr, retryAfter, err := wakeProxyWakeApp(r.Context(), ctrlPlane, host, token)
+				if err != nil {
+					rlog.Error("wake app", "host", host, "err", err)
+					if retryAfter != "" {
+						w.Header().Set("Retry-After", retryAfter)
+						http.Error(w, "platform is over budget for this period", http.StatusServiceUnavailable)
+					} else {
+						http.Error(w, fmt.Sprintf("wake failed: %v", err), http.StatusServiceUnavailable)
+					}
+					return
+				}
+
+				target, err := url.Parse(serviceAddr)
+				if err != nil {
+					rlog.Error("parse service addr", "addr", serviceAddr, "err", err)
+					http.Error(w, "invalid service address", http.StatusInternalServerError)
+					return
+				}
+
+				proxy := httputil.NewSingleHostReverseProxy(target)
+				proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+					ctxlog.From(r.Context()).Error("proxy", "host", host, "target", serviceAddr, "err", err)
+					http.Error(w, "upstream unavailable", http.StatusBadGateway)
+				}
+				proxy.ServeHTTP(w, r)
+			})
+
+			logger.Info("wake proxy starting", "api", ctrlPlane)
+			runServer(ctx, addr, 30*time.Second, func() *http.Server {
+				return &http.Server{
+					Handler:      mux,
+					ReadTimeout:  10 * time.Minute,
+					WriteTimeout: 10 * time.Minute,
+				}
+			})
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
+	cmd.Flags().StringVar(&apiURL, "api", "", "base URL of the Morsel control-plane API (required)")
+
+	return cmd
 }
 
 type wakeProxyResponse struct {

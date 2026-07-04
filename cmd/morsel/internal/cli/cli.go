@@ -3,9 +3,12 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 // Execute runs the morsel CLI with the production handler against os.Args.
@@ -20,17 +23,20 @@ type cli struct {
 	profile     *Profile
 	handler     Handler
 	dockerfile  []byte
+	levelVar    *slog.LevelVar
 }
 
 // run builds and executes the command tree. Tests call this directly with a mock handler.
 func run(ctx context.Context, handler Handler, args []string, dockerfile []byte) error {
-	c := &cli{handler: handler, dockerfile: dockerfile}
+	ctx, levelVar := ctxlog.Init(ctx)
+	c := &cli{handler: handler, dockerfile: dockerfile, levelVar: levelVar}
 	root := c.buildRoot()
 	root.SetArgs(args)
 	return root.ExecuteContext(ctx)
 }
 
 func (c *cli) buildRoot() *cobra.Command {
+	var logLevelFlag string
 	cmd := &cobra.Command{
 		Use:           "morsel",
 		Short:         "morsel — self-hosted PaaS for non-production applications",
@@ -38,7 +44,20 @@ func (c *cli) buildRoot() *cobra.Command {
 		SilenceErrors: true,
 	}
 	cmd.PersistentFlags().StringVar(&c.profileName, "profile", "default", "profile name")
-	cmd.PersistentPreRunE = c.loadProfilePreRun
+	cmd.PersistentFlags().StringVar(&logLevelFlag, "log-level", "info", "log verbosity: info, trace, or debug")
+
+	loadProfile := c.loadProfilePreRun
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		mode, err := ctxlog.ParseMode(logLevelFlag)
+		if err != nil {
+			return err
+		}
+		if c.levelVar != nil {
+			c.levelVar.Set(mode.SlogLevel())
+		}
+		cmd.SetContext(ctxlog.WithMode(cmd.Context(), mode))
+		return loadProfile(cmd, args)
+	}
 
 	cmd.AddCommand(c.serviceCmd())
 	cmd.AddCommand(c.operatorCmd())

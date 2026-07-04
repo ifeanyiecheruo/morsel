@@ -290,12 +290,16 @@ func (c *Client) DeleteAppService(ctx context.Context, namespace string) error {
 	return err
 }
 
-// EnsureAPIHTTPRoute creates or updates an HTTPRoute in ns that routes hostname
-// to the morsel-api Service. The route is attached to the morsel-external Gateway.
-func (c *Client) EnsureAPIHTTPRoute(ctx context.Context, ns, hostname string) error {
+// EnsureAPIHTTPRoute creates or updates an HTTPRoute in ns that routes all
+// supplied hostnames to the morsel-api Service. The route is attached to the
+// morsel-external Gateway.
+func (c *Client) EnsureAPIHTTPRoute(ctx context.Context, ns string, hostnames ...string) error {
 	gwNS := gatewayv1.Namespace(ns)
 	port := gatewayv1.PortNumber(apiPort)
-	hostName := gatewayv1.Hostname(hostname)
+	gwHostnames := make([]gatewayv1.Hostname, len(hostnames))
+	for i, h := range hostnames {
+		gwHostnames[i] = gatewayv1.Hostname(h)
+	}
 	route := &gatewayv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      apiName,
@@ -311,7 +315,7 @@ func (c *Client) EnsureAPIHTTPRoute(ctx context.Context, ns, hostname string) er
 					},
 				},
 			},
-			Hostnames: []gatewayv1.Hostname{hostName},
+			Hostnames: gwHostnames,
 			Rules: []gatewayv1.HTTPRouteRule{
 				{
 					BackendRefs: []gatewayv1.HTTPBackendRef{
@@ -329,6 +333,61 @@ func (c *Client) EnsureAPIHTTPRoute(ctx context.Context, ns, hostname string) er
 		},
 	}
 	existing, err := c.gw.GatewayV1().HTTPRoutes(ns).Get(ctx, apiName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		_, err = c.gw.GatewayV1().HTTPRoutes(ns).Create(ctx, route, metav1.CreateOptions{})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	existing.Spec = route.Spec
+	_, err = c.gw.GatewayV1().HTTPRoutes(ns).Update(ctx, existing, metav1.UpdateOptions{})
+	return err
+}
+
+// EnsureAdminUIHTTPRoute creates or updates an HTTPRoute in ns that routes all
+// supplied hostnames to the morsel-admin-ui Service. The route is attached to
+// the morsel-external Gateway.
+func (c *Client) EnsureAdminUIHTTPRoute(ctx context.Context, ns string, hostnames ...string) error {
+	gwNS := gatewayv1.Namespace(ns)
+	port := gatewayv1.PortNumber(adminUIPort)
+	gwHostnames := make([]gatewayv1.Hostname, len(hostnames))
+	for i, h := range hostnames {
+		gwHostnames[i] = gatewayv1.Hostname(h)
+	}
+	route := &gatewayv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      adminUIName,
+			Namespace: ns,
+			Labels:    map[string]string{"morsel.io/managed": "true"},
+		},
+		Spec: gatewayv1.HTTPRouteSpec{
+			CommonRouteSpec: gatewayv1.CommonRouteSpec{
+				ParentRefs: []gatewayv1.ParentReference{
+					{
+						Name:      gatewayv1.ObjectName(GatewayExternal),
+						Namespace: &gwNS,
+					},
+				},
+			},
+			Hostnames: gwHostnames,
+			Rules: []gatewayv1.HTTPRouteRule{
+				{
+					BackendRefs: []gatewayv1.HTTPBackendRef{
+						{
+							BackendRef: gatewayv1.BackendRef{
+								BackendObjectReference: gatewayv1.BackendObjectReference{
+									Name: gatewayv1.ObjectName(adminUIName),
+									Port: &port,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	existing, err := c.gw.GatewayV1().HTTPRoutes(ns).Get(ctx, adminUIName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		_, err = c.gw.GatewayV1().HTTPRoutes(ns).Create(ctx, route, metav1.CreateOptions{})
 		return err

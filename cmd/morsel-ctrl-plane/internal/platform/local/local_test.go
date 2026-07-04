@@ -147,38 +147,31 @@ func TestPricesFetchedAtIsSet(t *testing.T) {
 	}
 }
 
-func TestSeedDefaultsWritesWhenAbsent(t *testing.T) {
+func TestSeedDefaultsIsNoop(t *testing.T) {
 	plat, _ := platWithStore(t)
 	if err := plat.SeedDefaults(ctx); err != nil {
 		t.Fatalf("SeedDefaults: %v", err)
 	}
-	subject, err := plat.Tokens().ValidateOperatorCredential(ctx, "operator@example.com", "")
-	if err != nil {
-		t.Fatalf("ValidateOperatorCredential after SeedDefaults: %v", err)
-	}
-	if subject != "operator@example.com" {
-		t.Errorf("subject = %q, want operator@example.com", subject)
+	// SeedDefaults must not create any principals — the initial operator is
+	// provisioned via 'morsel service deploy --initial-username'.
+	if _, err := plat.Tokens().ValidateOperatorCredential(ctx, "operator@example.com", ""); !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
+		t.Errorf("expected ErrPrincipalNotAuthorized after SeedDefaults, got %v", err)
 	}
 }
 
-func TestSeedDefaultsIsNoOpWhenAlreadySet(t *testing.T) {
+func TestSeedDefaultsDoesNotOverwriteExisting(t *testing.T) {
 	plat, s := platWithStore(t)
 	seedPrincipals(t, s, "custom@example.com")
 
 	if err := plat.SeedDefaults(ctx); err != nil {
 		t.Fatalf("SeedDefaults: %v", err)
 	}
-	// The pre-existing principal must still authenticate.
 	subject, err := plat.Tokens().ValidateOperatorCredential(ctx, "custom@example.com", "")
 	if err != nil {
 		t.Fatalf("ValidateOperatorCredential: %v", err)
 	}
 	if subject != "custom@example.com" {
 		t.Errorf("subject = %q, want custom@example.com", subject)
-	}
-	// The default principal must NOT have been injected.
-	if _, err := plat.Tokens().ValidateOperatorCredential(ctx, "operator@example.com", ""); !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
-		t.Errorf("expected ErrPrincipalNotAuthorized for default principal after SeedDefaults no-op, got %v", err)
 	}
 }
 

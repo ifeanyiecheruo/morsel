@@ -1,0 +1,59 @@
+package pages
+
+// Layout is the outer shell used by every authenticated admin page.
+templ Layout(page string, title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } — morsel admin</title>
+			@inlineCSS()
+		</head>
+		<body>
+			<header class="topbar">
+				<span class="logo">morsel</span>
+				<div class="topbar-right">
+					<span class="topbar-account">admin</span>
+					<form method="post" action="/logout" style="display:inline">
+						<button type="submit" class="btn btn--ghost btn--small">Sign out</button>
+					</form>
+				</div>
+			</header>
+			<div class="shell">
+				<nav class="sidebar">
+					@navLink("/apps", "Apps", page)
+					@navLink("/repos", "Repos", page)
+					@navLink("/approvals", "Approvals", page)
+					@navLink("/cost", "Cost & Quotas", page)
+					@navLink("/status", "Status", page)
+					@navLink("/stale", "Stale Apps", page)
+				</nav>
+				<main class="content">
+					{ children... }
+				</main>
+			</div>
+		</body>
+	</html>
+}
+
+templ navLink(href, label, current string) {
+	<a
+		href={ templ.SafeURL(href) }
+		class={ "nav-item", templ.KV("nav-item--active", href == "/"+current) }
+	>{ label }</a>
+}
+
+templ statusBadge(status string, hibernated bool) {
+	if hibernated {
+		<span class="badge badge--gray">◌ Hibernated</span>
+	} else if status == "running" {
+		<span class="badge badge--green">● Running</span>
+	} else if status == "failed" {
+		<span class="badge badge--red">✕ Failed</span>
+	} else if status == "deploying" {
+		<span class="badge badge--yellow">↻ Deploying</span>
+	} else {
+		<span class="badge badge--gray">{ status }</span>
+	}
+}

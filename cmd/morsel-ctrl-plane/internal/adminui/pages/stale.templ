@@ -1,0 +1,47 @@
+package pages
+
+import "fmt"
+
+// StalePage renders the Stale Apps view.
+templ StalePage(d StalePageData) {
+	@Layout("stale", "Stale Apps") {
+		<h1 class="page-title">Stale Apps</h1>
+		<p class="page-sub">Apps with no deploy in 30+ days. Verify the source repo still exists before deleting.</p>
+		<hr/>
+		if len(d.Rows) == 0 {
+			<div class="empty">No stale apps. 🎉</div>
+		} else {
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>Repo</th>
+							<th>App</th>
+							<th>Last Deploy</th>
+							<th>Note</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, row := range d.Rows {
+							<tr>
+								<td>{ row.RepoSlug }</td>
+								<td><strong>{ row.AppName }</strong></td>
+								<td>{ fmt.Sprintf("%s", row.LastDeploy.Format("2006-01-02")) } ({ FormatRelTime(row.LastDeploy) })</td>
+								<td><span class="badge badge--yellow">⚠ Verify source repo exists</span></td>
+								<td>
+									<div class="row-actions">
+										<a href={ templ.SafeURL("/apps/" + row.RepoSlug + "/" + row.AppName + "/delete") } class="btn btn--danger btn--small">Delete app</a>
+										<form method="post" action={ templ.SafeURL("/stale/" + row.RepoSlug + "/" + row.AppName + "/ignore") }>
+											<button type="submit" class="btn btn--secondary btn--small">Ignore for 30d</button>
+										</form>
+									</div>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}

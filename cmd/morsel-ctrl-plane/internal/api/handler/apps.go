@@ -200,32 +200,13 @@ func (h *Handler) DeleteApp(ctx context.Context, params server.DeleteAppParams) 
 	}
 
 	ns := names.AppNamespace(names.RepoSlug(params.Org, params.Repo), params.Name)
-	go h.runDelete(context.WithoutCancel(ctx), opID, app.ID, ns)
+	go deleteApp(context.WithoutCancel(ctx), h.store, h.deployer, opID, app.ID, ns)
 
 	return &server.AcceptedOperationHeaders{
 		Location:   operationLocation(params.Org, params.Repo, params.Name, opID),
 		RetryAfter: server.NewOptInt(int(retryAfterDeploy.Seconds())),
 		Response:   server.AcceptedOperation{OperationID: opID},
 	}, nil
-}
-
-func (h *Handler) runDelete(ctx context.Context, opID string, appID int64, namespace string) {
-	logger := ctxlog.From(ctx).With("op", opID, "namespace", namespace)
-
-	if err := h.store.StartOperation(ctx, opID); err != nil {
-		logger.Error("start delete operation", "err", err)
-	}
-
-	if err := h.deployer.Delete(ctx, namespace); err != nil {
-		logger.Error("delete kubernetes resources", "err", err)
-		_ = h.store.FailOperation(ctx, opID, err.Error())
-		return
-	}
-
-	_ = h.store.UpdateAppStatus(ctx, appID, "deleted")
-	if err := h.store.SucceedOperation(ctx, opID); err != nil {
-		logger.Error("succeed delete operation", "err", err)
-	}
 }
 
 func (h *Handler) GetAppStatus(ctx context.Context, params server.GetAppStatusParams) (server.GetAppStatusRes, error) {
@@ -381,55 +362,13 @@ func (h *Handler) HibernateApp(ctx context.Context, params server.HibernateAppPa
 		ns = app.Namespace.String
 	}
 	host := names.AppHostname(params.Name, params.Repo, h.plat.BaseDomain())
-	go h.runHibernate(context.WithoutCancel(ctx), opID, app.ID, app.Type, params.Name, ns, host)
+	go hibernateApp(context.WithoutCancel(ctx), h.store, h.deployer, h.plat.Namespace(), opID, app.ID, app.Type, params.Name, ns, host)
 
 	return &server.AcceptedOperationHeaders{
 		Location:   operationLocation(params.Org, params.Repo, params.Name, opID),
 		RetryAfter: server.NewOptInt(int(retryAfterDeploy.Seconds())),
 		Response:   server.AcceptedOperation{OperationID: opID},
 	}, nil
-}
-
-func (h *Handler) runHibernate(ctx context.Context, opID string, appID int64, appType, appName, namespace, host string) {
-	logger := ctxlog.From(ctx).With("op", opID, "namespace", namespace)
-	if err := h.store.StartOperation(ctx, opID); err != nil {
-		logger.Error("start hibernate operation", "err", err)
-	}
-
-	switch appType {
-	case "http":
-		if err := h.deployer.RouteToWakeProxy(ctx, namespace, host, h.plat.Namespace(), kube.GatewayExternal); err != nil {
-			logger.Error("route to wake proxy", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-		if err := h.deployer.ScaleDeployment(ctx, namespace, 0); err != nil {
-			logger.Error("scale to zero", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-	case "worker":
-		if err := h.deployer.ScaleDeployment(ctx, namespace, 0); err != nil {
-			logger.Error("scale to zero", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-	case "cron":
-		if err := h.deployer.SuspendCronJob(ctx, namespace); err != nil {
-			logger.Error("suspend cron job", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-	}
-	_ = h.store.RecordScaleEvent(ctx, namespace, appName, "scale_to_0")
-
-	if err := h.store.SetAppHibernated(ctx, appID, "manual"); err != nil {
-		logger.Error("set app hibernated", "err", err)
-	}
-	_ = h.store.UpdateAppStatus(ctx, appID, "hibernated")
-	if err := h.store.SucceedOperation(ctx, opID); err != nil {
-		logger.Error("succeed hibernate operation", "err", err)
-	}
 }
 
 func (h *Handler) WakeApp(ctx context.Context, params server.WakeAppParams) (server.WakeAppRes, error) {
@@ -474,7 +413,7 @@ func (h *Handler) WakeApp(ctx context.Context, params server.WakeAppParams) (ser
 		ns = app.Namespace.String
 	}
 	host := names.AppHostname(params.Name, params.Repo, h.plat.BaseDomain())
-	go h.runWake(context.WithoutCancel(ctx), opID, app.ID, app.Type, params.Name, ns, host)
+	go wakeApp(context.WithoutCancel(ctx), h.store, h.deployer, h.plat.Namespace(), opID, app.ID, app.Type, params.Name, ns, host)
 
 	return &server.AcceptedOperationHeaders{
 		Location:   operationLocation(params.Org, params.Repo, params.Name, opID),
@@ -514,51 +453,4 @@ func (h *Handler) checkBudgetAndMaybeExempt(ctx context.Context, repoSlug, appNa
 	}
 
 	return true, nil
-}
-
-func (h *Handler) runWake(ctx context.Context, opID string, appID int64, appType, appName, namespace, host string) {
-	logger := ctxlog.From(ctx).With("op", opID, "namespace", namespace)
-	if err := h.store.StartOperation(ctx, opID); err != nil {
-		logger.Error("start wake operation", "err", err)
-	}
-
-	switch appType {
-	case "http":
-		if err := h.deployer.ScaleDeployment(ctx, namespace, 1); err != nil {
-			logger.Error("scale up", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-		if err := h.deployer.WatchDeploymentReady(ctx, namespace, 5*time.Minute); err != nil {
-			logger.Error("wait for ready", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-		if err := h.deployer.RestoreHTTPRoute(ctx, namespace, host, h.plat.Namespace(), kube.GatewayExternal, 8080); err != nil {
-			logger.Error("restore http route", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-	case "worker":
-		if err := h.deployer.ScaleDeployment(ctx, namespace, 1); err != nil {
-			logger.Error("scale up", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-	case "cron":
-		if err := h.deployer.UnsuspendCronJob(ctx, namespace); err != nil {
-			logger.Error("unsuspend cron job", "err", err)
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			return
-		}
-	}
-	_ = h.store.RecordScaleEvent(ctx, namespace, appName, "scale_to_1")
-
-	if err := h.store.SetAppAwake(ctx, appID); err != nil {
-		logger.Error("set app awake", "err", err)
-	}
-	_ = h.store.UpdateAppStatus(ctx, appID, "running")
-	if err := h.store.SucceedOperation(ctx, opID); err != nil {
-		logger.Error("succeed wake operation", "err", err)
-	}
 }

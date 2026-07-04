@@ -121,7 +121,7 @@ See [components/control-plane.md](components/control-plane.md).
 
 ### Admin UI
 
-A static React SPA served from platform object storage and protected by the platform's operator authentication gateway. The operator's web interface for day-to-day platform management.
+A server-rendered multipage app served by the control plane and protected by the platform's operator authentication gateway. The operator's web interface for day-to-day platform management.
 
 See [components/admin-ui.md](components/admin-ui.md).
 

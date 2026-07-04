@@ -19,6 +19,7 @@ type ScaleEvent = dbqueries.ScaleEvent
 type PriceSnapshot = dbqueries.PriceSnapshot
 type PlatformConfig = dbqueries.PlatformConfig
 type Exemption = dbqueries.Exemption
+type StaleSuppressed = dbqueries.StaleSuppressed
 
 // fallbackDefaultTier is the built-in baseline used when no default tier exists.
 const fallbackDefaultTier = "small"
@@ -52,6 +53,25 @@ func (s *Store) RemovePrincipal(ctx context.Context, username string) error {
 
 func (s *Store) PrincipalExists(ctx context.Context, username string) (bool, error) {
 	return s.q.PrincipalExists(ctx, username)
+}
+
+// GetPrincipalPasswordHash returns the stored bcrypt hash for username.
+// Returns (sql.NullString{Valid: false}, nil) if the principal has no password set.
+// Returns sql.ErrNoRows if the username does not exist.
+func (s *Store) GetPrincipalPasswordHash(ctx context.Context, username string) (sql.NullString, error) {
+	return s.q.GetPrincipalPasswordHash(ctx, username)
+}
+
+// AddPrincipalWithPasswordHash adds a principal and sets its bcrypt password hash atomically.
+// If the username already exists the insert is a no-op, but the hash is still updated.
+func (s *Store) AddPrincipalWithPasswordHash(ctx context.Context, username, hash string) error {
+	if err := s.q.InsertPrincipal(ctx, username); err != nil {
+		return err
+	}
+	return s.q.SetPrincipalPasswordHash(ctx, dbqueries.SetPrincipalPasswordHashParams{
+		PasswordHash: sql.NullString{String: hash, Valid: true},
+		Username:     username,
+	})
 }
 
 // ── Refresh tokens ───────────────────────────────────────────────────────────
@@ -475,6 +495,19 @@ func (s *Store) IsAppExempt(ctx context.Context, repoSlug, appName string) (bool
 // ExpirePeriodExemptions deletes period exemptions whose expiry time has passed.
 func (s *Store) ExpirePeriodExemptions(ctx context.Context, now time.Time) error {
 	return s.q.ExpirePeriodExemptions(ctx, sql.NullTime{Time: now, Valid: true})
+}
+
+// ── Stale suppression ─────────────────────────────────────────────────────────
+
+// SuppressStaleApp records that the stale-apps view should hide this app until
+// the given time. If an existing entry exists it is replaced.
+func (s *Store) SuppressStaleApp(ctx context.Context, repoSlug, appName string, until time.Time) error {
+	return s.q.UpsertStaleSuppressed(ctx, repoSlug, appName, until)
+}
+
+// ListActiveStaleSuppressed returns all stale-app suppressions that have not yet expired.
+func (s *Store) ListActiveStaleSuppressed(ctx context.Context) ([]StaleSuppressed, error) {
+	return s.q.ListActiveStaleSuppressed(ctx, time.Now())
 }
 
 // ── Price snapshots ───────────────────────────────────────────────────────────

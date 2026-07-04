@@ -1,0 +1,38 @@
+package pages
+
+// LoginPage renders the sign-in form for the admin UI.
+// For LocalPlatform the form accepts a username and password verified by the
+// control plane using the platform's ValidateOperatorCredential mechanism.
+templ LoginPage(flashErr string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Sign in — morsel admin</title>
+			@inlineCSS()
+		</head>
+		<body>
+			<div class="login-shell">
+				<div class="login-card">
+					<div class="login-logo">morsel</div>
+					<div class="login-sub">Platform admin console</div>
+					if flashErr != "" {
+						<div class="alert alert--warn" style="margin-bottom:20px">{ flashErr }</div>
+					}
+					<form method="post" action="/login">
+						<div class="form-group">
+							<label for="username">Username</label>
+							<input id="username" name="username" type="text" autocomplete="username" required/>
+						</div>
+						<div class="form-group">
+							<label for="password">Password</label>
+							<input id="password" name="password" type="password" autocomplete="current-password" required/>
+						</div>
+						<button type="submit" class="btn btn--primary" style="width:100%;justify-content:center;margin-top:8px">Sign in</button>
+					</form>
+				</div>
+			</div>
+		</body>
+	</html>
+}

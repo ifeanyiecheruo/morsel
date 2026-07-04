@@ -40,6 +40,18 @@ func Rollback(ctx context.Context, database *sql.DB) error {
 	return nil
 }
 
+// RollbackAll rolls back every applied migration, leaving an empty schema.
+func RollbackAll(ctx context.Context, database *sql.DB) error {
+	provider, err := createMigrationsProvider(ctx, database)
+	if err != nil {
+		return err
+	}
+	if _, err := provider.DownTo(ctx, 0); err != nil {
+		return fmt.Errorf("rollback all: %w", err)
+	}
+	return nil
+}
+
 func createMigrationsProvider(ctx context.Context, database *sql.DB) (*goose.Provider, error) {
 	fsys, err := fs.Sub(migrationsFS, "migrations")
 	if err != nil {

@@ -1,6 +1,6 @@
-// Package budget runs a background loop that evaluates estimated platform spend
-// against the configured budget ceiling and enforces soft/hard limits.
-package budget
+// Package watchers contains background loop services that run alongside the
+// control-plane API: budget enforcement and idle-hibernation.
+package watchers
 
 import (
 	"context"
@@ -15,33 +15,33 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
-const defaultCheckInterval = 5 * time.Minute
+const defaultBudgetCheckInterval = 5 * time.Minute
 
-// Deployer is the subset of kube.Client methods the watcher uses for force-hibernation.
-type Deployer interface {
+// BudgetDeployer is the subset of kube.Client methods the budget watcher uses.
+type BudgetDeployer interface {
 	ScaleDeployment(ctx context.Context, namespace string, replicas int32) error
 	SuspendCronJob(ctx context.Context, namespace string) error
 	RouteToWakeProxy(ctx context.Context, namespace, host, gatewayNS, gatewayName string) error
 }
 
-// Watcher evaluates estimated spend on each tick and enforces budget limits.
-type Watcher struct {
+// Budget evaluates estimated spend on each tick and enforces budget limits.
+type Budget struct {
 	store    *store.Store
-	deployer Deployer
+	deployer BudgetDeployer
 	plat     platform.Platform
 	interval time.Duration
 }
 
-// New constructs a Watcher. Pass interval=0 to use the default (5 min).
-func New(s *store.Store, deployer Deployer, plat platform.Platform, interval time.Duration) *Watcher {
+// NewBudget constructs a Budget watcher. Pass interval=0 to use the default (5 min).
+func NewBudget(s *store.Store, deployer BudgetDeployer, plat platform.Platform, interval time.Duration) *Budget {
 	if interval <= 0 {
-		interval = defaultCheckInterval
+		interval = defaultBudgetCheckInterval
 	}
-	return &Watcher{store: s, deployer: deployer, plat: plat, interval: interval}
+	return &Budget{store: s, deployer: deployer, plat: plat, interval: interval}
 }
 
 // Run starts the budget enforcement loop. It blocks until ctx is cancelled.
-func (w *Watcher) Run(ctx context.Context) {
+func (w *Budget) Run(ctx context.Context) {
 	logger := ctxlog.From(ctx).With("component", "budget-watcher")
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
@@ -55,7 +55,7 @@ func (w *Watcher) Run(ctx context.Context) {
 	}
 }
 
-func (w *Watcher) tick(ctx context.Context, logger *slog.Logger) {
+func (w *Budget) tick(ctx context.Context, logger *slog.Logger) {
 	cfg, err := w.store.GetPlatformConfig(ctx)
 	if err != nil {
 		logger.Error("budget watcher: get platform config", "err", err)
@@ -121,8 +121,7 @@ func (w *Watcher) tick(ctx context.Context, logger *slog.Logger) {
 	}
 }
 
-// totalCost computes the estimated monthly cost across all repos for the current billing period.
-func (w *Watcher) totalCost(ctx context.Context, now time.Time) float64 {
+func (w *Budget) totalCost(ctx context.Context, now time.Time) float64 {
 	prices, err := w.store.GetLatestPriceSnapshot(ctx)
 	if err != nil {
 		return 0
@@ -141,7 +140,7 @@ func (w *Watcher) totalCost(ctx context.Context, now time.Time) float64 {
 	return total
 }
 
-func (w *Watcher) repoCost(ctx context.Context, repo store.Repo, prices store.PriceSnapshot, periodStart, now time.Time) float64 {
+func (w *Budget) repoCost(ctx context.Context, repo store.Repo, prices store.PriceSnapshot, periodStart, now time.Time) float64 {
 	tier, err := w.store.GetTier(ctx, repo.Tier)
 	if err != nil {
 		return 0
@@ -165,7 +164,7 @@ func (w *Watcher) repoCost(ctx context.Context, repo store.Repo, prices store.Pr
 	return total
 }
 
-func (w *Watcher) forceHibernateAll(ctx context.Context, logger *slog.Logger) {
+func (w *Budget) forceHibernateAll(ctx context.Context, logger *slog.Logger) {
 	apps, err := w.store.ListAllApps(ctx)
 	if err != nil {
 		logger.Error("budget watcher: list apps for force-hibernate", "err", err)

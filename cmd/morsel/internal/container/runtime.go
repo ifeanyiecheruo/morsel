@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 // Runtime abstracts the container runtime (docker or podman).
@@ -69,11 +71,11 @@ func (dockerRuntime) Build(ctx context.Context, dockerfile []byte, tag, buildCon
 }
 
 func (dockerRuntime) Push(ctx context.Context, tag string) error {
-	return runCmd(exec.CommandContext(ctx, "docker", "push", tag))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "docker", "push", tag))
 }
 
 func (dockerRuntime) SaveArchive(ctx context.Context, tag, destPath string) error {
-	return runCmd(exec.CommandContext(ctx, "docker", "save", "-o", destPath, tag))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "docker", "save", "-o", destPath, tag))
 }
 
 func (dockerRuntime) Host() (string, error) { return "", nil }
@@ -85,7 +87,7 @@ func (dockerRuntime) Exec(ctx context.Context, containerName, cmd string, args, 
 	}
 	execArgs = append(execArgs, containerName, cmd)
 	execArgs = append(execArgs, args...)
-	return runCmd(exec.CommandContext(ctx, "docker", execArgs...))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "docker", execArgs...))
 }
 
 func (dockerRuntime) ApplyDNSWorkaround(_ context.Context, _ string) error { return nil }
@@ -95,7 +97,7 @@ func (dockerRuntime) ImageID(ctx context.Context, tag string) (string, error) {
 	return inspectImageID(ctx, "docker", tag)
 }
 func (dockerRuntime) Tag(ctx context.Context, src, dst string) error {
-	return runCmd(exec.CommandContext(ctx, "docker", "tag", src, dst))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "docker", "tag", src, dst))
 }
 
 // podmanRuntime
@@ -116,12 +118,12 @@ func (podmanRuntime) Push(ctx context.Context, tag string) error {
 		args = append(args, "--tls-verify=false")
 	}
 	args = append(args, tag)
-	return runCmd(exec.CommandContext(ctx, "podman", args...))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "podman", args...))
 }
 
 func (podmanRuntime) SaveArchive(ctx context.Context, tag, destPath string) error {
 	// kind requires docker-archive format; podman defaults to OCI archive
-	return runCmd(exec.CommandContext(ctx, "podman", "save", "--format", "docker-archive", "-o", destPath, tag))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "podman", "save", "--format", "docker-archive", "-o", destPath, tag))
 }
 
 func (podmanRuntime) Host() (string, error) {
@@ -163,7 +165,7 @@ func (podmanRuntime) Exec(ctx context.Context, containerName, cmd string, args, 
 	for _, a := range args {
 		parts = append(parts, shellQuote(a))
 	}
-	return runCmd(exec.CommandContext(ctx, "podman", "machine", "ssh", strings.Join(parts, " ")))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "podman", "machine", "ssh", strings.Join(parts, " ")))
 }
 
 func (p podmanRuntime) ApplyCgroupWorkaround(ctx context.Context) error {
@@ -176,7 +178,7 @@ func (p podmanRuntime) ApplyCgroupWorkaround(ctx context.Context) error {
 		`printf '[Service]\nDelegate=memory pids cpu io cpuset\n' | ` +
 		`sudo tee /etc/systemd/system/user@.service.d/delegate.conf > /dev/null && ` +
 		`sudo systemctl daemon-reload`
-	return runCmd(exec.CommandContext(ctx, "podman", "machine", "ssh", shellCmd))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "podman", "machine", "ssh", shellCmd))
 }
 
 func (p podmanRuntime) ApplyDNSWorkaround(ctx context.Context, containerName string) error {
@@ -192,7 +194,7 @@ func (podmanRuntime) ImageID(ctx context.Context, tag string) (string, error) {
 	return inspectImageID(ctx, "podman", tag)
 }
 func (podmanRuntime) Tag(ctx context.Context, src, dst string) error {
-	return runCmd(exec.CommandContext(ctx, "podman", "tag", src, dst))
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, "podman", "tag", src, dst))
 }
 
 // inspectImageID returns the sha256 hex digest of tag using the given runtime binary.
@@ -245,12 +247,5 @@ func execBuild(ctx context.Context, name string, dockerfile []byte, args ...stri
 			break
 		}
 	}
-	return runCmd(exec.CommandContext(ctx, name, final...))
-}
-
-// runCmd routes stdout and stderr to the terminal and runs the command.
-func runCmd(cmd *exec.Cmd) error {
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return ctxlog.RunCmd(ctx, exec.CommandContext(ctx, name, final...))
 }

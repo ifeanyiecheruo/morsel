@@ -2,6 +2,7 @@
 package cost
 
 import (
+	"context"
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
@@ -68,4 +69,48 @@ func EstimateAppCostMonthly(tier store.Tier, hours float64, prices store.PriceSn
 	storageCost := float64(tier.BlobGb)*prices.StoragePerGbMonth +
 		float64(tier.DatabaseGb)*prices.StoragePerGbMonth
 	return computeCost + storageCost
+}
+
+// LatestPrices returns the most recent price snapshot, or a zero-valued one if none exists.
+func LatestPrices(ctx context.Context, s *store.Store) store.PriceSnapshot {
+	snap, err := s.GetLatestPriceSnapshot(ctx)
+	if err != nil {
+		return store.PriceSnapshot{}
+	}
+	return snap
+}
+
+// AppCostMonthly fetches scale events for one app and returns its estimated monthly cost.
+func AppCostMonthly(ctx context.Context, s *store.Store, app store.App, tier store.Tier, prices store.PriceSnapshot, now time.Time) float64 {
+	if !app.Namespace.Valid || app.Namespace.String == "" {
+		return 0
+	}
+	periodStart := BillingPeriodStart(now)
+	events, err := s.ListScaleEventsSince(ctx, app.Namespace.String, app.Name, periodStart)
+	if err != nil {
+		return 0
+	}
+	hours := RunningHours(events, periodStart, now, app.Hibernated != 0)
+	return EstimateAppCostMonthly(tier, hours, prices)
+}
+
+// RepoCostMonthly computes the total estimated monthly cost for all apps in a repo.
+func RepoCostMonthly(ctx context.Context, s *store.Store, repoSlug string, prices store.PriceSnapshot, now time.Time) float64 {
+	apps, err := s.ListApps(ctx, repoSlug)
+	if err != nil {
+		return 0
+	}
+	repo, err := s.GetRepo(ctx, repoSlug)
+	if err != nil {
+		return 0
+	}
+	tier, err := s.GetTier(ctx, repo.Tier)
+	if err != nil {
+		return 0
+	}
+	var total float64
+	for _, app := range apps {
+		total += AppCostMonthly(ctx, s, app, tier, prices, now)
+	}
+	return total
 }

@@ -1,0 +1,92 @@
+package pages
+
+import "fmt"
+
+// StatusPage renders the Platform Status view.
+templ StatusPage(d StatusPageData) {
+	@Layout("status", "Platform Status") {
+		<h1 class="page-title">Platform Status</h1>
+		<hr/>
+		if d.UpgradeAvailable {
+			<div class="alert alert--info">
+				ⓘ A newer morsel binary is available. You are running { d.CurrentVersion }.
+			</div>
+		}
+		<div class="card">
+			<div class="card-title">Health</div>
+			<table style="border:none">
+				<tbody>
+					<tr>
+						<td style="border:none;padding:8px 0 8px 0;width:160px">
+							if d.ClusterHealthy {
+								<span class="dot dot--green"></span>Cluster
+							} else {
+								<span class="dot dot--red"></span>Cluster
+							}
+						</td>
+						<td style="border:none;padding:8px 0">
+							if d.ClusterHealthy {
+								<span class="badge badge--green">Healthy</span>
+							} else {
+								<span class="badge badge--red">Unhealthy</span>
+							}
+						</td>
+					</tr>
+					<tr>
+						<td style="border:none;padding:8px 0;width:160px">
+							if d.ControlPlaneHealthy {
+								<span class="dot dot--green"></span>Control plane
+							} else {
+								<span class="dot dot--red"></span>Control plane
+							}
+						</td>
+						<td style="border:none;padding:8px 0">
+							if d.ControlPlaneHealthy {
+								<span class="badge badge--green">Healthy</span>
+							} else {
+								<span class="badge badge--red">Unhealthy</span>
+							}
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		<div class="card">
+			<div class="card-title">Alerts</div>
+			<table style="border:none">
+				<tbody>
+					<tr>
+						<td style="border:none;padding:8px 0;width:220px;color:#6b7280">Failed deploys (last 24h)</td>
+						<td style="border:none;padding:8px 0">
+							if d.FailedOps24h > 0 {
+								<span class="badge badge--red">{ fmt.Sprintf("%d", d.FailedOps24h) }</span>
+							} else {
+								<span class="badge badge--green">0</span>
+							}
+						</td>
+					</tr>
+					<tr>
+						<td style="border:none;padding:8px 0;color:#6b7280">Certificate alerts</td>
+						<td style="border:none;padding:8px 0">
+							if d.CertExpiringSoon {
+								<span class="badge badge--yellow">{ d.CertDomain } expiring soon</span>
+							} else {
+								<span class="badge badge--green">None</span>
+							}
+						</td>
+					</tr>
+					<tr>
+						<td style="border:none;padding:8px 0;color:#6b7280">Pending approvals</td>
+						<td style="border:none;padding:8px 0">
+							if d.PendingApprovals > 0 {
+								<span class="badge badge--yellow">{ fmt.Sprintf("%d", d.PendingApprovals) }</span>
+							} else {
+								<span class="badge badge--gray">0</span>
+							}
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	}
+}

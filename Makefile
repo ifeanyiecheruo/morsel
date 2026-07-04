@@ -1,6 +1,11 @@
 .DEFAULT_GOAL := help
 
-ifeq ($(OS),Windows_NT)
+# Detect Windows regardless of which POSIX shell drives make.
+# Native Windows (cmd/PS) sets OS=Windows_NT; MSYS2/MINGW environments
+# (including devkitPro) set MSYSTEM but may strip OS from the environment.
+_is_windows := $(or $(filter Windows_NT,$(OS)),$(MSYSTEM))
+
+ifneq ($(_is_windows),)
 EXE := .exe
 else
 EXE :=
@@ -33,8 +38,16 @@ GO_VERSION  := $(shell sed -n 's/^go //p' go.mod)
 export PATH     := $(LOCAL_SHELL)/go/bin:$(LOCAL_SHELL)/bin:$(PATH)
 # Append the default winget podman install location so it is findable
 # immediately after make install-tools without reopening the shell.
-ifeq ($(OS),Windows_NT)
+ifneq ($(_is_windows),)
 export PATH     := $(PATH):/c/Program Files/RedHat/Podman
+# devkitPro MSYS2 (and other POSIX shells) omit USERPROFILE, APPDATA, and
+# LOCALAPPDATA from their environment. Native Windows programs (podman, docker)
+# need these to locate user config. Use PowerShell's Windows API to read the
+# real profile path, bypassing environment variable inheritance entirely.
+_win_userprofile := $(shell /c/Program\ Files/PowerShell/7/pwsh.exe -NoProfile -Command "Write-Host -NoNewline ([Environment]::GetFolderPath('UserProfile'))")
+export USERPROFILE  := $(_win_userprofile)
+export APPDATA      := $(_win_userprofile)\AppData\Roaming
+export LOCALAPPDATA := $(_win_userprofile)\AppData\Local
 endif
 export GOPATH   := $(LOCAL)
 export GOCACHE             := $(LOCAL)/cache
@@ -49,10 +62,16 @@ $(shell mkdir -p "$(LOCAL_SHELL)/cache" "$(LOCAL_SHELL)/golangci-lint-cache" "$(
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}' 2>/dev/null; true
 
-.PHONY: build
-build: ## Compile bin/morsel and bin/morsel-ctrl-plane
-	go build -o bin/morsel$(EXE) ./cmd/morsel
-	go build -o bin/morsel-ctrl-plane$(EXE) ./cmd/morsel-ctrl-plane
+build: bin/morsel$(EXE) bin/morsel-ctrl-plane$(EXE)
+
+.PHONY: deploy
+deploy: build ## Deploy the CLI against LocalPlatform
+	bin/morsel$(EXE) service deploy --yes --platform local --force
+	bin/morsel$(EXE) app deploy
+
+.PHONY: deploy-apps
+deploy-apps: deploy ## Deploy morsel apps against LocalPlatform
+	bin/morsel$(EXE) app deploy
 
 .PHONY: test
 test: ## Run all tests
@@ -140,7 +159,7 @@ install-tools: ## Install prerequisites
 	fi
 	@if ! docker info >/dev/null 2>&1 && ! command -v podman >/dev/null 2>&1; then \
 		echo "Installing podman (no docker daemon found) ..."; \
-		if [ "$(OS)" = "Windows_NT" ]; then \
+		if [ "$$OS" = "windows" ]; then \
 			winget install --id RedHat.Podman -e --accept-source-agreements --accept-package-agreements; \
 		elif uname -s | grep -qi darwin; then \
 			brew install podman; \
@@ -169,3 +188,10 @@ ifeq ($(CONTAINER_RUNTIME),podman)
 		podman info >/dev/null 2>&1 || podman machine start; \
 	fi
 endif
+
+bin/morsel$(EXE): $(shell find cmd/morsel internal -name '*.go')
+	go build -o bin/morsel$(EXE) ./cmd/morsel
+
+bin/morsel-ctrl-plane$(EXE): $(shell find cmd/morsel-ctrl-plane internal -name '*.go')
+	go build -o bin/morsel-ctrl-plane$(EXE) ./cmd/morsel-ctrl-plane
+

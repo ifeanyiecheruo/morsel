@@ -7,6 +7,7 @@ package queries
 
 import (
 	"context"
+	"database/sql"
 )
 
 const deletePrincipal = `-- name: DeletePrincipal :exec
@@ -16,6 +17,17 @@ DELETE FROM principals WHERE username = ?1
 func (q *Queries) DeletePrincipal(ctx context.Context, username string) error {
 	_, err := q.db.ExecContext(ctx, deletePrincipal, username)
 	return err
+}
+
+const getPrincipalPasswordHash = `-- name: GetPrincipalPasswordHash :one
+SELECT password_hash FROM principals WHERE username = ?1
+`
+
+func (q *Queries) GetPrincipalPasswordHash(ctx context.Context, username string) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getPrincipalPasswordHash, username)
+	var password_hash sql.NullString
+	err := row.Scan(&password_hash)
+	return password_hash, err
 }
 
 const insertPrincipal = `-- name: InsertPrincipal :exec
@@ -64,4 +76,18 @@ func (q *Queries) PrincipalExists(ctx context.Context, username string) (bool, e
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const setPrincipalPasswordHash = `-- name: SetPrincipalPasswordHash :exec
+UPDATE principals SET password_hash = ?1 WHERE username = ?2
+`
+
+type SetPrincipalPasswordHashParams struct {
+	PasswordHash sql.NullString
+	Username     string
+}
+
+func (q *Queries) SetPrincipalPasswordHash(ctx context.Context, arg SetPrincipalPasswordHashParams) error {
+	_, err := q.db.ExecContext(ctx, setPrincipalPasswordHash, arg.PasswordHash, arg.Username)
+	return err
 }

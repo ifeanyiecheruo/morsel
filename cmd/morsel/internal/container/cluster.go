@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 // Cluster abstracts how container images are made available to a local
@@ -150,9 +152,7 @@ func (k k3dCluster) create(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := ctxlog.RunCmd(ctx, cmd); err != nil {
 		return err
 	}
 
@@ -178,6 +178,9 @@ func (k k3dCluster) exec(ctx context.Context, args ...string) (*exec.Cmd, error)
 	if err != nil {
 		return nil, fmt.Errorf("get runtime host: %w", err)
 	}
+	if ctxlog.GetMode(ctx).VerboseSubprocesses() {
+		args = append([]string{"--verbose"}, args...)
+	}
 	env := os.Environ()
 	if host != "" {
 		env = append(env, "DOCKER_HOST="+host)
@@ -199,9 +202,7 @@ func (k k3dCluster) BuildAndLoad(ctx context.Context, dockerfile []byte, tag, bu
 	if err != nil {
 		return "", fmt.Errorf("k3d image import: %w", err)
 	}
-	load.Stdout = os.Stdout
-	load.Stderr = os.Stderr
-	if err := load.Run(); err != nil {
+	if err := ctxlog.RunCmd(ctx, load); err != nil {
 		return "", fmt.Errorf("k3d image import: %w", err)
 	}
 	return ct, nil

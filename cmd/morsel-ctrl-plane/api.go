@@ -3,48 +3,61 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api"
-	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/budget"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db"
 	dbqueries "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db/queries"
-	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/hibernation"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platforms"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/watchers"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
-func runAPI(ctx context.Context, args []string) {
-	fs := flag.NewFlagSet("api", flag.ExitOnError)
-	addr := fs.String("addr", ":8080", "HTTP listen address")
-	platformName := fs.String("platform", "local", "platform implementation (local|gcp)")
-	dbPath := fs.String("db", "morsel.db", "SQLite database path")
-	kubeconfigPath := fs.String("kubeconfig", "", "path to kubeconfig file (defaults to in-cluster config, then ~/.kube/config)")
-	_ = fs.Parse(args)
+func newAPICmd(ctx context.Context) *cobra.Command {
+	var addr string
+	var platformName string
+	var dbPath string
+	var kubeconfigPath string
 
-	logger := ctxlog.From(ctx)
+	cmd := &cobra.Command{
+		Use:   "api",
+		Short: "Run the control-plane REST API server",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			logger := ctxlog.From(ctx)
 
-	s, closeStore := initializeStore(ctx, logger, *dbPath)
-	defer closeStore()
+			s, closeStore := initializeStore(ctx, logger, dbPath)
+			defer closeStore()
 
-	plat := initializePlatform(ctx, logger, *platformName, s)
-	kubeClient := initializeKube(logger, *kubeconfigPath)
+			plat := initializePlatform(ctx, logger, platformName, s)
+			kubeClient := initializeKube(logger, kubeconfigPath)
 
-	go runCertRenewal(ctx, plat, kubeClient, logger)
-	go hibernation.New(s, kubeClient, plat, 0).Run(ctx)
-	go budget.New(s, kubeClient, plat, 0).Run(ctx)
-	go runPriceFetch(ctx, plat, s, logger)
+			go runCertRenewal(ctx, plat, kubeClient, logger)
+			go watchers.NewHibernation(s, kubeClient, plat, 0).Run(ctx)
+			go watchers.NewBudget(s, kubeClient, plat, 0).Run(ctx)
+			go runPriceFetch(ctx, plat, s, logger)
 
-	runServer(ctx, *addr, 30*time.Second, func() *http.Server {
-		return &http.Server{Handler: api.NewMux(ctx, plat, s, kubeClient)}
-	})
+			apiH := api.NewMux(ctx, plat, s, kubeClient)
+			runServer(ctx, addr, 30*time.Second, func() *http.Server {
+				return &http.Server{Handler: apiH}
+			})
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
+	cmd.Flags().StringVar(&platformName, "platform", "local", "platform implementation (local|gcp)")
+	cmd.Flags().StringVar(&dbPath, "db", "morsel.db", "SQLite database path")
+	cmd.Flags().StringVar(&kubeconfigPath, "kubeconfig", "", "path to kubeconfig file (defaults to in-cluster config, then ~/.kube/config)")
+
+	return cmd
 }
 
 func initializeStore(ctx context.Context, logger *slog.Logger, dbPath string) (*store.Store, func()) {
@@ -123,30 +136,6 @@ func checkAndRenewCert(ctx context.Context, plat platform.Platform, kubeClient *
 	logger.Info("tls cert renewed")
 }
 
-func runPriceFetch(ctx context.Context, plat platform.Platform, s *store.Store, logger *slog.Logger) {
-	fetch := func() {
-		prices, err := plat.Pricing().Prices(ctx)
-		if err != nil {
-			logger.Error("price fetch failed", "err", err)
-			return
-		}
-		if _, err := s.InsertPriceSnapshot(ctx, prices.ComputeCPUPerCoreHour, prices.ComputeMemPerGBHour, prices.StoragePerGBMonth, prices.RegistryPerGBMonth, prices.FetchedAt); err != nil {
-			logger.Error("store price snapshot", "err", err)
-		}
-	}
-	fetch() // fetch immediately on startup
-	ticker := time.NewTicker(24 * time.Hour)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			fetch()
-		}
-	}
-}
-
 func initializeKube(logger *slog.Logger, kubeconfigPath string) *kube.Client {
 	deployer, err := kube.New(kubeconfigPath)
 	if err != nil {
@@ -172,4 +161,28 @@ func initializeKube(logger *slog.Logger, kubeconfigPath string) *kube.Client {
 		os.Exit(1)
 	}
 	return deployer
+}
+
+func runPriceFetch(ctx context.Context, plat platform.Platform, s *store.Store, logger *slog.Logger) {
+	fetch := func() {
+		prices, err := plat.Pricing().Prices(ctx)
+		if err != nil {
+			logger.Error("price fetch failed", "err", err)
+			return
+		}
+		if _, err := s.InsertPriceSnapshot(ctx, prices.ComputeCPUPerCoreHour, prices.ComputeMemPerGBHour, prices.StoragePerGBMonth, prices.RegistryPerGBMonth, prices.FetchedAt); err != nil {
+			logger.Error("store price snapshot", "err", err)
+		}
+	}
+	fetch()
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			fetch()
+		}
+	}
 }

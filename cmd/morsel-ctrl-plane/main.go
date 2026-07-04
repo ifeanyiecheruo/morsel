@@ -3,55 +3,58 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
+
+	"github.com/spf13/cobra"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 func main() {
-	logger := slog.Default()
-	slog.SetDefault(logger)
-	ctx := ctxlog.With(context.Background(), logger)
+	ctx, levelVar := ctxlog.Init(context.Background())
 
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
+	var logLevelFlag string
+	// TODO: add version support and build info support
+	// embedd version info from version file in repo
+	// embed build info from file generated during build
+	// will need bump-version make target to update version file
+	// expose version info via a `version` command and `--version` flag
+	// expose build info in help output
+	// do this for all cli commands
+	root := &cobra.Command{
+		Use:           "morsel-ctrl-plane",
+		Short:         "Morsel control plane",
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
-	switch os.Args[1] {
-	case "api":
-		runAPI(ctx, os.Args[2:])
-	case "svc":
-		if len(os.Args) < 3 {
-			usage()
-			os.Exit(2)
+	root.PersistentFlags().StringVar(&logLevelFlag, "log-level", "info", "log verbosity: info, trace, or debug")
+	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		mode, err := ctxlog.ParseMode(logLevelFlag)
+		if err != nil {
+			return err
 		}
-		switch os.Args[2] {
-		case "queue":
-			runQueueService(ctx, os.Args[3:])
-		case "wake-proxy":
-			runWakeProxy(ctx, os.Args[3:])
-		case "blob":
-			fmt.Fprintln(os.Stderr, "morsel-ctrl-plane svc blob: not implemented")
-			os.Exit(1)
-		default:
-			usage()
-			os.Exit(2)
-		}
-	default:
-		usage()
-		os.Exit(2)
+		levelVar.Set(mode.SlogLevel())
+		return nil
 	}
-}
 
-func usage() {
-	fmt.Fprintln(os.Stderr, `usage: morsel-ctrl-plane <command>
+	run := &cobra.Command{
+		Use:   "run",
+		Short: "Run a control-plane service",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return fmt.Errorf("specify a service: api, queue, blob, wake-proxy, admin-ui")
+		},
+	}
+	run.AddCommand(
+		newAPICmd(ctx),
+		newQueueCmd(ctx),
+		newBlobCmd(ctx),
+		newWakeProxyCmd(ctx),
+		newAdminUICmd(ctx),
+	)
+	root.AddCommand(run)
 
-Commands:
-  api               Run the control-plane REST API server
-  svc queue         Run the queue service
-  svc wake-proxy    Run the hibernation wake proxy
-  svc blob          Run the blob service (not yet implemented)
-
-Run "morsel-ctrl-plane <command> -help" for command-specific flags.`)
+	if err := root.ExecuteContext(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

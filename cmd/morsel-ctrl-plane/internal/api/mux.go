@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/handler"
-	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/middleware"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/wellknown"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/cost"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/middleware"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
@@ -46,12 +46,17 @@ func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deploye
 		panic("morsel api: failed to construct ogen server: " + err.Error())
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle("/.well-known/", wellknown.New("/.well-known"))
-	mux.Handle("/internal/wake", internalWakeHandler(ctx, s, deployer, plat))
-	mux.Handle("/", srv)
+	// ── API mux (api.<baseDomain>) ────────────────────────────────────────────
+	apiMux := http.NewServeMux()
+	apiMux.Handle("/.well-known/", wellknown.New("/.well-known"))
+	apiMux.Handle("/internal/wake", internalWakeHandler(ctx, s, deployer, plat))
+	apiMux.HandleFunc("POST /bootstrap", h.HandleBootstrap)
+	apiMux.HandleFunc("GET /api/operator/apps", h.HandleAdminListApps)
+	apiMux.HandleFunc("GET /api/operator/stale", h.HandleAdminListStale)
+	apiMux.HandleFunc("POST /api/operator/stale/{org}/{repo}/{appName}/ignore", h.HandleAdminIgnoreStale)
+	apiMux.Handle("/", srv)
 
-	return middleware.InjectLogger(ctxlog.From(ctx), middleware.LogRequests(mux))
+	return middleware.InjectLogger(ctxlog.From(ctx), middleware.LogRequests(apiMux))
 }
 
 // wakeResponse is returned by the internal wake endpoint.

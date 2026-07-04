@@ -60,32 +60,13 @@ func TestMigrateIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestRollbackRemovesTables(t *testing.T) {
+func TestRollbackAllRemovesTables(t *testing.T) {
 	database := openTestDB(t)
 	if err := db.Migrate(context.Background(), database); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	// Roll back all migrations (one per call).
-	if err := db.Rollback(context.Background(), database); err != nil {
-		t.Fatalf("first Rollback: %v", err)
-	}
-	if err := db.Rollback(context.Background(), database); err != nil {
-		t.Fatalf("second Rollback: %v", err)
-	}
-	if err := db.Rollback(context.Background(), database); err != nil {
-		t.Fatalf("third Rollback: %v", err)
-	}
-	if err := db.Rollback(context.Background(), database); err != nil {
-		t.Fatalf("fourth Rollback: %v", err)
-	}
-	if err := db.Rollback(context.Background(), database); err != nil {
-		t.Fatalf("fifth Rollback: %v", err)
-	}
-	if err := db.Rollback(context.Background(), database); err != nil {
-		t.Fatalf("sixth Rollback: %v", err)
-	}
-	if err := db.Rollback(context.Background(), database); err != nil {
-		t.Fatalf("seventh Rollback: %v", err)
+	if err := db.RollbackAll(context.Background(), database); err != nil {
+		t.Fatalf("RollbackAll: %v", err)
 	}
 
 	for _, table := range []string{"repos", "apps", "operations", "refresh_tokens"} {

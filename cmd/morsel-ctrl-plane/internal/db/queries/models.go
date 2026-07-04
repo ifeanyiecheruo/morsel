@@ -103,6 +103,12 @@ type ScaleEvent struct {
 	OccurredAt time.Time
 }
 
+type StaleSuppressed struct {
+	RepoSlug string
+	AppName  string
+	Until    string
+}
+
 type Tier struct {
 	Name           string
 	MaxApps        int64

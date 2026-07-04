@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // SecretStore is the low-level storage backend for raw secret bytes.
@@ -27,6 +29,7 @@ type SecretStore interface {
 const (
 	signingKeyName       = "morsel-signing-keys"
 	deploySigningKeyName = "local-deploy-signing-keys"
+	bootstrapTokenName   = "morsel-bootstrap-token"
 )
 
 // ── kube-backed secret store ─────────────────────────────────────────────────
@@ -203,6 +206,27 @@ func (ls *localSecrets) DeleteDeploySigningKey(ctx context.Context) error {
 	return err
 }
 
+// ── bootstrap token ──────────────────────────────────────────────────────────
+
+func (ls *localSecrets) GetBootstrapToken(ctx context.Context) (string, error) {
+	raw, err := ls.store.Get(ctx, bootstrapTokenName)
+	if errors.Is(err, platform.ErrSecretNotFound) {
+		return "", platform.ErrSecretNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func (ls *localSecrets) DeleteBootstrapToken(ctx context.Context) error {
+	err := ls.store.Delete(ctx, bootstrapTokenName)
+	if errors.Is(err, platform.ErrSecretNotFound) {
+		return nil
+	}
+	return err
+}
+
 func (ls *localSecrets) Migrate(ctx context.Context) error {
 	if _, err := ls.EnsureSigningKey(ctx); err != nil {
 		return fmt.Errorf("ensure signing key: %w", err)
@@ -279,7 +303,7 @@ func (lt *localTokens) VerifyDeployToken(ctx context.Context, tokenStr string) (
 	return "", fmt.Errorf("invalid deploy token")
 }
 
-func (lt *localTokens) ValidateOperatorCredential(ctx context.Context, username, _ string) (string, error) {
+func (lt *localTokens) ValidateOperatorCredential(ctx context.Context, username, password string) (string, error) {
 	if username == "" {
 		return "", platform.ErrPrincipalNotAuthorized
 	}
@@ -287,12 +311,17 @@ func (lt *localTokens) ValidateOperatorCredential(ctx context.Context, username,
 		return "", platform.ErrPrincipalNotAuthorized
 	}
 	ctxlog.From(ctx).Info("validating operator credential", "username", username)
-	exists, err := lt.store.PrincipalExists(ctx, username)
+	hashVal, err := lt.store.GetPrincipalPasswordHash(ctx, username)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", platform.ErrPrincipalNotAuthorized
+	}
 	if err != nil {
 		return "", fmt.Errorf("validate operator credential: %w", err)
 	}
-	if !exists {
-		return "", platform.ErrPrincipalNotAuthorized
+	if hashVal.Valid {
+		if err := bcrypt.CompareHashAndPassword([]byte(hashVal.String), []byte(password)); err != nil {
+			return "", platform.ErrPrincipalNotAuthorized
+		}
 	}
 	return username, nil
 }

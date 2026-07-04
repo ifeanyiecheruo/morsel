@@ -71,6 +71,12 @@ type Secrets interface {
 
 	// Migrate runs pending secret store migrations. Safe to call on every startup.
 	Migrate(ctx context.Context) error
+
+	// Bootstrap token — one-time token that authorises the first POST /bootstrap call.
+	// Written to the secret store by 'morsel service deploy' before the API pod starts.
+	// Deleted by the handler on first successful use.
+	GetBootstrapToken(ctx context.Context) (string, error)
+	DeleteBootstrapToken(ctx context.Context) error
 }
 
 // Tokens handles token retrieval and creation. Token creation requires key material

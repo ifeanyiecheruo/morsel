@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/middleware"
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/middleware"
 )
 
 type capturedRecord struct {

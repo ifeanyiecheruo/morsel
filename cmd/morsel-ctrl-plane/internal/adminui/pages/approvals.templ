@@ -1,0 +1,61 @@
+package pages
+
+import "fmt"
+
+// ApprovalsPage renders the Approvals view.
+templ ApprovalsPage(d ApprovalsPageData) {
+	@Layout("approvals", "Approvals") {
+		<h1 class="page-title">Approvals</h1>
+		<p class="page-sub">Pending configuration change requests across all repos.</p>
+		<hr/>
+		if len(d.Rows) == 0 {
+			<div class="empty">No pending approvals.</div>
+		} else {
+			<form method="post" action="/approvals/batch">
+				<div class="batch-bar">
+					<label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+						<input type="checkbox" id="select-all" onchange="document.querySelectorAll('.approval-cb').forEach(cb=>cb.checked=this.checked)"/>
+						Select all
+					</label>
+					<button type="submit" name="action" value="approve" class="btn btn--primary btn--small">Approve selected</button>
+					<button type="submit" name="action" value="reject" class="btn btn--secondary btn--small">Reject selected</button>
+					<button type="submit" name="action" value="ignore" class="btn btn--secondary btn--small">Ignore</button>
+				</div>
+				<div class="form-group" style="margin-top:12px">
+					<label for="reason">Rejection reason (optional)</label>
+					<input id="reason" name="reason" type="text" placeholder="e.g. budget freeze until Q3"/>
+				</div>
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th style="width:32px"></th>
+								<th>Repo</th>
+								<th>App</th>
+								<th>Field</th>
+								<th>Current</th>
+								<th>Requested</th>
+								<th>Requested</th>
+								<th>Expires</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, row := range d.Rows {
+								<tr>
+									<td><input class="approval-cb" type="checkbox" name="id" value={ row.ID }/></td>
+									<td>{ row.Repo }</td>
+									<td>{ row.App }</td>
+									<td>{ row.Field }</td>
+									<td>{ row.CurrentValue }</td>
+									<td><strong>{ row.RequestedValue }</strong></td>
+									<td>{ fmt.Sprintf("%s", row.RequestedAt.Format("Jan 2")) }</td>
+									<td>{ fmt.Sprintf("%s", row.ExpiresAt.Format("Jan 2")) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</form>
+		}
+	}
+}

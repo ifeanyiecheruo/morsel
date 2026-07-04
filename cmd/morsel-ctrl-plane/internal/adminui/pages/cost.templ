@@ -1,0 +1,134 @@
+package pages
+
+import "fmt"
+
+// CostPage renders the Cost & Quotas view.
+templ CostPage(d CostPageData) {
+	@Layout("cost", "Cost & Quotas") {
+		<h1 class="page-title">Cost & Quotas</h1>
+		<hr/>
+		<div class="card">
+			<div class="card-title">Monthly Spend</div>
+			if d.Budget > 0 {
+				<p>{ FormatCost(d.TotalCost) } of { FormatCost(d.Budget) } budget</p>
+				<div class="progress">
+					<div
+						class={ "progress-fill", templ.KV("progress-fill--warn", BarWidth(d.TotalCost, d.Budget) > 80), templ.KV("progress-fill--danger", BarWidth(d.TotalCost, d.Budget) > 95) }
+						style={ fmt.Sprintf("width:%d%%", BarWidth(d.TotalCost, d.Budget)) }
+					></div>
+				</div>
+				<p class="progress-label">{ fmt.Sprintf("%d%%", BarWidth(d.TotalCost, d.Budget)) } of budget</p>
+			} else {
+				<p>{ FormatCost(d.TotalCost) } — no budget ceiling set</p>
+			}
+		</div>
+		<div class="card">
+			<div class="card-title">Per-repo breakdown</div>
+			if len(d.ByRepo) == 0 {
+				<div class="empty" style="padding:24px 0">No repos.</div>
+			} else {
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>Repo</th>
+								<th>Cost</th>
+								<th>% of budget</th>
+								<th>Apps</th>
+								<th>Tier</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range d.ByRepo {
+								<tr>
+									<td>{ r.Slug }</td>
+									<td>{ FormatCost(r.Cost) }</td>
+									<td>
+										if d.Budget > 0 {
+											{ fmt.Sprintf("%d%%", BarWidth(r.Cost, d.Budget)) }
+										} else {
+											—
+										}
+									</td>
+									<td>{ fmt.Sprintf("%d", r.AppCount) }</td>
+									<td>{ r.Tier }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+		if len(d.Warnings) > 0 {
+			<div class="card">
+				<div class="section-heading">
+					⚠ Approaching quota ceiling
+					<span class="count">{ fmt.Sprintf("%d", len(d.Warnings)) }</span>
+				</div>
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>App</th>
+								<th>Cost</th>
+								<th>Quota limit</th>
+								<th>Usage</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, w := range d.Warnings {
+								<tr>
+									<td>{ w.RepoSlug } / { w.AppName }</td>
+									<td>{ FormatCost(w.Cost) }</td>
+									<td>{ FormatCost(w.Limit) }</td>
+									<td>
+										<div class="progress">
+											<div class="progress-fill progress-fill--warn" style={ fmt.Sprintf("width:%d%%", BarWidth(w.Cost, w.Limit)) }></div>
+										</div>
+										<span class="progress-label">{ fmt.Sprintf("%d%%", BarWidth(w.Cost, w.Limit)) }</span>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		}
+		if len(d.Candidates) > 0 {
+			<div class="card">
+				<div class="section-heading">
+					Hibernate candidates
+					<span class="count">{ fmt.Sprintf("%d", len(d.Candidates)) }</span>
+				</div>
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>App</th>
+								<th>Idle since</th>
+								<th>Threshold</th>
+								<th>Cost</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, c := range d.Candidates {
+								<tr>
+									<td>{ c.RepoSlug } / { c.AppName }</td>
+									<td>{ FormatRelTime(c.IdleSince) }</td>
+									<td>{ c.Threshold }</td>
+									<td>{ FormatCost(c.Cost) }</td>
+									<td>
+										<form method="post" action={ templ.SafeURL("/apps/" + c.RepoSlug + "/" + c.AppName + "/hibernate") }>
+											<button type="submit" class="btn btn--secondary btn--small">Hibernate</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		}
+	}
+}

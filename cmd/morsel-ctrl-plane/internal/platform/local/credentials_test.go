@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 )
@@ -48,6 +50,31 @@ func TestValidateOperatorCredentialRejectsEmptyUsername(t *testing.T) {
 	if !isPrincipalNotAuthorized(err) {
 		t.Errorf("err = %v, want ErrPrincipalNotAuthorized", err)
 	}
+}
+
+func TestValidateOperatorCredentialChecksPasswordWhenHashStored(t *testing.T) {
+	plat, s := platWithStore(t)
+
+	const correctPassword = "hunter2"
+	if err := s.AddPrincipalWithPasswordHash(ctx, "alice@example.com", bcryptHash(t, correctPassword)); err != nil {
+		t.Fatalf("AddPrincipalWithPasswordHash: %v", err)
+	}
+
+	if _, err := plat.Tokens().ValidateOperatorCredential(ctx, "alice@example.com", correctPassword); err != nil {
+		t.Errorf("ValidateOperatorCredential with correct password: %v", err)
+	}
+	if _, err := plat.Tokens().ValidateOperatorCredential(ctx, "alice@example.com", "wrongpassword"); !isPrincipalNotAuthorized(err) {
+		t.Errorf("ValidateOperatorCredential with wrong password: want ErrPrincipalNotAuthorized, got %v", err)
+	}
+}
+
+func bcryptHash(t *testing.T, password string) string {
+	t.Helper()
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("bcrypt.GenerateFromPassword: %v", err)
+	}
+	return string(hash)
 }
 
 func seedPrincipals(t *testing.T, s *store.Store, emails ...string) {

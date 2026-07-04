@@ -2,6 +2,8 @@ package local
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/container"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/selfcert"
 )
@@ -33,7 +36,12 @@ type localServiceDeployer struct {
 	clusterServer  string
 	cluster        container.Cluster
 	repoRoot       string
+	bootstrapToken string
 }
+
+// BootstrapToken returns the one-time token written to the cluster during
+// Provision. Empty before Provision is called or when kubeconfigPath is unset.
+func (lb *localServiceDeployer) BootstrapToken() string { return lb.bootstrapToken }
 
 // New returns a new local platform bootstrapper.
 func New() *localServiceDeployer {
@@ -177,6 +185,17 @@ func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[strin
 		return fmt.Errorf("provision registry: %w", err)
 	}
 
+	// Write a one-time bootstrap token before the API pod starts so that the
+	// POST /bootstrap endpoint can validate it and prevent unauthorised races.
+	token, err := generateBootstrapToken()
+	if err != nil {
+		return fmt.Errorf("generate bootstrap token: %w", err)
+	}
+	if err := kubeClient.SetOpaqueSecret(ctx, ns, "morsel-bootstrap-token", []byte(token)); err != nil {
+		return fmt.Errorf("write bootstrap token: %w", err)
+	}
+	lb.bootstrapToken = token
+
 	fmt.Println("Provisioning wake proxy…")
 	if err := kubeClient.EnsureWakeProxy(ctx, ns, imageTag); err != nil {
 		return fmt.Errorf("provision wake proxy: %w", err)
@@ -213,6 +232,11 @@ func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[strin
 		return fmt.Errorf("store tls secret: %w", err)
 	}
 
+	fmt.Println("Provisioning admin UI…")
+	if err := kubeClient.EnsureAdminUI(ctx, ns, imageTag); err != nil {
+		return fmt.Errorf("provision admin ui: %w", err)
+	}
+
 	fmt.Println("Provisioning Gateway API resources…")
 	if err := kubeClient.EnsureGatewayClasses(ctx); err != nil {
 		return fmt.Errorf("provision gateway classes: %w", err)
@@ -223,6 +247,9 @@ func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[strin
 	if err := kubeClient.EnsureAPIHTTPRoute(ctx, ns, "api."+selfcert.LocalBaseDomain); err != nil {
 		return fmt.Errorf("provision api route: %w", err)
 	}
+	if err := kubeClient.EnsureAdminUIHTTPRoute(ctx, ns, "admin."+selfcert.LocalBaseDomain); err != nil {
+		return fmt.Errorf("provision admin ui route: %w", err)
+	}
 
 	return nil
 }
@@ -232,11 +259,13 @@ func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[strin
 // RBAC into envoy-gateway-system. Safe to re-run (kubectl apply is idempotent).
 func installEnvoyGateway(ctx context.Context, kubeconfigPath string) error {
 	url := "https://github.com/envoyproxy/gateway/releases/download/" + envoyGatewayVersion + "/install.yaml"
+	args := []string{"apply", "--server-side", "-f", url, "--kubeconfig", kubeconfigPath}
+	if ctxlog.GetMode(ctx).VerboseSubprocesses() {
+		args = append(args, "--v=6")
+	}
 	// --server-side avoids the size limit on configurations which Envoy Gateway CRDs exceed.
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "--server-side", "-f", url, "--kubeconfig", kubeconfigPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	if err := ctxlog.RunCmd(ctx, cmd); err != nil {
 		return fmt.Errorf("kubectl apply envoy gateway %s: %w", envoyGatewayVersion, err)
 	}
 	return nil
@@ -261,6 +290,14 @@ func findRepoRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+func generateBootstrapToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 var _ platform.ServiceDeployer = (*localServiceDeployer)(nil)

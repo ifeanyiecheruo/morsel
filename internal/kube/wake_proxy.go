@@ -176,7 +176,7 @@ func (c *Client) applyWakeProxyDeployment(ctx context.Context, image, ctrlPlaneA
 							Image:           image,
 							ImagePullPolicy: corev1.PullNever,
 							Args: []string{
-								"svc", "wake-proxy",
+								"run", "wake-proxy",
 								"--addr", fmt.Sprintf(":%d", wakeProxyPort),
 								"--api", ctrlPlaneAddr,
 							},

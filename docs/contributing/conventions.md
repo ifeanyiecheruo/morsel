@@ -35,4 +35,5 @@ Only use context.Background() in main.go and tests, never use it anywhere else i
 ## Logging
 
 Always get a logger from the contex, never log with the default logger or a privately created logger.
+Alway log any error that does not need to be checked and is not returned to the caller.
 Do not directly print, always write to the context logger

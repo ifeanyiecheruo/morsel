@@ -1,0 +1,78 @@
+package pages
+
+import "fmt"
+
+// ReposPage renders the Repo Management view.
+templ ReposPage(d ReposPageData) {
+	@Layout("repos", "Repos") {
+		<h1 class="page-title">Repos</h1>
+		<p class="page-sub">{ fmt.Sprintf("%d repos", len(d.Repos)) }</p>
+		<hr/>
+		if len(d.Repos) == 0 {
+			<div class="empty">No repos found.</div>
+		} else {
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>Repo</th>
+							<th>Apps</th>
+							<th>Est. Cost</th>
+							<th>Tier</th>
+							<th>Last Deploy</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, repo := range d.Repos {
+							<tr>
+								<td><strong>{ repo.Slug }</strong></td>
+								<td>{ fmt.Sprintf("%d", repo.AppCount) }</td>
+								<td>{ FormatCost(repo.Cost) }</td>
+								<td>{ repo.Tier }</td>
+								<td>
+									if repo.AppCount > 0 {
+										{ FormatRelTime(repo.LastDeploy) }
+									} else {
+										—
+									}
+								</td>
+								<td>
+									<div class="row-actions">
+										<form method="post" action={ templ.SafeURL("/repos/" + repo.Slug + "/promote") }>
+											<button type="submit" class="btn btn--secondary btn--small">Promote tier</button>
+										</form>
+										<form method="post" action={ templ.SafeURL("/repos/" + repo.Slug + "/demote") }>
+											<button type="submit" class="btn btn--secondary btn--small">Demote tier</button>
+										</form>
+										<a href={ templ.SafeURL("/apps?repo=" + repo.Slug) } class="btn btn--secondary btn--small">View apps</a>
+										<a href={ templ.SafeURL("/repos/" + repo.Slug + "/delete-all") } class="btn btn--danger btn--small">Delete all</a>
+									</div>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// RepoDeleteAllConfirmPage asks the operator to confirm deleting all apps in a repo.
+templ RepoDeleteAllConfirmPage(repoSlug string, appCount int64) {
+	@Layout("repos", "Delete all apps") {
+		<h1 class="page-title">Delete all apps</h1>
+		<hr/>
+		<div class="card">
+			<p style="margin-bottom:20px">
+				Delete all <strong>{ fmt.Sprintf("%d", appCount) }</strong> apps in <strong>{ repoSlug }</strong>? All Kubernetes resources will be removed and this cannot be undone.
+			</p>
+			<div style="display:flex;gap:12px">
+				<form method="post" action={ templ.SafeURL("/repos/" + repoSlug + "/delete-all") }>
+					<button type="submit" class="btn btn--danger">Yes, delete all apps</button>
+				</form>
+				<a href="/repos" class="btn btn--secondary">Cancel</a>
+			</div>
+		</div>
+	}
+}

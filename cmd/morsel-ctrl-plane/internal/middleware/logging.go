@@ -1,3 +1,4 @@
+// Package middleware provides generic HTTP middleware shared across the API and Admin virtual hosts.
 package middleware
 
 import (

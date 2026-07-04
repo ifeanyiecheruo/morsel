@@ -15,6 +15,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/client"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/client/oas"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/container"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 func (c *cli) appDeployCmd() *cobra.Command {
@@ -273,9 +274,7 @@ func buildAndPush(ctx context.Context, dockerfilePath, tag, buildContext string)
 		return err
 	}
 	build := exec.CommandContext(ctx, rt.Name(), "build", "-t", tag, "-f", dockerfilePath, buildContext)
-	build.Stdout = os.Stdout
-	build.Stderr = os.Stderr
-	if err := build.Run(); err != nil {
+	if err := ctxlog.RunCmd(ctx, build); err != nil {
 		return fmt.Errorf("%s build: %w", rt.Name(), err)
 	}
 	return rt.Push(ctx, tag)

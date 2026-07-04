@@ -1,0 +1,82 @@
+package pages
+
+import "fmt"
+
+// AppsPage renders the App Management view.
+templ AppsPage(d AppsPageData) {
+	@Layout("apps", "Apps") {
+		<h1 class="page-title">Apps</h1>
+		<p class="page-sub">{ fmt.Sprintf("%d apps across %d repos", d.Total, len(d.Repos)) }</p>
+		<hr/>
+		<form method="get" action="/apps" class="filters">
+			<select name="repo" class="filter-select" onchange="this.form.submit()">
+				<option value="">All repos</option>
+				for _, r := range d.Repos {
+					<option value={ r } selected?={ d.RepoFilter == r }>{ r }</option>
+				}
+			</select>
+		</form>
+		if len(d.Apps) == 0 {
+			<div class="empty">No apps found.</div>
+		} else {
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>App</th>
+							<th>Repo</th>
+							<th>Status</th>
+							<th>Tier</th>
+							<th>Est. Cost</th>
+							<th>Last Deploy</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, app := range d.Apps {
+							<tr>
+								<td><strong>{ app.Name }</strong></td>
+								<td>{ app.RepoSlug }</td>
+								<td>@statusBadge(app.Status, app.Hibernated)</td>
+								<td>{ app.Tier }</td>
+								<td>{ FormatCost(app.Cost) }</td>
+								<td>{ FormatRelTime(app.LastDeploy) }</td>
+								<td>
+									<div class="row-actions">
+										if !app.Hibernated {
+											<form method="post" action={ templ.SafeURL("/apps/" + app.RepoSlug + "/" + app.Name + "/hibernate") }>
+												<button type="submit" class="btn btn--secondary btn--small">Hibernate</button>
+											</form>
+										} else {
+											<form method="post" action={ templ.SafeURL("/apps/" + app.RepoSlug + "/" + app.Name + "/wake") }>
+												<button type="submit" class="btn btn--secondary btn--small">Wake</button>
+											</form>
+										}
+										<a href={ templ.SafeURL("/apps/" + app.RepoSlug + "/" + app.Name + "/delete") } class="btn btn--danger btn--small">Delete</a>
+									</div>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	}
+}
+
+// AppDeleteConfirmPage asks the operator to confirm before deleting an app.
+templ AppDeleteConfirmPage(repoSlug, appName string) {
+	@Layout("apps", "Delete app") {
+		<h1 class="page-title">Delete app</h1>
+		<hr/>
+		<div class="card">
+			<p style="margin-bottom:20px">Delete <strong>{ appName }</strong> from <strong>{ repoSlug }</strong>? This will remove all Kubernetes resources and cannot be undone.</p>
+			<div style="display:flex;gap:12px">
+				<form method="post" action={ templ.SafeURL("/apps/" + repoSlug + "/" + appName + "/delete") }>
+					<button type="submit" class="btn btn--danger">Yes, delete app</button>
+				</form>
+				<a href="/apps" class="btn btn--secondary">Cancel</a>
+			</div>
+		</div>
+	}
+}

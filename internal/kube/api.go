@@ -241,7 +241,7 @@ func (c *Client) applyAPIDeployment(ctx context.Context, ns, image, dbPath strin
 							Image:           image,
 							ImagePullPolicy: corev1.PullNever,
 							Args: []string{
-								"api",
+								"run", "api",
 								"--platform", "local",
 								"--db", dbPath,
 							},
