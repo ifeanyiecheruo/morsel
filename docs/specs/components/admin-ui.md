@@ -10,7 +10,7 @@ Up: [Index](../README.md) · Prev: [Database Service](database-service.md) · Ne
 
 ## Overview
 
-The admin UI is a server rendered multipage App protected by the platform's operator authentication gateway. It is the operator's web interface for day-to-day platform management. No dedicated server pod is required and all data is fetched from the control plane.
+The admin UI is a server-rendered multipage app deployed as a dedicated Kubernetes Deployment in the morsel namespace. It is the operator's web interface for day-to-day platform management. All data is fetched from the control plane REST API — the admin UI holds no internal state and has no direct database access.
 
 ---
 
@@ -19,20 +19,21 @@ The admin UI is a server rendered multipage App protected by the platform's oper
 ```
 Operator browser
   │
-  │  HTTPS → admin.example.com
+  │  HTTPS → admin.<baseDomain>
   ▼
-Platform operator authentication gateway
-  │  validates operator identity
-  │  operator principal check
-  ▼
-Platform HTTP aplication
-  │  HTML / JS / CSS served
+morsel-admin-ui (Deployment in morsel namespace)
+  │  form-based login (POST /login)
+  │  HMAC-signed session cookie
+  │  server-rendered HTML pages
   │
-  │  Makes API calls:
+  │  Makes API calls over cluster-internal DNS:
+  │  http://morsel-api.<ns>.svc.cluster.local:8080
   ▼
-control plane (/api/operator/*, /api/repos/*)
+morsel-api (/api/operator/*, /api/repos/*)
   │  All data returned as JSON
 ```
+
+The admin UI is a separate Kubernetes Deployment (`morsel-admin-ui`, port 8090). It has no direct database access — all reads and writes go through the REST API using the session's Bearer token.
 
 ---
 
@@ -44,9 +45,19 @@ control plane (/api/operator/*, /api/repos/*)
 
 ## Sections
 
+### Operator Management
+
+View all principals with admin UI access. Shows username, password-reset-required flag, and admin flag. Per-principal actions (admin only):
+
+- Set password for another principal (forces password reset on first login optionally)
+- Invalidate password — sets `password_reset_required` and updates `password_changed_at`, invalidating all existing tokens
+
+Any authenticated operator can view the principals list. Only admin-role sessions can set or invalidate passwords for other principals.
+
 ### App Management
 
 View all apps across all repos. Filter by repo, status, tier, or cost. Per-app actions:
+
 - Hibernate / wake
 - Delete (with confirmation)
 - Transfer ownership to another repo
@@ -55,6 +66,7 @@ View all apps across all repos. Filter by repo, status, tier, or cost. Per-app a
 ### Repo Management
 
 View all repos with per-repo summary (app count, cost, tier, last deploy date). Per-repo actions:
+
 - Promote or demote quota tier
 - View all apps in repo
 - Delete all apps in repo
@@ -64,6 +76,7 @@ View all repos with per-repo summary (app count, cost, tier, last deploy date). 
 View all pending approvals across all repos. Columns: repo, app, field, current value, requested value, request date, expiry date.
 
 Batch action UI:
+
 - Select individual approvals or select all
 - Choose action: approve / reject (with optional reason) / ignore
 - Submit batch
@@ -92,30 +105,32 @@ List of apps sorted by last deploy date, oldest first. Each entry shows the repo
 
 ## Authentication
 
-The admin UI is protected by the platform's operator authentication gateway. The operator navigates to `https://admin.apps.example.com` and is prompted to sign in with their platform identity. The gateway validates the identity and checks that the principal is in the operator principals list configured at bootstrap.
+The admin UI has its own form-based login page. Operators navigate to `https://admin.<baseDomain>` and authenticate with their username and password.
 
-The gateway injects a signed identity token into requests forwarded to the control plane. The control plane verifies the token and exchanges it for a Morsel operator token stored in the server-side session for the duration of the session.
+On successful login the admin UI obtains a Morsel access token + refresh token from `POST /api/token/oidc` and stores them in a signed HttpOnly session cookie (`morsel_admin`). The cookie is HMAC-SHA256 signed with a server-side session key to prevent forgery. MaxAge is 8 hours; the underlying access token is 15 minutes and is silently refreshed by the middleware before expiry.
 
-No separate password. No Morsel-specific account. Operators use their existing platform identity. See [platform/gcp.md](../platform/gcp.md) for GCP-specific details (IAP, Google account).
+**Password reset flow:** If `password_reset_required` is set on the principal, any session middleware intercepts navigation and redirects to `/password-reset` until the password is changed. Token refresh is also blocked server-side in this state.
+
+See [platform-features/authentication.md — Admin UI Auth](../platform-features/authentication.md) for the full session flow.
 
 ---
 
 ## Dollar Cost
 
-| Resource | Cost |
-|---|---|
-| Operator auth gateway | Platform-dependent (see [platform/gcp.md](../platform/gcp.md)) |
-| Compute | Zero — no server pod |
+| Resource | Allocation | Monthly estimate |
+|---|---|---|
+| CPU request | 0.1 cores | ~$2 |
+| Memory request | 64 MB | ~$0.25 |
 
-The admin UI has essentially zero marginal cost. All compute cost for the operator experience is borne by the control plane.
+The admin UI is a lightweight server-rendered app; its compute cost is small.
 
 ---
 
 ## Operational Cost
 
-- **Upgrades** — the UI is part of the control plane binary. Updates are applied during normal platform upgrades alongside the control plane.
-- **Access management** — operators added/removed via `morsel operator principal add/remove`. No admin UI changes required.
-- **Availability** — the control plane serves the UI. The UI is unavailable only if the control plane is unavailable.
+- **Upgrades** — the admin UI is a separate Deployment but uses the same image as the control plane. Rolling pod replacement via `morsel service deploy`. Brief unavailability during switchover.
+- **Access management** — principals added/removed via `morsel operator principal add/remove`. Password management via the admin UI operators page.
+- **Availability** — the admin UI pod is independent of the control plane pod. Both must be healthy for the full operator experience; the REST API remains available even if the admin UI pod is down.
 
 ---
 
@@ -127,9 +142,11 @@ No scalability considerations for the UI itself. API call throughput is negligib
 
 ## Security
 
-- Platform operator authentication gateway enforces authentication before any content is served — no anonymous access possible
-- Operator principal list is the only access control — managed via `morsel operator principal *`
-- All API calls use HTTPS
+- Login page rejects unauthenticated access — `/login` is the only unauthenticated route
+- Session cookie is HttpOnly, SameSite=Lax, HMAC-SHA256 signed — cannot be forged or read by JavaScript
+- Access token is carried in the session and verified by the control plane on every API call — the admin UI never grants access beyond what the token allows
+- Password reset redirect is enforced at the middleware layer for all protected routes — a user with `password_reset_required` cannot access any other page
+- Admin-only operations (set/invalidate another user's password) are gated at the API layer, not just the UI — the API enforces the `admin` role claim
 
 ---
 
@@ -152,7 +169,7 @@ The cost dashboard is the operator's primary cost visibility tool. Shows total s
 The approvals section is the operator's primary workflow for actioning pending configuration changes. Supports batch approve/reject/ignore with optional rejection reasons. Reconciliation progress is shown inline after a batch action. See [platform-features/approvals.md](../platform-features/approvals.md).
 
 ### Authentication
-The admin UI relies on the platform's operator authentication gateway for authentication — no login screen in the UI itself. Gateway-issued tokens are exchanged for Morsel operator tokens by the control plane and held in the server-side session. See [platform-features/authentication.md](../platform-features/authentication.md).
+The admin UI owns its own login page, HMAC-signed session cookies, and silent token refresh middleware. It calls `POST /api/token/oidc` and `POST /api/token/refresh` on the control plane to obtain and rotate tokens. The password-reset flow is gated in the session middleware before any protected page is rendered. See [platform-features/authentication.md](../platform-features/authentication.md).
 
 ---
 

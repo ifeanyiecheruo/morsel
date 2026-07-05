@@ -27,7 +27,7 @@ The **operator machine** runs the `morsel` CLI to provision the platform. Day-to
 ```text
 +----------------------------------------------------------+  +----------------------------+
 | GitHub                                                   |  | Operator machine           |
-|                                                          |  |  morsel service bootstrap  |
+|                                                          |  |  morsel service deploy     |
 |  +--------------------------------------------------+   |  |  morsel service status     |
 |  | Developer Repo                                   |   |  |  browser -> admin UI       |
 |  +------------------+-------------------------------+   |  +-------------+--------------+
@@ -35,7 +35,7 @@ The **operator machine** runs the `morsel` CLI to provision the platform. Day-to
 |                     |                                   |                | HTTPS
 |  +------------------v-------------------------------+   |                |
 |  | CI-Runner                                        |   |                |
-|  |  1. Exchange OIDC token -> Morsel token          |   |                |
+|  |  1. Exchange deploy identity token -> Morsel token|   |                |
 |  |  2. Build container image                        |   |                |
 |  |  3. Push to staging container registry           |   |                |
 |  |  4. POST app description to /api/repos/:slug/apps|   |                |
@@ -50,8 +50,9 @@ The **operator machine** runs the `morsel` CLI to provision the platform. Day-to
 +----------------------------------------------------------------------------------------+
 | Morsel instance                                                                        |
 |                                                                                        |
-|  Internet-facing:  external LB -> public apps (private: false)                        |
-|                    auth gateway -> Admin UI (operators only)                          |
+|  Internet-facing:  api.<baseDomain>  -> morsel-api (control plane REST API)           |
+|                    admin.<baseDomain> -> morsel-admin-ui (admin UI with login page)   |
+|                    {name}.{repo}.app.<baseDomain> -> public apps (private: false)     |
 |  VPC-internal:     internal LB -> private apps (private: true, no internet exposure)  |
 |                                                                                        |
 |  +----------------------------------------------------------------------------------+ |
@@ -59,11 +60,11 @@ The **operator machine** runs the `morsel` CLI to provision the platform. Day-to
 |  |                                                                                  | |
 |  |  +----------------------------------------------------------------------------+ | |
 |  |  | morsel control plane namespace                                             | | |
-|  |  |  morsel-ctrl-plane                                                                | | |
-|  |  |  Hibernation watcher                                                       | | |
-|  |  |  Wake-on-request proxy                                                     | | |
-|  |  |  Cost enforcement watcher                                                  | | |
-|  |  |  Admin UI                                                                  | | |
+|  |  |  morsel-api (REST API)                                                     | | |
+|  |  |    Hibernation watcher                                                     | | |
+|  |  |    Wake-on-request proxy                                                   | | |
+|  |  |    Cost enforcement watcher                                                | | |
+|  |  |  morsel-admin-ui (separate Deployment, calls morsel-api)                  | | |
 |  |  +----------------------------------------------------------------------------+ | |
 |  |                      | deploys / manages                                        | |
 |  |                      v                                                          | |
@@ -92,7 +93,9 @@ The **operator machine** runs the `morsel` CLI to provision the platform. Day-to
 |                                                                                        |
 |  +------------------------------------------+                                         |
 |  | DNS                                      |                                         |
-|  |  *.apps.example.com -> Load Balancer     |                                         |
+|  |  api.<baseDomain>          -> morsel-api |                                         |
+|  |  admin.<baseDomain>        -> admin-ui   |                                         |
+|  |  *.app.<baseDomain>        -> apps       |                                         |
 |  +------------------------------------------+                                         |
 +----------------------------------------------------------------------------------------+
 ```
@@ -101,11 +104,12 @@ The **operator machine** runs the `morsel` CLI to provision the platform. Day-to
 
 ## Components
 
-### Control Plane
+### Control Plane (`morsel-api`)
 
-The control plane. A Go HTTP service running in the `morsel` namespace. All platform operations flow through it.
+The control plane. An HTTP service running as `morsel-api` in the `morsel` namespace. All platform operations flow through it. The `morsel-ctrl-plane` binary runs two subcommands: `run api` for the control plane and `run admin-ui` for the admin UI, each as separate Kubernetes Deployments.
 
 Responsibilities:
+
 - OIDC token validation and Morsel token issuance
 - App and repo lifecycle (create, update, delete, sync)
 - Image staging handshake and registry copy
@@ -121,7 +125,7 @@ See [components/control-plane.md](components/control-plane.md).
 
 ### Admin UI
 
-A server-rendered multipage app served by the control plane and protected by the platform's operator authentication gateway. The operator's web interface for day-to-day platform management.
+A server-rendered multipage app deployed as a separate Kubernetes Deployment (`morsel-admin-ui`) in the morsel namespace. It is the operator's web interface for day-to-day platform management. It has its own form-based login page (username + password), HMAC-signed session cookies, and calls the control plane REST API for all data. No external authentication gateway is required.
 
 See [components/admin-ui.md](components/admin-ui.md).
 
@@ -168,10 +172,22 @@ Every app in Morsel has a `private` flag (`private: true/false` in `morsel.json`
 
 Morsel achieves this by routing the two app types through separate load balancers:
 
-- **Public apps** (`private: false`) are reachable from the internet via an external load balancer at `*.apps.example.com`. TLS is terminated here.
+- **Public apps** (`private: false`) are reachable from the internet via an external load balancer. TLS is terminated here.
 - **Private apps** (`private: true`) are routed only through an internal load balancer scoped to the VPC — no public IP, no internet path, unreachable by construction.
 
-The Admin UI is internet-facing but gated by the platform's operator authentication gateway, restricting access to authenticated operators. The control plane itself has no public port; it only accepts connections from outbound HTTPS calls by CI runners and the operator CLI — it cannot be reached from a browser.
+### Special-Purpose Subdomains
+
+Three subdomains are reserved for platform services, all on the external (internet-facing) gateway:
+
+| Subdomain | Target | Purpose |
+|---|---|---|
+| `api.<baseDomain>` | `morsel-api` service | Control plane REST API — called by `morsel` CLI, CI runners, and the admin UI |
+| `admin.<baseDomain>` | `morsel-admin-ui` service | Admin UI — form-based login, operator management |
+| `{appName}.{repoName}.app.<baseDomain>` | app's Kubernetes Service | Per-app public hostname for `private: false` apps |
+
+The control plane REST API is internet-reachable at `api.<baseDomain>`. Authentication (JWT bearer tokens) is enforced on every endpoint. The admin UI at `admin.<baseDomain>` has its own login page — no external authentication gateway is required.
+
+On **LocalPlatform** the base domain is `morsel.localhost`, which resolves natively in modern browsers via RFC 6761. A self-signed wildcard TLS certificate is generated for `*.morsel.localhost` during bootstrap.
 
 See [platform-features/networking.md](platform-features/networking.md).
 

@@ -10,7 +10,7 @@ Up: [Index](README.md) · Prev: [Deployment](deployment.md) · Next: [Hibernatio
 
 ## Summary
 
-Morsel uses a two-token model. GitHub Actions workflows exchange a short-lived GitHub OIDC token for a short-lived Morsel access token. Operators exchange a platform identity token for a Morsel access token plus a long-lived refresh token. All access tokens are JWTs verified by signature — no database lookup per request. No long-lived credentials exist anywhere in the system.
+Morsel uses a two-token model. GitHub Actions workflows exchange a short-lived deploy identity token for a short-lived Morsel access token. Operators authenticate with a username and password stored in the platform's `principals` table to obtain a Morsel access token plus a long-lived refresh token. All access tokens are JWTs verified by signature — no database lookup per request.
 
 ---
 
@@ -19,13 +19,14 @@ Morsel uses a two-token model. GitHub Actions workflows exchange a short-lived G
 | Token | Lifetime | Storage | Purpose |
 |---|---|---|---|
 | Deploy identity token | Short-lived | Never stored — ephemeral in the deploy environment | Proof of which repo is deploying; platform-specific form (see below) |
-| Platform identity token | Short-lived | Never stored | Proof of operator identity for Morsel auth |
-| Morsel access token | 15 min (configurable) | In memory only — never written to disk | Bearer token for all control plane calls |
+| Morsel access token | 10 min (developer) / 15 min (operator) | In memory only — never written to disk | Bearer token for all control plane calls |
 | Morsel refresh token | 90 days | SQLite server-side + `~/.config/morsel/<profile>.profile.json` client-side | Silently refreshes the access token |
 
 The deploy identity token form is platform-determined: on GCPPlatform it is a GitHub OIDC JWT; on LocalPlatform it is a locally-signed JWT. In both cases it is submitted to `POST /api/token/deploy` and never persisted.
 
-The access token TTL is the maximum lag before role changes take effect. Revoking a refresh token takes effect within one access token TTL (default 15 minutes).
+Operator passwords are stored as bcrypt hashes in the `principals` table (see [components/control-plane.md](../components/control-plane.md)). The plaintext password is never stored or logged.
+
+The access token TTL is the maximum lag before role changes take effect. A password change immediately invalidates existing refresh tokens — the token refresh endpoint rejects tokens issued before the recorded `password_changed_at` timestamp.
 
 ---
 
@@ -72,22 +73,29 @@ Platform-specific implementations of `DeployToken()` and `ValidateDeployToken()`
 
 ```
 Operator runs: morsel operator login
-  → CLI collects operator credential (platform-determined: email on Local, OAuth on GCP)
-  → POST /api/token/oidc  (request body is platform-determined)
+  → CLI prompts for username and password
+  → POST /api/token/oidc  { username: "alice", password: "<password>" }
 
 control plane
-  → Platform.ValidateOperatorToken(ctx, r) → operator subject
-  → checks identity against configured operator principal(s)
+  → looks up principal in principals table
+  → verifies bcrypt(password) against stored hash
+  → checks password_reset_required flag
   → issues:
-    - Morsel access token (15 min): { sub: "operator:alice@example.com", role: "operator", exp: ... }
+    - Morsel access token (15 min):
+        { sub: "alice", role: "operator", exp: ... }
+        (role is "admin" if the principal has is_admin = 1)
     - Morsel refresh token (90 days): opaque, stored in SQLite
+    - PasswordResetRequired: true if flag is set (operator must change password)
 
 CLI
+  → if PasswordResetRequired, prompts for new password
+  → calls POST /api/operator/password { current_password, new_password }
   → writes profile to ~/.config/morsel/<profile>.profile.json (0600 permissions)
-  → platform credential is discarded — not persisted
 ```
 
-The handler at `POST /api/token/oidc` contains no platform-specific logic. It delegates identity validation entirely to `Platform.ValidateOperatorToken(ctx, r)`, which reads the credential from wherever the platform expects it (request body, injected header, etc.). See [platform/local.md](../platform/local.md) and [platform/gcp.md](../platform/gcp.md) for implementation details.
+If `password_reset_required` is set on the principal, the token pair is returned together with a `password_reset_required: true` flag. The CLI intercepts this and forces an interactive password change before saving the profile. Token refresh is also rejected until the password is changed.
+
+**First-time setup:** `morsel service deploy` calls `POST /bootstrap` after provisioning to create the first admin principal. A random password is generated and printed once. The first principal is always an admin and always has `password_reset_required` set.
 
 ---
 
@@ -98,9 +106,14 @@ On every CLI command:
 1. Load `~/.config/morsel/<profile>.profile.json`
 2. Check `access_token_expires_at` — if valid, proceed
 3. If expired, call `POST /api/token/refresh` silently → update profile on success
-4. If refresh token expired or absent, trigger interactive platform OAuth browser flow
+4. If refresh token expired or absent, prompt for username and password
 
 The operator never sees token expiry in normal use.
+
+`POST /api/token/refresh` rejects tokens in two additional cases:
+
+- `password_reset_required` is set on the principal
+- Token was issued before the principal's `password_changed_at` timestamp (password changed since the token was issued)
 
 Refresh tokens are rotated on every use — the old token is invalidated and a new one is issued. A stolen refresh token can be used at most once before the legitimate user's next refresh invalidates it.
 
@@ -108,9 +121,30 @@ Refresh tokens are rotated on every use — the old token is invalidated and a n
 
 ## Admin UI Auth
 
-The admin UI is protected by the platform's operator authentication gateway. The gateway handles the full OAuth flow before any request reaches the admin UI or the control plane. The operator authenticates with their existing platform identity — no separate password.
+The admin UI has its own form-based login page. No external authentication gateway is involved.
 
-The gateway calls `POST /api/token/oidc` on behalf of the authenticated operator to obtain a Morsel token for API calls made by the UI. The handler delegates identity validation to `Platform.ValidateOperatorToken(ctx, r)`, which reads the platform-specific identity assertion (e.g., an IAP-injected header on GCP). See [platform/gcp.md](../platform/gcp.md) for GCP-specific details.
+```
+Operator navigates to https://admin.<baseDomain>
+  → GET /login  — renders login form
+
+POST /login { username, password }
+  → admin UI calls POST /api/token/oidc { username, password }
+  → on success: stores access token + refresh token in a signed HttpOnly session cookie
+  → if password_reset_required: redirects to /password-reset before any other page
+
+Session cookie:
+  name: morsel_admin
+  format: base64url(JSON) + "." + base64url(HMAC-SHA256)
+  MaxAge: 8 hours (long-lived compared to the 15-min access token)
+  HttpOnly, SameSite=Lax
+
+Silent token refresh:
+  → when access token has < 30 s remaining, the admin UI calls POST /api/token/refresh
+  → on success: writes a new session cookie to the response
+  → on failure: redirects to /login
+```
+
+Admin UI sessions carry the same role-encoded access token as CLI sessions. Pages and actions that require the `admin` role check this claim in the session's access token without a round-trip to the API.
 
 ---
 
@@ -121,23 +155,31 @@ Role is determined at token exchange time and encoded in the access token. No pe
 | Role | How acquired | Encoded in token |
 |---|---|---|
 | `developer` | Deploy identity token exchange (`POST /api/token/deploy`) | `repo: "{slug}"` claim |
-| `operator` | Platform OIDC exchange matching operator principal | `role: "operator"` claim |
+| `operator` | Password exchange (`POST /api/token/oidc`) for a principal where `is_admin = 0` | `role: "operator"` claim |
+| `admin` | Password exchange (`POST /api/token/oidc`) for a principal where `is_admin = 1` | `role: "admin"` claim |
 
-| Operation | Developer | Operator |
-|---|---|---|
-| Deploy, update own repo's apps | ✓ | ✓ |
-| Hibernate, wake, delete own repo's apps | ✓ | ✓ |
-| List and view own repo's apps, cost, and quota | ✓ | ✓ |
-| View pending approvals for own repo | ✓ | ✓ |
-| View all repos and apps | ✗ | ✓ |
-| Batch approve, reject, or ignore approvals | ✗ | ✓ |
-| Transfer app ownership | ✗ | ✓ |
-| Promote repo tier | ✗ | ✓ |
-| Override permanent resource protection (`?force=true`) | ✗ | ✓ |
-| Delete apps from archived or deleted repos | ✗ | ✓ |
-| `morsel service bootstrap` | ✗ | ✓ |
+`admin` is a superset of `operator` — all operator-level access is granted, plus admin-only operations.
+
+| Operation | Developer | Operator | Admin |
+|---|---|---|---|
+| Deploy, update own repo's apps | ✓ | ✓ | ✓ |
+| Hibernate, wake, delete own repo's apps | ✓ | ✓ | ✓ |
+| List and view own repo's apps, cost, and quota | ✓ | ✓ | ✓ |
+| View pending approvals for own repo | ✓ | ✓ | ✓ |
+| View all repos and apps | ✗ | ✓ | ✓ |
+| Batch approve, reject, or ignore approvals | ✗ | ✓ | ✓ |
+| Transfer app ownership | ✗ | ✓ | ✓ |
+| Promote repo tier | ✗ | ✓ | ✓ |
+| Override permanent resource protection (`?force=true`) | ✗ | ✓ | ✓ |
+| Delete apps from archived or deleted repos | ✗ | ✓ | ✓ |
+| `morsel service deploy` | ✗ | ✓ | ✓ |
+| Require password reset for any principal | ✗ | ✓ | ✓ |
+| Set another principal's password | ✗ | ✗ | ✓ |
+| Invalidate another principal's password | ✗ | ✗ | ✓ |
 
 Developers are scoped to their own repo's apps. Any request where the token's `repo` claim does not match the `:slug` in the URL returns 403.
+
+The first principal created via `POST /bootstrap` is always assigned `is_admin = 1`. Subsequent principals added via `morsel operator principal add` default to `is_admin = 0` (operator role).
 
 ---
 
@@ -147,7 +189,7 @@ The `sub` claim in a Morsel token identifies the principal:
 
 ```
 Developer token:  sub = "repo:org/my-repo"
-Operator token:   sub = "operator:alice@example.com"
+Operator token:   sub = "alice"  (the principal's username)
 ```
 
 For developer tokens the subject is the repo slug returned by `Platform.ValidateDeployToken()` — `org/my-repo` on GCPPlatform, `localhost/my-app` on LocalPlatform. It is the stable identity used for all authorization checks — renaming a repo or moving a local directory changes the subject, and the app association must be updated via operator transfer.
@@ -159,14 +201,18 @@ For developer tokens the subject is the repo slug returned by `Platform.Validate
 Revoking a refresh token is a single SQLite delete. The associated access token remains valid until expiry — at most one TTL period (default 15 minutes).
 
 ```
-morsel operator principal remove --principal alice@example.com
+morsel operator principal remove --principal alice
 ```
 
-This revokes all refresh tokens held by that operator principal. Their access token expires within 15 minutes.
+This deletes the principal row and revokes all refresh tokens held by that principal. Their access token expires within 15 minutes.
+
+A password change has an equivalent effect on refresh tokens: `POST /api/token/refresh` rejects any token whose `created_at` is earlier than the principal's `password_changed_at`. This means a password reset forces all existing sessions to re-authenticate.
+
+An admin can also force this effect without changing the password via `POST /api/operator/principals/:principal/invalidate-password`, which sets `password_changed_at = now()` and `password_reset_required = 1`.
 
 ---
 
-## No Long-Lived Credentials
+## Credential Storage
 
 | Relationship | Mechanism | Stored secret? |
 |---|---|---|
@@ -176,19 +222,23 @@ This revokes all refresh tokens held by that operator principal. Their access to
 | control plane → object storage | Ambient cloud identity | No |
 | Cluster nodes → container registry | Ambient node identity | No |
 | Operator CLI → control plane | Morsel refresh token (rotated on use) | Profile file only |
+| Operator → control plane (auth) | bcrypt-hashed password | SQLite `principals` table (server-side only) |
 
 ---
 
 ## Component Contributions
 
 ### Control Plane
-Owns all token exchange endpoints, JWT signing key management, refresh token store in SQLite, and RBAC middleware. See [components/control-plane.md — Authentication](../components/control-plane.md).
+Owns all token exchange endpoints, JWT signing key management, refresh token store in SQLite, RBAC middleware, and the `principals` table (bcrypt password hashes, `password_reset_required`, `password_changed_at`, `is_admin`). See [components/control-plane.md — Authentication](../components/control-plane.md).
+
+### Admin UI
+Owns the form-based login page, HMAC-signed session cookie management, silent token refresh, and the password-reset flow. See [components/admin-ui.md — Authentication](../components/admin-ui.md).
 
 ### CLI
-Owns the platform OAuth browser flow, profile file management, silent refresh logic, and `morsel operator login/logout`. See [components/cli.md — Authentication](../components/cli.md).
+Owns profile file management, interactive username/password prompts, silent refresh logic, `morsel operator login/logout`, and the inline password-change flow for first-login. See [components/cli.md — Authentication](../components/cli.md).
 
 ### Platform
-Owns identity federation configuration, operator auth gateway setup, and the platform-specific token exchange mechanism. See [platform/gcp.md](../platform/gcp.md) for GCP specifics.
+Owns deploy identity token generation and validation (platform-specific). See [platform/gcp.md](../platform/gcp.md) and [platform/local.md](../platform/local.md).
 
 ---
 

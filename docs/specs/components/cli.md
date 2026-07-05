@@ -60,18 +60,21 @@ Operator machine
 
 ```
 # Platform lifecycle (operator, run on operator machine)
-morsel [--profile <name>] service bootstrap --platform <gcp|local> [--kubeconfig <path>]
+morsel [--profile <name>] service deploy --platform <gcp|local> [--kubeconfig <path>]
+                                          [--initial-username <name>] [--out-initial-passwd <file>]
+                                          [--no-login] [--force] [-y]
 morsel [--profile <name>] service status
 morsel [--profile <name>] service delete
 morsel [--profile <name>] service upgrade retry
 
 # Operator management (operator, communicates with control plane)
-morsel [--profile <name>] operator login
+morsel [--profile <name>] operator login [--api-url <url>] [--username <name>] [--password <pw>]
 morsel [--profile <name>] operator logout
 
-morsel [--profile <name>] operator principal add --principal <email>
-morsel [--profile <name>] operator principal remove --principal <email>
+morsel [--profile <name>] operator principal add --principal <username>
+morsel [--profile <name>] operator principal remove --principal <username>
 morsel [--profile <name>] operator principal list
+morsel [--profile <name>] operator principal password-reset --principal <username>
 
 morsel [--profile <name>] operator tier list
 morsel [--profile <name>] operator tier create --name <name> [--max-apps <n>] [--cpu <cores>] [--memory <MB>] [--blob <GB>] [--database <GB>] [--queues <GB>] [--hibernate-after <duration>]
@@ -100,15 +103,16 @@ morsel [--profile <name>] app deploy
 
 | Command | Audience | Purpose |
 |---|---|---|
-| `service bootstrap --platform gcp\|local` | Operator | Install or upgrade the platform. |
+| `service deploy --platform gcp\|local` | Operator | Install or upgrade the platform. On first run, creates the initial admin principal and prints the generated password. |
 | `service status` | Operator | Report the health of all platform components without making changes. |
 | `service delete` | Operator | Tear down all platform resources. Requires explicit confirmation. Designer use only. |
 | `service upgrade retry` | Operator | Retry app redeployments that failed during the most recent platform upgrade. |
-| `operator login` | Operator | Authenticate to the Morsel instance. Platform OAuth browser flow. Writes profile on success. |
+| `operator login` | Operator | Authenticate to the Morsel instance. Prompts for username and password. Writes profile on success. If `password_reset_required` is set, prompts for a new password inline. |
 | `operator logout` | Operator | Revoke refresh token server-side. Delete profile file. |
-| `operator principal add` | Operator | Grant admin UI access to a principal identity (platform-specific; see [platform/gcp.md](../platform/gcp.md)). |
-| `operator principal remove` | Operator | Revoke admin UI access from a principal. |
-| `operator principal list` | Operator | List all principals with admin UI access. |
+| `operator principal add` | Operator | Add a new principal to the operator principals list (no password set initially). |
+| `operator principal remove` | Operator | Remove a principal and revoke all their refresh tokens. |
+| `operator principal list` | Operator | List all principals with their username and password-reset-required flag. |
+| `operator principal password-reset` | Operator | Mark a principal as requiring a password reset on next login. |
 | `operator tier list` | Operator | List all configured quota tiers. |
 | `operator tier create` | Operator | Create a new quota tier. |
 | `operator tier edit` | Operator | Edit limits on an existing tier. Changes apply immediately to all repos on that tier. |
@@ -123,9 +127,9 @@ morsel [--profile <name>] app deploy
 
 ---
 
-## Bootstrap Phases
+## Deploy Phases
 
-`morsel service bootstrap` runs four phases in sequence. Each phase is fully idempotent.
+`morsel service deploy` runs four phases in sequence. Each phase is fully idempotent.
 
 ### Phase 1 — Authentication
 
@@ -133,7 +137,7 @@ Platform-specific.
 
 **GCPPlatform:** Browser opens to the GCP OAuth consent screen. Operator authenticates. OAuth token is returned to a localhost callback listener in the binary. Token is held in memory only — never persisted.
 
-**LocalPlatform:** No OAuth flow. Bootstrap verifies cluster access using the kubeconfig provided via `--kubeconfig` (or detected from `$KUBECONFIG` / `~/.kube/config` with confirmation). The cluster server URL is written to the profile and all future commands for this profile verify it has not changed.
+**LocalPlatform:** No OAuth flow. Deploy verifies cluster access using the kubeconfig provided via `--kubeconfig` (or detected from `$KUBECONFIG` / `~/.kube/config` with confirmation). The cluster server URL is written to the profile and all future commands for this profile verify it has not changed.
 
 ### Phase 2 — Preflight Checks
 
@@ -168,12 +172,19 @@ Resources are created in dependency order with friendly progress output. Raw API
 ✓ Platform secret store provisioned
 ✓ Control plane installed
 ✓ Admin UI installed
-✓ Operator authentication gateway configured
-✓ Operator access granted
-  Waiting for TLS certificate…
-✓ TLS certificate issued
-✓ Smoke test passed
+  Waiting for morsel-api to become healthy…
+✓ morsel-api ready
+Initial operator "admin" password: <generated-password>
+Logged in as "admin".
 ```
+
+After provisioning, `morsel service deploy` calls `POST /bootstrap` with a randomly generated password and the one-time bootstrap token from the cluster. On success (201) the password is printed once and the CLI auto-logs in (unless `--no-login` is given). On subsequent runs the 409 Conflict response is silently ignored — no new principal is created.
+
+Flags:
+
+- `--initial-username` (default: `admin`) — username for the first principal
+- `--out-initial-passwd <file>` — write the password to a file instead of printing
+- `--no-login` — skip automatic login after first-time bootstrap
 
 Note: the exact step names are platform-specific. See [platform/gcp.md](../platform/gcp.md) for the GCP output.
 
@@ -190,7 +201,7 @@ GCPPlatform profile:
   "platform": "gcp",
   "project": "morsel-prod",
   "region": "us-central1",
-  "api_url": "https://admin.apps.example.com",
+  "api_url": "https://api.example.com",
   "access_token": "eyJ...",
   "access_token_expires_at": "2026-05-26T10:15:00Z",
   "refresh_token": "mrl_...",
@@ -204,15 +215,17 @@ LocalPlatform profile:
 {
   "platform": "local",
   "kubeconfig": "/Users/alice/.kube/config",
-  "kubecontext": "docker-desktop",
+  "kubecontext": "k3d-morsel-local",
   "cluster_server": "https://127.0.0.1:6443",
-  "api_url": "https://morsel-api.morsel.svc.cluster.local:8080",
+  "api_url": "http://localhost:18080",
   "access_token": "eyJ...",
   "access_token_expires_at": "2026-06-08T10:15:00Z",
   "refresh_token": "mrl_...",
   "refresh_token_expires_at": "2026-09-08T10:00:00Z"
 }
 ```
+
+On LocalPlatform the API is also reachable through the Gateway at `https://api.morsel.localhost` after bootstrap. The profile stores `http://localhost:18080` (the NodePort) for direct CLI access without requiring DNS resolution.
 
 `kubeconfig`, `kubecontext`, and `cluster_server` are locked at bootstrap. On every subsequent command, the CLI resolves `kubecontext` from the saved `kubeconfig` path, reads the current server URL, and exits with an error if it does not match `cluster_server`.
 

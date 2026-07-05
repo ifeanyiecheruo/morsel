@@ -29,6 +29,12 @@ The operator's task surface is deliberately narrow:
 
 ---
 
+## Admin
+
+A special operator role assigned to the first principal created at bootstrap. The admin role is a superset of operator: all operator actions are available plus password management for other principals (set password, force password reset, invalidate credentials).
+
+---
+
 ## Designer / implementer
 
 Builds and evolves the platform itself. Comfortable with Kubernetes internals and cloud infrastructure. Interacts with the full stack. This role is not the operator — complexity is acceptable here because it is absorbed once during construction and rarely during maintenance.

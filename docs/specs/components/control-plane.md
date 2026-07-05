@@ -20,12 +20,13 @@ The control plane is a single Go binary running as a Kubernetes Deployment in th
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ Control Plane / morsel-ctrl-plane (morsel namespace)                                    │
+│ morsel-api Deployment (morsel namespace)                         │
 │                                                                  │
 │  ┌──────────────────┐   ┌───────────────────┐                   │
 │  │  HTTP server     │   │  Background tasks │                   │
-│  │  /api/token/*    │   │  Hibernation      │                   │
-│  │  /api/repos/*    │   │  watcher          │                   │
+│  │  POST /bootstrap │   │  Hibernation      │                   │
+│  │  /api/token/*    │   │  watcher          │                   │
+│  │  /api/repos/*    │   │  Cost enforcement │                   │
 │  │  /api/operator/* │   │  Cert renewal     │                   │
 │  └────────┬─────────┘   │  Approval expiry  │                   │
 │           │             └────────┬──────────┘                   │
@@ -37,7 +38,7 @@ The control plane is a single Go binary running as a Kubernetes Deployment in th
 │  ┌────────▼─────────────────────────────────┐                   │
 │  │  SQLite (PersistentVolume)               │                   │
 │  │  repos · apps · tokens · approvals ·    │                   │
-│  │  image digests · operations              │                   │
+│  │  principals · image digests · operations │                   │
 │  └──────────────────────────────────────────┘                   │
 └──────────────────────────┬───────────────────────────────────────┘
                            │
@@ -70,13 +71,17 @@ The control plane is a single Go binary running as a Kubernetes Deployment in th
 
 ## Functionality
 
+### Bootstrap
+
+- `POST /bootstrap` — creates the first admin principal. Called by `morsel service deploy` immediately after provisioning. Requires an `X-Bootstrap-Token` header matching a one-time token written to the cluster before the pod started. Returns 201 on first call; 409 Conflict if any principals already exist. The first principal is always assigned `is_admin = 1` and `password_reset_required = 1`. The bootstrap token is deleted after use.
+
 ### Token Exchange
 
 Issues Morsel access tokens from trusted identity sources. The access token is a signed JWT — no database lookup is required per request.
 
-- `POST /api/token/github-oidc` — validates GitHub OIDC JWT, issues 10-min developer access token
-- `POST /api/token/platform-oidc` — validates platform identity token, checks operator principal, issues 15-min operator access token + 90-day refresh token (endpoint path is platform-specific; see [platform/gcp.md](../platform/gcp.md))
-- `POST /api/token/refresh` — validates refresh token, issues new access token + rotated refresh token
+- `POST /api/token/deploy` — validates a deploy identity token (platform-specific form), issues 10-min developer access token scoped to the repo slug
+- `POST /api/token/oidc` — validates username + password against the `principals` table (bcrypt), issues 15-min operator access token + 90-day refresh token; role is `operator` or `admin` based on the principal's `is_admin` flag; returns `password_reset_required: true` when the flag is set
+- `POST /api/token/refresh` — validates refresh token, issues new access token + rotated refresh token; rejects if `password_reset_required` is set or if the token was issued before `password_changed_at`
 
 ### App Lifecycle
 
@@ -108,11 +113,27 @@ Issues Morsel access tokens from trusted identity sources. The access token is a
 - `GET /api/operator/approvals/:id` — single approval detail
 - `POST /api/operator/approvals/batch` — action multiple approvals
 - `GET /api/operator/cost` — platform-wide cost estimate
-- `GET /api/operator/status` — platform health summary
+- `GET /api/operator/prices/history` — price snapshot history for debugging cost estimate changes
+- `GET /api/operator/status` — platform health summary (cert expiry, stale price snapshot warning)
+- `GET /api/operator/deployment` — deployment info (platform name, namespace)
+- `GET /api/operator/apps` — list all apps across all repos with tier and estimated monthly cost
+- `GET /api/operator/stale` — list apps not deployed in 30 days and not suppressed
+- `POST /api/operator/stale/:org/:repo/:appName/ignore` — suppress stale notification for an app for 30 days
+
+### Principal Management
+
+- `GET /api/operator/principals` — list all principals with username, password_reset_required, and is_admin
+- `POST /api/operator/principals` — add a new principal (username only; no password set initially)
+- `DELETE /api/operator/principals/:principal` — remove a principal and revoke all their refresh tokens
+- `POST /api/operator/principals/:principal/require-password-reset` — mark principal as requiring a password reset
+- `POST /api/operator/principals/:principal/set-password` — **(admin-only)** set a password for another principal, with optional `invalidate: true` to force reset on next login
+- `POST /api/operator/principals/:principal/invalidate-password` — **(admin-only)** set `password_reset_required = 1` and update `password_changed_at` to now, invalidating all existing tokens
+- `POST /api/operator/password` — change own password (requires current password; updates `password_changed_at`)
 
 ### Staging Handshake
 
 On each deploy:
+
 1. Validates the Morsel token and repo claim
 2. Confirms the image digest exists in the staging container registry
 3. Performs a registry-side copy: staging → canonical (metadata operation, no image data transferred)
@@ -261,17 +282,19 @@ To add a schema change: create the next numbered file (e.g. `002_add_refresh_tok
 | `apps` | One row per declared app; tracks type, status, image digests, namespace, and deletion state |
 | `operations` | Async operation log; each deploy, delete, hibernate, or wake creates a row polled by the client |
 
-Additional tables are added in later features:
+Additional tables support authentication, quotas, approvals, hibernation, and cost controls:
 
-| Table | Added in | Purpose |
-| --- | --- | --- |
-| `refresh_tokens` | Feature 3 | Refresh token store for token rotation |
-| `platform_config` | Feature 17 | Budget ceiling and platform-wide settings |
-| `tiers` | Feature 14 | Quota tier definitions |
-| `approvals` | Feature 15 | Pending protected-field change approvals |
-| `scale_events` | Feature 16 | Hibernation/wake transitions for cost estimation |
-| `price_snapshots` | Feature 16 | Immutable per-fetch price records |
-| `exemptions` | Feature 17 | App and repo budget exemptions |
+| Table | Purpose |
+| --- | --- |
+| `refresh_tokens` | Refresh token store for token rotation |
+| `principals` | Operator accounts: username, bcrypt password hash, `password_reset_required`, `password_changed_at`, `is_admin` |
+| `platform_config` | Budget ceiling and platform-wide settings |
+| `tiers` | Quota tier definitions |
+| `approvals` | Pending protected-field change approvals |
+| `scale_events` | Hibernation/wake transitions for cost estimation |
+| `price_snapshots` | Immutable per-fetch price records |
+| `exemptions` | App and repo budget exemptions |
+| `stale_suppressed` | Per-app stale-notification suppression records with expiry |
 
 ### Key Column Conventions
 
@@ -287,9 +310,12 @@ Additional tables are added in later features:
 - JWT signing key stored in the platform secret store — the API loads it at startup and holds it in memory
 - All platform API calls via ambient cloud identity — no credential files
 - `client-go` uses the pod's ambient service account — no kubeconfig on disk
-- RBAC enforced at the middleware layer — `repo` claim verified on every developer request
+- RBAC enforced at the middleware layer — `repo` claim verified on every developer request; `admin` role required for principal password management
 - Permanent resource protection — `?force=true` restricted to operator role
+- Operator passwords stored as bcrypt hashes (`bcrypt.DefaultCost`) — plaintext never logged or stored
 - Refresh token rotation on every use — stolen token usable at most once
+- Refresh tokens invalidated by password change — `password_changed_at` checked on every refresh
+- Bootstrap token is single-use — deleted from the secret store after the first principal is created
 - No pod logs in error responses — prevents sensitive data leakage
 
 ---
