@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
-description: The set of principals (email addresses) authorised to access the operator UI.
+description: The set of principals authorised to access the operator UI.
 type: object
 required: [principals]
 properties:
   principals:
-    description: Email addresses of all authorised operator principals.
+    description: All authorised operator principals.
     type: array
     items:
-      type: string
+      $ref: './OperatorPrincipalDetail.yaml'

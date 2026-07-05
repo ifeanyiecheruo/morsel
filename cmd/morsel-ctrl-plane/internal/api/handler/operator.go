@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
@@ -244,11 +246,7 @@ func (h *Handler) ListOperatorPrincipals(ctx context.Context) (server.ListOperat
 	if err := requireOperator(ctx); err != nil {
 		return nil, err
 	}
-	principals, err := h.store.ListPrincipals(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read principals: %w", err)
-	}
-	return &server.OperatorPrincipals{Principals: principals}, nil
+	return h.listPrincipalsResponse(ctx)
 }
 
 func (h *Handler) AddOperatorPrincipal(ctx context.Context, req *server.PrincipalReq) (server.AddOperatorPrincipalRes, error) {
@@ -258,11 +256,7 @@ func (h *Handler) AddOperatorPrincipal(ctx context.Context, req *server.Principa
 	if err := h.store.AddPrincipal(ctx, req.Principal); err != nil {
 		return nil, fmt.Errorf("add principal: %w", err)
 	}
-	principals, err := h.store.ListPrincipals(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read principals: %w", err)
-	}
-	return &server.OperatorPrincipals{Principals: principals}, nil
+	return h.listPrincipalsResponse(ctx)
 }
 
 func (h *Handler) RemoveOperatorPrincipal(ctx context.Context, params server.RemoveOperatorPrincipalParams) (server.RemoveOperatorPrincipalRes, error) {
@@ -272,11 +266,151 @@ func (h *Handler) RemoveOperatorPrincipal(ctx context.Context, params server.Rem
 	if err := h.store.RemovePrincipal(ctx, params.Principal); err != nil {
 		return nil, fmt.Errorf("remove principal: %w", err)
 	}
-	principals, err := h.store.ListPrincipals(ctx)
+	return h.listPrincipalsResponse(ctx)
+}
+
+func (h *Handler) RequirePasswordResetForPrincipal(ctx context.Context, params server.RequirePasswordResetForPrincipalParams) (server.RequirePasswordResetForPrincipalRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	exists, err := h.store.PrincipalExists(ctx, params.Principal)
+	if err != nil {
+		return nil, fmt.Errorf("check principal: %w", err)
+	}
+	if !exists {
+		return nil, &apiError{
+			httpStatus: http.StatusNotFound,
+			code:       "not_found",
+			message:    fmt.Sprintf("principal %q not found", params.Principal),
+			remedy:     "check the principal identity with: morsel operator principal list",
+		}
+	}
+	if err := h.store.SetPasswordResetRequired(ctx, params.Principal, true); err != nil {
+		return nil, fmt.Errorf("set password reset required: %w", err)
+	}
+	return &server.RequirePasswordResetForPrincipalNoContent{}, nil
+}
+
+func (h *Handler) ResetOperatorPassword(ctx context.Context, req *server.ChangePasswordReq) (server.ResetOperatorPasswordRes, error) {
+	if err := requireOperator(ctx); err != nil {
+		return nil, err
+	}
+	claims := claimsFromContext(ctx)
+	if claims == nil {
+		return nil, &apiError{
+			httpStatus: http.StatusUnauthorized,
+			code:       "invalid_token",
+			message:    "could not identify operator from token",
+			remedy:     "re-authenticate to obtain a fresh token",
+		}
+	}
+
+	storedHash, err := h.store.GetPrincipalPasswordHash(ctx, claims.Subject)
+	if err != nil {
+		return nil, fmt.Errorf("get password hash: %w", err)
+	}
+	if !storedHash.Valid || storedHash.String == "" {
+		return nil, &apiError{
+			httpStatus: http.StatusUnprocessableEntity,
+			code:       "no_password_set",
+			message:    "no password is set for this principal",
+			remedy:     "ask an admin to set a new password for your account",
+		}
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(storedHash.String), []byte(req.CurrentPassword)); err != nil {
+		return nil, &apiError{
+			httpStatus: http.StatusUnprocessableEntity,
+			code:       "invalid_current_password",
+			message:    "current password is incorrect",
+			remedy:     "provide the correct current password",
+		}
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+	if err := h.store.AddPrincipalWithPasswordHash(ctx, claims.Subject, string(newHash)); err != nil {
+		return nil, fmt.Errorf("set password: %w", err)
+	}
+	if err := h.store.SetPasswordChangedAt(ctx, claims.Subject, time.Now()); err != nil {
+		return nil, fmt.Errorf("record password change: %w", err)
+	}
+	return &server.ResetOperatorPasswordNoContent{}, nil
+}
+
+func (h *Handler) SetOperatorPrincipalPassword(ctx context.Context, req *server.SetPrincipalPasswordReq, params server.SetOperatorPrincipalPasswordParams) (server.SetOperatorPrincipalPasswordRes, error) {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	exists, err := h.store.PrincipalExists(ctx, params.Principal)
+	if err != nil {
+		return nil, fmt.Errorf("check principal: %w", err)
+	}
+	if !exists {
+		return nil, &apiError{
+			httpStatus: http.StatusNotFound,
+			code:       "not_found",
+			message:    fmt.Sprintf("principal %q not found", params.Principal),
+			remedy:     "check the principal identity with: morsel operator principal list",
+		}
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+	if err := h.store.AddPrincipalWithPasswordHash(ctx, params.Principal, string(hash)); err != nil {
+		return nil, fmt.Errorf("set password: %w", err)
+	}
+	now := time.Now()
+	if err := h.store.SetPasswordChangedAt(ctx, params.Principal, now); err != nil {
+		return nil, fmt.Errorf("record password change: %w", err)
+	}
+	if req.Invalidate.Or(false) {
+		if err := h.store.SetPasswordResetRequired(ctx, params.Principal, true); err != nil {
+			return nil, fmt.Errorf("set password reset required: %w", err)
+		}
+	}
+	return &server.SetOperatorPrincipalPasswordNoContent{}, nil
+}
+
+func (h *Handler) InvalidateOperatorPrincipalPassword(ctx context.Context, params server.InvalidateOperatorPrincipalPasswordParams) (server.InvalidateOperatorPrincipalPasswordRes, error) {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	exists, err := h.store.PrincipalExists(ctx, params.Principal)
+	if err != nil {
+		return nil, fmt.Errorf("check principal: %w", err)
+	}
+	if !exists {
+		return nil, &apiError{
+			httpStatus: http.StatusNotFound,
+			code:       "not_found",
+			message:    fmt.Sprintf("principal %q not found", params.Principal),
+			remedy:     "check the principal identity with: morsel operator principal list",
+		}
+	}
+	if err := h.store.InvalidatePrincipalPassword(ctx, params.Principal, time.Now()); err != nil {
+		return nil, fmt.Errorf("invalidate password: %w", err)
+	}
+	return &server.InvalidateOperatorPrincipalPasswordNoContent{}, nil
+}
+
+// listPrincipalsResponse returns an OperatorPrincipals response populated with details.
+func (h *Handler) listPrincipalsResponse(ctx context.Context) (*server.OperatorPrincipals, error) {
+	details, err := h.store.ListPrincipalsWithDetails(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read principals: %w", err)
 	}
-	return &server.OperatorPrincipals{Principals: principals}, nil
+	items := make([]server.OperatorPrincipalDetail, len(details))
+	for i, d := range details {
+		items[i] = server.OperatorPrincipalDetail{
+			Username:              d.Username,
+			PasswordResetRequired: d.PasswordResetRequired,
+			IsAdmin:               d.IsAdmin,
+		}
+	}
+	return &server.OperatorPrincipals{Principals: items}, nil
 }
 
 // ── Exemptions ────────────────────────────────────────────────────────────────

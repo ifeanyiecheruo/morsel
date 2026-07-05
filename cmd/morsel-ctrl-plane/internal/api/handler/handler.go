@@ -148,15 +148,29 @@ func checkRepoAccess(ctx context.Context, org, repo string) error {
 	return nil
 }
 
-// requireOperator enforces the operator role.
+// requireOperator enforces operator-or-admin role.
 func requireOperator(ctx context.Context) error {
 	claims := claimsFromContext(ctx)
-	if claims == nil || claims.Role != tokens.RoleOperator {
+	if claims == nil || !tokens.IsOperatorRole(claims.Role) {
 		return &apiError{
 			httpStatus: http.StatusForbidden,
 			code:       "insufficient_role",
 			message:    "this operation requires operator role",
 			remedy:     "log in as a platform operator",
+		}
+	}
+	return nil
+}
+
+// requireAdmin enforces admin role.
+func requireAdmin(ctx context.Context) error {
+	claims := claimsFromContext(ctx)
+	if claims == nil || claims.Role != tokens.RoleAdmin {
+		return &apiError{
+			httpStatus: http.StatusForbidden,
+			code:       "insufficient_role",
+			message:    "this operation requires admin role",
+			remedy:     "log in as an admin operator",
 		}
 	}
 	return nil

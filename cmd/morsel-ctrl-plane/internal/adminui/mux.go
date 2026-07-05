@@ -48,6 +48,15 @@ func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, session
 	mux.Handle("GET /stale", protected(http.HandlerFunc(h.ServeStale)))
 	mux.Handle("POST /stale/{org}/{repo}/{appName}/ignore", protected(http.HandlerFunc(h.HandleStaleIgnore)))
 
+	mux.Handle("GET /operators", protected(http.HandlerFunc(h.ServeOperators)))
+	mux.Handle("POST /operators/{principal}/require-password-reset", protected(http.HandlerFunc(h.HandleRequirePasswordReset)))
+	mux.Handle("POST /operators/{principal}/invalidate-password", protected(http.HandlerFunc(h.HandleInvalidatePrincipalPassword)))
+	mux.Handle("POST /operators/{principal}/set-password", protected(http.HandlerFunc(h.HandleSetPrincipalPassword)))
+
+	// Password reset — accessible to any authenticated session (including those with PasswordResetRequired set).
+	mux.Handle("GET /password-reset", h.RequireSession(http.HandlerFunc(h.ServePasswordReset)))
+	mux.Handle("POST /password-reset", h.RequireSession(http.HandlerFunc(h.HandlePasswordReset)))
+
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})

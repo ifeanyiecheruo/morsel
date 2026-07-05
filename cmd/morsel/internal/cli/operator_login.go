@@ -56,9 +56,37 @@ func (c *cli) operatorLoginCmd() *cobra.Command {
 				password = strings.TrimRight(line, "\r\n")
 			}
 
-			prof, err := c.handler.OperatorLogin(cmd.Context(), apiURL, username, password)
+			prof, passwordResetRequired, err := c.handler.OperatorLogin(cmd.Context(), apiURL, username, password)
 			if err != nil {
 				return err
+			}
+
+			if passwordResetRequired {
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Your password must be changed before you can continue."); err != nil {
+					return fmt.Errorf("write prompt: %w", err)
+				}
+				if _, err := fmt.Fprint(cmd.OutOrStdout(), "New password: "); err != nil {
+					return fmt.Errorf("write prompt: %w", err)
+				}
+				newPassword, err := reader.ReadString('\n')
+				if err != nil {
+					return fmt.Errorf("read new password: %w", err)
+				}
+				newPassword = strings.TrimRight(newPassword, "\r\n")
+				if _, err := fmt.Fprint(cmd.OutOrStdout(), "Confirm new password: "); err != nil {
+					return fmt.Errorf("write prompt: %w", err)
+				}
+				confirm, err := reader.ReadString('\n')
+				if err != nil {
+					return fmt.Errorf("read confirmation: %w", err)
+				}
+				confirm = strings.TrimRight(confirm, "\r\n")
+				if newPassword != confirm {
+					return fmt.Errorf("passwords do not match")
+				}
+				if err := c.handler.OperatorChangePassword(cmd.Context(), prof, newPassword); err != nil {
+					return err
+				}
 			}
 
 			if err := c.handler.SaveProfile(cmd.Context(), c.profileName, prof); err != nil {
@@ -74,25 +102,43 @@ func (c *cli) operatorLoginCmd() *cobra.Command {
 	return cmd
 }
 
-func (h *cliHandler) OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, error) {
-	client, err := client.New(apiURL, "")
+func (h *cliHandler) OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, bool, error) {
+	c, err := client.New(apiURL, "")
 	if err != nil {
-		return nil, fmt.Errorf("build api client: %w", err)
+		return nil, false, fmt.Errorf("build api client: %w", err)
 	}
-	resp, err := client.Inner().TokenOIDC(ctx, &oas.TokenOIDCReq{Username: username, Password: password})
+	resp, err := c.Inner().TokenOIDC(ctx, &oas.TokenOIDCReq{Username: username, Password: password})
 	if err != nil {
-		return nil, fmt.Errorf("authenticate: %w", err)
+		return nil, false, fmt.Errorf("authenticate: %w", err)
 	}
 	pair, ok := resp.(*oas.TokenPairResponse)
 	if !ok {
-		return nil, fmt.Errorf("login rejected: credentials not authorized")
+		return nil, false, fmt.Errorf("login rejected: credentials not authorized")
 	}
 	now := time.Now()
-	return &Profile{
+	prof := &Profile{
 		APIURL:                apiURL,
 		AccessToken:           pair.AccessToken,
 		AccessTokenExpiresAt:  now.Add(time.Duration(pair.ExpiresIn) * time.Second).UTC().Format(time.RFC3339),
 		RefreshToken:          pair.RefreshToken,
 		RefreshTokenExpiresAt: now.Add(time.Duration(pair.RefreshExpiresIn) * time.Second).UTC().Format(time.RFC3339),
-	}, nil
+	}
+	return prof, pair.PasswordResetRequired.Value, nil
+}
+
+func (h *cliHandler) OperatorChangePassword(ctx context.Context, prof *Profile, newPassword string) error {
+	c, err := h.clientFor(prof)
+	if err != nil {
+		return err
+	}
+	res, err := c.Inner().ResetOperatorPassword(ctx, &oas.ChangePasswordReq{NewPassword: newPassword})
+	if err != nil {
+		return fmt.Errorf("change password: %w", err)
+	}
+	switch res.(type) {
+	case *oas.ResetOperatorPasswordNoContent:
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
 }

@@ -226,6 +226,17 @@ func (UnimplementedHandler) HibernateApp(ctx context.Context, params HibernateAp
 	return r, ht.ErrNotImplemented
 }
 
+// InvalidateOperatorPrincipalPassword implements invalidateOperatorPrincipalPassword operation.
+//
+// Admin-only. Marks the specified principal as requiring a password reset and immediately invalidates
+// all existing refresh tokens. The password hash is preserved so the principal can still perform a
+// self-service reset using their old password via POST /api/operator/password.
+//
+// POST /api/operator/principals/{principal}/invalidate-password
+func (UnimplementedHandler) InvalidateOperatorPrincipalPassword(ctx context.Context, params InvalidateOperatorPrincipalPasswordParams) (r InvalidateOperatorPrincipalPasswordRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // ListApps implements listApps operation.
 //
 // Returns every app currently deployed in the repo, including their status and image.
@@ -332,12 +343,43 @@ func (UnimplementedHandler) RemoveRepoExemption(ctx context.Context, params Remo
 	return r, ht.ErrNotImplemented
 }
 
+// RequirePasswordResetForPrincipal implements requirePasswordResetForPrincipal operation.
+//
+// Flags the specified principal so they must change their password on next login.
+//
+// POST /api/operator/principals/{principal}/require-password-reset
+func (UnimplementedHandler) RequirePasswordResetForPrincipal(ctx context.Context, params RequirePasswordResetForPrincipalParams) (r RequirePasswordResetForPrincipalRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// ResetOperatorPassword implements resetOperatorPassword operation.
+//
+// Self-service password reset. The operator must supply their current password for verification. On
+// success, the password-reset flag is cleared and all refresh tokens issued before this change are
+// invalidated.
+//
+// POST /api/operator/password
+func (UnimplementedHandler) ResetOperatorPassword(ctx context.Context, req *ChangePasswordReq) (r ResetOperatorPasswordRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
 // SetDefaultTier implements setDefaultTier operation.
 //
 // Set the platform default tier for new repos.
 //
 // POST /api/operator/tiers/{name}/set-default
 func (UnimplementedHandler) SetDefaultTier(ctx context.Context, params SetDefaultTierParams) (r SetDefaultTierRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// SetOperatorPrincipalPassword implements setOperatorPrincipalPassword operation.
+//
+// Admin-only. Sets a new password for the specified principal without requiring the current password.
+// If `invalidate` is true, the principal will be required to change their password on next login
+// (temporary password flow). Invalidates all existing refresh tokens for that principal.
+//
+// POST /api/operator/principals/{principal}/set-password
+func (UnimplementedHandler) SetOperatorPrincipalPassword(ctx context.Context, req *SetPrincipalPasswordReq, params SetOperatorPrincipalPasswordParams) (r SetOperatorPrincipalPasswordRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

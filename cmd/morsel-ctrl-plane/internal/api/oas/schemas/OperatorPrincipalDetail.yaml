@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://json-schema.org/draft/2019-09/schema
+description: An operator principal with its current status.
+type: object
+required: [username, password_reset_required, is_admin]
+properties:
+  username:
+    description: The principal's identity (email address).
+    type: string
+  password_reset_required:
+    description: Whether this principal must change their password on next login.
+    type: boolean
+  is_admin:
+    description: Whether this principal has admin privileges.
+    type: boolean

@@ -4,6 +4,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	dbqueries "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db/queries"
@@ -71,6 +72,118 @@ func (s *Store) AddPrincipalWithPasswordHash(ctx context.Context, username, hash
 	return s.q.SetPrincipalPasswordHash(ctx, dbqueries.SetPrincipalPasswordHashParams{
 		PasswordHash: sql.NullString{String: hash, Valid: true},
 		Username:     username,
+	})
+}
+
+// ListPrincipalsWithDetails returns all operator principals with their status fields.
+type PrincipalDetail struct {
+	Username              string
+	PasswordResetRequired bool
+	IsAdmin               bool
+}
+
+func (s *Store) ListPrincipalsWithDetails(ctx context.Context) ([]PrincipalDetail, error) {
+	rows, err := s.q.ListPrincipalsWithDetails(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PrincipalDetail, len(rows))
+	for i, r := range rows {
+		out[i] = PrincipalDetail{
+			Username:              r.Username,
+			PasswordResetRequired: r.PasswordResetRequired != 0,
+			IsAdmin:               r.IsAdmin != 0,
+		}
+	}
+	return out, nil
+}
+
+// IsAdmin reports whether the principal has admin privileges.
+func (s *Store) IsAdmin(ctx context.Context, username string) (bool, error) {
+	v, err := s.q.GetPrincipalIsAdmin(ctx, username)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return v != 0, nil
+}
+
+// SetAdmin grants or revokes admin privileges for a principal.
+func (s *Store) SetAdmin(ctx context.Context, username string, isAdmin bool) error {
+	var v int64
+	if isAdmin {
+		v = 1
+	}
+	return s.q.SetPrincipalIsAdmin(ctx, dbqueries.SetPrincipalIsAdminParams{
+		Username: username,
+		IsAdmin:  v,
+	})
+}
+
+// CountAdmins returns the number of principals with admin privileges.
+func (s *Store) CountAdmins(ctx context.Context) (int64, error) {
+	return s.q.CountAdmins(ctx)
+}
+
+// InvalidatePrincipalPassword clears the password hash and forces a password reset.
+// All existing refresh tokens for the principal become invalid via password_changed_at.
+func (s *Store) InvalidatePrincipalPassword(ctx context.Context, username string, at time.Time) error {
+	return s.q.InvalidatePrincipalPassword(ctx, dbqueries.InvalidatePrincipalPasswordParams{
+		Username:          username,
+		PasswordChangedAt: sql.NullTime{Time: at, Valid: true},
+	})
+}
+
+// GetPasswordResetRequired returns whether the principal must change their password on next login.
+// Returns false if the principal does not exist.
+func (s *Store) GetPasswordResetRequired(ctx context.Context, username string) (bool, error) {
+	v, err := s.q.GetPrincipalPasswordResetRequired(ctx, username)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return v != 0, nil
+}
+
+// SetPasswordResetRequired sets or clears the password-reset-required flag for a principal.
+func (s *Store) SetPasswordResetRequired(ctx context.Context, username string, required bool) error {
+	var v int64
+	if required {
+		v = 1
+	}
+	return s.q.SetPrincipalPasswordResetRequired(ctx, dbqueries.SetPrincipalPasswordResetRequiredParams{
+		Username:              username,
+		PasswordResetRequired: v,
+	})
+}
+
+// PrincipalSecurityState holds the fields needed for token-refresh security checks.
+type PrincipalSecurityState struct {
+	PasswordResetRequired bool
+	PasswordChangedAt     sql.NullTime
+}
+
+// GetPrincipalSecurityState returns the security-relevant fields for a principal.
+func (s *Store) GetPrincipalSecurityState(ctx context.Context, username string) (PrincipalSecurityState, error) {
+	row, err := s.q.GetPrincipalSecurityState(ctx, username)
+	if err != nil {
+		return PrincipalSecurityState{}, err
+	}
+	return PrincipalSecurityState{
+		PasswordResetRequired: row.PasswordResetRequired != 0,
+		PasswordChangedAt:     row.PasswordChangedAt,
+	}, nil
+}
+
+// SetPasswordChangedAt records the current time as password_changed_at and clears password_reset_required.
+func (s *Store) SetPasswordChangedAt(ctx context.Context, username string, changedAt time.Time) error {
+	return s.q.SetPasswordChangedAt(ctx, dbqueries.SetPasswordChangedAtParams{
+		Username:          username,
+		PasswordChangedAt: sql.NullTime{Time: changedAt, Valid: true},
 	})
 }
 
@@ -502,12 +615,16 @@ func (s *Store) ExpirePeriodExemptions(ctx context.Context, now time.Time) error
 // SuppressStaleApp records that the stale-apps view should hide this app until
 // the given time. If an existing entry exists it is replaced.
 func (s *Store) SuppressStaleApp(ctx context.Context, repoSlug, appName string, until time.Time) error {
-	return s.q.UpsertStaleSuppressed(ctx, repoSlug, appName, until)
+	return s.q.UpsertStaleSuppressed(ctx, dbqueries.UpsertStaleSuppressedParams{
+		RepoSlug: repoSlug,
+		AppName:  appName,
+		Until:    until.Format(time.RFC3339),
+	})
 }
 
 // ListActiveStaleSuppressed returns all stale-app suppressions that have not yet expired.
 func (s *Store) ListActiveStaleSuppressed(ctx context.Context) ([]StaleSuppressed, error) {
-	return s.q.ListActiveStaleSuppressed(ctx, time.Now())
+	return s.q.ListActiveStaleSuppressed(ctx, time.Now().Format(time.RFC3339))
 }
 
 // ── Price snapshots ───────────────────────────────────────────────────────────

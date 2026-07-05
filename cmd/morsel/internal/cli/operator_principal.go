@@ -16,6 +16,7 @@ func (c *cli) operatorPrincipalCmd() *cobra.Command {
 	cmd.AddCommand(c.operatorPrincipalAddCmd())
 	cmd.AddCommand(c.operatorPrincipalRemoveCmd())
 	cmd.AddCommand(c.operatorPrincipalListCmd())
+	cmd.AddCommand(c.operatorPrincipalRequirePasswordResetCmd())
 	return cmd
 }
 
@@ -75,6 +76,27 @@ func (c *cli) operatorPrincipalListCmd() *cobra.Command {
 	}
 }
 
+func (c *cli) operatorPrincipalRequirePasswordResetCmd() *cobra.Command {
+	var principal string
+
+	cmd := &cobra.Command{
+		Use:   "password-reset",
+		Short: "Mark a principal as needing a password reset on next login",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			prof, err := c.requireProfile()
+			if err != nil {
+				return err
+			}
+			return c.handler.OperatorPrincipalRequirePasswordReset(cmd.Context(), prof, principal)
+		},
+	}
+	cmd.Flags().StringVar(&principal, "principal", "", "principal identity (email)")
+	if err := cmd.MarkFlagRequired("principal"); err != nil {
+		panic(err)
+	}
+	return cmd
+}
+
 func (h *cliHandler) OperatorPrincipalAdd(ctx context.Context, prof *Profile, principal string) error {
 	client, err := h.clientFor(prof)
 	if err != nil {
@@ -129,8 +151,30 @@ func (h *cliHandler) OperatorPrincipalList(ctx context.Context, prof *Profile) e
 			return nil
 		}
 		for _, p := range r.Principals {
-			fmt.Printf("  %s\n", p)
+			resetMark := ""
+			if p.PasswordResetRequired {
+				resetMark = " [password reset required]"
+			}
+			fmt.Printf("  %s%s\n", p.Username, resetMark)
 		}
+		return nil
+	default:
+		return fmt.Errorf("unexpected response: %T", res)
+	}
+}
+
+func (h *cliHandler) OperatorPrincipalRequirePasswordReset(ctx context.Context, prof *Profile, principal string) error {
+	client, err := h.clientFor(prof)
+	if err != nil {
+		return err
+	}
+	res, err := client.Inner().RequirePasswordResetForPrincipal(ctx, oas.RequirePasswordResetForPrincipalParams{Principal: principal})
+	if err != nil {
+		return fmt.Errorf("require password reset: %w", err)
+	}
+	switch res.(type) {
+	case *oas.RequirePasswordResetForPrincipalNoContent:
+		fmt.Printf("✓ %s will be required to change their password on next login.\n", principal)
 		return nil
 	default:
 		return fmt.Errorf("unexpected response: %T", res)

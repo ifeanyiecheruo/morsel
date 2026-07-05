@@ -62,7 +62,21 @@ func (h *Handler) TokenOIDC(ctx context.Context, req *server.TokenOIDCReq) (serv
 		return nil, fmt.Errorf("validate operator token: %w", err)
 	}
 
-	accessToken, err := tokens.IssueToken(h.signingKey, tokens.CreateOperatorClaims(subject))
+	passwordResetRequired, err := h.store.GetPasswordResetRequired(ctx, subject)
+	if err != nil {
+		return nil, fmt.Errorf("check password reset flag: %w", err)
+	}
+
+	isAdmin, err := h.store.IsAdmin(ctx, subject)
+	if err != nil {
+		return nil, fmt.Errorf("check admin status: %w", err)
+	}
+
+	claims := tokens.CreateOperatorClaims(subject)
+	if isAdmin {
+		claims = tokens.CreateAdminAPIClaims(subject)
+	}
+	accessToken, err := tokens.IssueToken(h.signingKey, claims)
 	if err != nil {
 		return nil, fmt.Errorf("issue access token: %w", err)
 	}
@@ -81,12 +95,16 @@ func (h *Handler) TokenOIDC(ctx context.Context, req *server.TokenOIDCReq) (serv
 		return nil, fmt.Errorf("store refresh token: %w", err)
 	}
 
-	return &server.TokenPairResponse{
+	resp := &server.TokenPairResponse{
 		AccessToken:      accessToken,
 		RefreshToken:     encoded,
 		ExpiresIn:        int(tokens.OperatorTokenTTL.Seconds()),
 		RefreshExpiresIn: int(operatorRefreshTTL.Seconds()),
-	}, nil
+	}
+	if passwordResetRequired {
+		resp.PasswordResetRequired = server.NewOptBool(true)
+	}
+	return resp, nil
 }
 
 func (h *Handler) TokenRefresh(ctx context.Context, req *server.TokenRefreshReq) (server.TokenRefreshRes, error) {
@@ -116,7 +134,34 @@ func (h *Handler) TokenRefresh(ctx context.Context, req *server.TokenRefreshReq)
 		return typedResp, nil
 	}
 
-	accessToken, err := tokens.IssueToken(h.signingKey, tokens.CreateOperatorClaims(rt.Subject))
+	sec, err := h.store.GetPrincipalSecurityState(ctx, rt.Subject)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("check principal security state: %w", err)
+	}
+	if sec.PasswordResetRequired {
+		return &server.TokenRefreshUnauthorized{Error: server.ErrorDetail{
+			Code:    "password_reset_required",
+			Message: "operator must change their password before the token can be refreshed",
+			Remedy:  "re-authenticate and change your password before continuing",
+		}}, nil
+	}
+	if sec.PasswordChangedAt.Valid && sec.PasswordChangedAt.Time.After(rt.CreatedAt) {
+		return &server.TokenRefreshUnauthorized{Error: server.ErrorDetail{
+			Code:    "token_invalidated",
+			Message: "token was issued before a password change and is no longer valid",
+			Remedy:  "re-authenticate to obtain a new token",
+		}}, nil
+	}
+
+	isAdmin, err := h.store.IsAdmin(ctx, rt.Subject)
+	if err != nil {
+		return nil, fmt.Errorf("check admin status: %w", err)
+	}
+	refreshClaims := tokens.CreateOperatorClaims(rt.Subject)
+	if isAdmin {
+		refreshClaims = tokens.CreateAdminAPIClaims(rt.Subject)
+	}
+	accessToken, err := tokens.IssueToken(h.signingKey, refreshClaims)
 	if err != nil {
 		return nil, fmt.Errorf("issue access token: %w", err)
 	}
@@ -165,7 +210,7 @@ func validateRefreshToken(rt store.RefreshToken, lookupErr error) (*store.Refres
 			Remedy:  "re-authenticate to obtain a new refresh token",
 		}}, nil
 	}
-	if rt.Role != tokens.RoleOperator {
+	if !tokens.IsOperatorRole(rt.Role) {
 		return nil, &server.TokenRefreshUnauthorized{Error: server.ErrorDetail{
 			Code:    "invalid_token",
 			Message: "only operator tokens support refresh",

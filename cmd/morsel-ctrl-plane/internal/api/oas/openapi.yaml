@@ -45,8 +45,14 @@ components:
 
     OperatorPrincipals:
       $ref: './schemas/OperatorPrincipals.yaml'
+    OperatorPrincipalDetail:
+      $ref: './schemas/OperatorPrincipalDetail.yaml'
     PrincipalReq:
       $ref: './schemas/PrincipalReq.yaml'
+    ChangePasswordReq:
+      $ref: './schemas/ChangePasswordReq.yaml'
+    SetPrincipalPasswordReq:
+      $ref: './schemas/SetPrincipalPasswordReq.yaml'
     Tier:
       $ref: './schemas/Tier.yaml'
     CreateTierReq:
@@ -177,6 +183,18 @@ paths:
 
   '/api/operator/principals/{principal}':
     $ref: './paths/operator-principals-principal.yaml'
+
+  '/api/operator/principals/{principal}/require-password-reset':
+    $ref: './paths/operator-principals-principal-require-password-reset.yaml'
+
+  '/api/operator/principals/{principal}/set-password':
+    $ref: './paths/operator-principals-principal-set-password.yaml'
+
+  '/api/operator/principals/{principal}/invalidate-password':
+    $ref: './paths/operator-principals-principal-invalidate-password.yaml'
+
+  /api/operator/password:
+    $ref: './paths/operator-password.yaml'
 
   /api/operator/tiers:
     $ref: './paths/operator-tiers.yaml'

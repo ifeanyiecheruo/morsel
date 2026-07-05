@@ -10,6 +10,17 @@ import (
 	"database/sql"
 )
 
+const countAdmins = `-- name: CountAdmins :one
+SELECT COUNT(*) FROM principals WHERE is_admin = 1
+`
+
+func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAdmins)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deletePrincipal = `-- name: DeletePrincipal :exec
 DELETE FROM principals WHERE username = ?1
 `
@@ -17,6 +28,17 @@ DELETE FROM principals WHERE username = ?1
 func (q *Queries) DeletePrincipal(ctx context.Context, username string) error {
 	_, err := q.db.ExecContext(ctx, deletePrincipal, username)
 	return err
+}
+
+const getPrincipalIsAdmin = `-- name: GetPrincipalIsAdmin :one
+SELECT is_admin FROM principals WHERE username = ?1
+`
+
+func (q *Queries) GetPrincipalIsAdmin(ctx context.Context, username string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getPrincipalIsAdmin, username)
+	var is_admin int64
+	err := row.Scan(&is_admin)
+	return is_admin, err
 }
 
 const getPrincipalPasswordHash = `-- name: GetPrincipalPasswordHash :one
@@ -30,6 +52,33 @@ func (q *Queries) GetPrincipalPasswordHash(ctx context.Context, username string)
 	return password_hash, err
 }
 
+const getPrincipalPasswordResetRequired = `-- name: GetPrincipalPasswordResetRequired :one
+SELECT password_reset_required FROM principals WHERE username = ?1
+`
+
+func (q *Queries) GetPrincipalPasswordResetRequired(ctx context.Context, username string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getPrincipalPasswordResetRequired, username)
+	var password_reset_required int64
+	err := row.Scan(&password_reset_required)
+	return password_reset_required, err
+}
+
+const getPrincipalSecurityState = `-- name: GetPrincipalSecurityState :one
+SELECT password_reset_required, password_changed_at FROM principals WHERE username = ?1
+`
+
+type GetPrincipalSecurityStateRow struct {
+	PasswordResetRequired int64
+	PasswordChangedAt     sql.NullTime
+}
+
+func (q *Queries) GetPrincipalSecurityState(ctx context.Context, username string) (GetPrincipalSecurityStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getPrincipalSecurityState, username)
+	var i GetPrincipalSecurityStateRow
+	err := row.Scan(&i.PasswordResetRequired, &i.PasswordChangedAt)
+	return i, err
+}
+
 const insertPrincipal = `-- name: InsertPrincipal :exec
 INSERT INTO principals (username) VALUES (?1)
 ON CONFLICT (username) DO NOTHING
@@ -37,6 +86,23 @@ ON CONFLICT (username) DO NOTHING
 
 func (q *Queries) InsertPrincipal(ctx context.Context, username string) error {
 	_, err := q.db.ExecContext(ctx, insertPrincipal, username)
+	return err
+}
+
+const invalidatePrincipalPassword = `-- name: InvalidatePrincipalPassword :exec
+UPDATE principals
+SET password_reset_required = 1,
+    password_changed_at = ?1
+WHERE username = ?2
+`
+
+type InvalidatePrincipalPasswordParams struct {
+	PasswordChangedAt sql.NullTime
+	Username          string
+}
+
+func (q *Queries) InvalidatePrincipalPassword(ctx context.Context, arg InvalidatePrincipalPasswordParams) error {
+	_, err := q.db.ExecContext(ctx, invalidatePrincipalPassword, arg.PasswordChangedAt, arg.Username)
 	return err
 }
 
@@ -67,6 +133,39 @@ func (q *Queries) ListPrincipals(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
+const listPrincipalsWithDetails = `-- name: ListPrincipalsWithDetails :many
+SELECT username, password_reset_required, is_admin FROM principals ORDER BY username
+`
+
+type ListPrincipalsWithDetailsRow struct {
+	Username              string
+	PasswordResetRequired int64
+	IsAdmin               int64
+}
+
+func (q *Queries) ListPrincipalsWithDetails(ctx context.Context) ([]ListPrincipalsWithDetailsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPrincipalsWithDetails)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPrincipalsWithDetailsRow{}
+	for rows.Next() {
+		var i ListPrincipalsWithDetailsRow
+		if err := rows.Scan(&i.Username, &i.PasswordResetRequired, &i.IsAdmin); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const principalExists = `-- name: PrincipalExists :one
 SELECT EXISTS(SELECT 1 FROM principals WHERE username = ?1) AS "exists"
 `
@@ -76,6 +175,34 @@ func (q *Queries) PrincipalExists(ctx context.Context, username string) (bool, e
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const setPasswordChangedAt = `-- name: SetPasswordChangedAt :exec
+UPDATE principals SET password_changed_at = ?1, password_reset_required = 0 WHERE username = ?2
+`
+
+type SetPasswordChangedAtParams struct {
+	PasswordChangedAt sql.NullTime
+	Username          string
+}
+
+func (q *Queries) SetPasswordChangedAt(ctx context.Context, arg SetPasswordChangedAtParams) error {
+	_, err := q.db.ExecContext(ctx, setPasswordChangedAt, arg.PasswordChangedAt, arg.Username)
+	return err
+}
+
+const setPrincipalIsAdmin = `-- name: SetPrincipalIsAdmin :exec
+UPDATE principals SET is_admin = ?1 WHERE username = ?2
+`
+
+type SetPrincipalIsAdminParams struct {
+	IsAdmin  int64
+	Username string
+}
+
+func (q *Queries) SetPrincipalIsAdmin(ctx context.Context, arg SetPrincipalIsAdminParams) error {
+	_, err := q.db.ExecContext(ctx, setPrincipalIsAdmin, arg.IsAdmin, arg.Username)
+	return err
 }
 
 const setPrincipalPasswordHash = `-- name: SetPrincipalPasswordHash :exec
@@ -89,5 +216,19 @@ type SetPrincipalPasswordHashParams struct {
 
 func (q *Queries) SetPrincipalPasswordHash(ctx context.Context, arg SetPrincipalPasswordHashParams) error {
 	_, err := q.db.ExecContext(ctx, setPrincipalPasswordHash, arg.PasswordHash, arg.Username)
+	return err
+}
+
+const setPrincipalPasswordResetRequired = `-- name: SetPrincipalPasswordResetRequired :exec
+UPDATE principals SET password_reset_required = ?1 WHERE username = ?2
+`
+
+type SetPrincipalPasswordResetRequiredParams struct {
+	PasswordResetRequired int64
+	Username              string
+}
+
+func (q *Queries) SetPrincipalPasswordResetRequired(ctx context.Context, arg SetPrincipalPasswordResetRequiredParams) error {
+	_, err := q.db.ExecContext(ctx, setPrincipalPasswordResetRequired, arg.PasswordResetRequired, arg.Username)
 	return err
 }

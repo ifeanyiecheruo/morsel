@@ -65,6 +65,17 @@ func (h *Handler) HandleBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.store.SetPasswordResetRequired(ctx, req.Username, true); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// The first principal created is always an admin.
+	if err := h.store.SetAdmin(ctx, req.Username, true); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	// Token is single-use — delete it so it cannot be replayed.
 	_ = h.plat.Secrets().DeleteBootstrapToken(ctx)
 

@@ -19,7 +19,7 @@ func (h *Handler) requireOperatorHTTP(w http.ResponseWriter, r *http.Request) bo
 		return false
 	}
 	claims, err := tokens.VerifyToken(h.signingKey, tok)
-	if err != nil || claims.Role != tokens.RoleOperator {
+	if err != nil || !tokens.IsOperatorRole(claims.Role) {
 		adminWriteError(w, http.StatusForbidden, "insufficient_role", "operator role required")
 		return false
 	}

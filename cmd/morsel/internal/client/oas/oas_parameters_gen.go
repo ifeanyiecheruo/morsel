@@ -102,6 +102,12 @@ type HibernateAppParams struct {
 	Name string
 }
 
+// InvalidateOperatorPrincipalPasswordParams is parameters of invalidateOperatorPrincipalPassword operation.
+type InvalidateOperatorPrincipalPasswordParams struct {
+	// The principal identity (URL-encoded email address).
+	Principal string
+}
+
 // ListAppsParams is parameters of listApps operation.
 type ListAppsParams struct {
 	// The organisation or user that owns the repo.
@@ -156,10 +162,22 @@ type RemoveRepoExemptionParams struct {
 	Repo string
 }
 
+// RequirePasswordResetForPrincipalParams is parameters of requirePasswordResetForPrincipal operation.
+type RequirePasswordResetForPrincipalParams struct {
+	// The principal identity (URL-encoded email address) to flag.
+	Principal string
+}
+
 // SetDefaultTierParams is parameters of setDefaultTier operation.
 type SetDefaultTierParams struct {
 	// The tier name.
 	Name string
+}
+
+// SetOperatorPrincipalPasswordParams is parameters of setOperatorPrincipalPassword operation.
+type SetOperatorPrincipalPasswordParams struct {
+	// The principal identity (URL-encoded email address).
+	Principal string
 }
 
 // SyncRepoParams is parameters of syncRepo operation.

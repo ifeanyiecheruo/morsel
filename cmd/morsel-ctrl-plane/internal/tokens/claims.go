@@ -9,11 +9,15 @@ import (
 const (
 	RoleDeveloper    = "developer"
 	RoleOperator     = "operator"
+	RoleAdmin        = "admin"
 	OperatorTokenTTL = 15 * time.Minute
 	AdminSessionTTL  = 8 * time.Hour
 
 	deployTokenTTL = 10 * time.Minute
 )
+
+// IsOperatorRole reports whether r grants operator-level access (operator or admin).
+func IsOperatorRole(r string) bool { return r == RoleOperator || r == RoleAdmin }
 
 type Claims struct {
 	jwt.RegisteredClaims
@@ -33,10 +37,22 @@ func CreateOperatorClaims(subject string) Claims {
 	}
 }
 
-// CreateAdminSessionClaims issues an operator JWT with a long TTL for the admin
-// UI browser session. The role is still RoleOperator so the API middleware
-// accepts it if needed, but the session is meant for cookie-based auth only.
-func CreateAdminSessionClaims(subject string) Claims {
+// CreateAdminAPIClaims issues a short-lived API token for an admin principal.
+func CreateAdminAPIClaims(subject string) Claims {
+	now := time.Now()
+	return Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   subject,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(OperatorTokenTTL)),
+		},
+		Role: RoleAdmin,
+	}
+}
+
+// CreateAdminSessionClaims issues a long-lived JWT for the admin UI browser session.
+// role should be RoleAdmin or RoleOperator depending on whether the principal is an admin.
+func CreateAdminSessionClaims(subject, role string) Claims {
 	now := time.Now()
 	return Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -44,7 +60,7 @@ func CreateAdminSessionClaims(subject string) Claims {
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(AdminSessionTTL)),
 		},
-		Role: RoleOperator,
+		Role: role,
 	}
 }
 

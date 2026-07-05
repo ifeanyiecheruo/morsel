@@ -104,6 +104,20 @@ func accessTokenExpiry(accessToken string) time.Time {
 	return time.Time{}
 }
 
+// sessionIsAdmin reports whether the active session belongs to an admin principal.
+// Role is read from the access token claims without signature verification — the
+// API will enforce the admin requirement on any actual admin operation.
+func sessionIsAdmin(ctx context.Context) bool {
+	s := sessionFromContext(ctx)
+	if s == nil {
+		return false
+	}
+	var claims tokens.Claims
+	p := jwt.NewParser()
+	_, _, _ = p.ParseUnverified(s.AccessToken, &claims)
+	return claims.Role == tokens.RoleAdmin
+}
+
 // RequireSession is middleware that validates the session cookie.
 // On success it injects the session into the request context.
 // If the access token is expired it attempts a silent refresh.
@@ -132,8 +146,16 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
+			// Preserve the password-reset flag across token refreshes.
+			refreshed.PasswordResetRequired = s.PasswordResetRequired
 			s = refreshed
 			_ = h.setSessionCookie(w, s)
+		}
+
+		// Force password change before accessing any other page.
+		if s.PasswordResetRequired && r.URL.Path != "/password-reset" {
+			http.Redirect(w, r, "/password-reset", http.StatusSeeOther)
+			return
 		}
 
 		next.ServeHTTP(w, r.WithContext(withSession(r.Context(), s)))
@@ -146,8 +168,9 @@ type tokenOIDCReq struct {
 }
 
 type tokenPairResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken           string `json:"access_token"`
+	RefreshToken          string `json:"refresh_token"`
+	PasswordResetRequired bool   `json:"password_reset_required,omitempty"`
 }
 
 type tokenRefreshReq struct {
@@ -223,9 +246,17 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s := &session{AccessToken: pair.AccessToken, RefreshToken: pair.RefreshToken}
+	s := &session{
+		AccessToken:           pair.AccessToken,
+		RefreshToken:          pair.RefreshToken,
+		PasswordResetRequired: pair.PasswordResetRequired,
+	}
 	if err := h.setSessionCookie(w, s); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if pair.PasswordResetRequired {
+		http.Redirect(w, r, "/password-reset", http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, "/apps", http.StatusSeeOther)

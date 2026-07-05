@@ -772,6 +772,36 @@ func (s *BearerAuth) SetRoles(val []string) {
 	s.Roles = val
 }
 
+// Request to reset the currently authenticated operator's password. Requires the current password for
+// verification.
+// Ref: #
+type ChangePasswordReq struct {
+	// The operator's current password, used to verify identity before the change is accepted.
+	CurrentPassword string `json:"current_password"`
+	// The new password to set. Must be at least 8 characters.
+	NewPassword string `json:"new_password"`
+}
+
+// GetCurrentPassword returns the value of CurrentPassword.
+func (s *ChangePasswordReq) GetCurrentPassword() string {
+	return s.CurrentPassword
+}
+
+// GetNewPassword returns the value of NewPassword.
+func (s *ChangePasswordReq) GetNewPassword() string {
+	return s.NewPassword
+}
+
+// SetCurrentPassword sets the value of CurrentPassword.
+func (s *ChangePasswordReq) SetCurrentPassword(val string) {
+	s.CurrentPassword = val
+}
+
+// SetNewPassword sets the value of NewPassword.
+func (s *ChangePasswordReq) SetNewPassword(val string) {
+	s.NewPassword = val
+}
+
 type CreateTierBadRequest ErrorResponse
 
 func (*CreateTierBadRequest) createTierRes() {}
@@ -1107,48 +1137,52 @@ func (s *ErrorInternalServerStatusCode) SetResponse(val ErrorResponse) {
 	s.Response = val
 }
 
-func (*ErrorInternalServerStatusCode) addAppExemptionRes()          {}
-func (*ErrorInternalServerStatusCode) addOperatorPrincipalRes()     {}
-func (*ErrorInternalServerStatusCode) addRepoExemptionRes()         {}
-func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()     {}
-func (*ErrorInternalServerStatusCode) createTierRes()               {}
-func (*ErrorInternalServerStatusCode) deleteAppRes()                {}
-func (*ErrorInternalServerStatusCode) deleteRepoRes()               {}
-func (*ErrorInternalServerStatusCode) deleteTierRes()               {}
-func (*ErrorInternalServerStatusCode) getAppHistoryRes()            {}
-func (*ErrorInternalServerStatusCode) getAppRes()                   {}
-func (*ErrorInternalServerStatusCode) getAppStatusRes()             {}
-func (*ErrorInternalServerStatusCode) getAppUtilisationRes()        {}
-func (*ErrorInternalServerStatusCode) getDeploymentInfoRes()        {}
-func (*ErrorInternalServerStatusCode) getOperationRes()             {}
-func (*ErrorInternalServerStatusCode) getOperatorApprovalRes()      {}
-func (*ErrorInternalServerStatusCode) getOperatorConfigRes()        {}
-func (*ErrorInternalServerStatusCode) getOperatorCostRes()          {}
-func (*ErrorInternalServerStatusCode) getOperatorPricesHistoryRes() {}
-func (*ErrorInternalServerStatusCode) getOperatorStatusRes()        {}
-func (*ErrorInternalServerStatusCode) getRepoRes()                  {}
-func (*ErrorInternalServerStatusCode) hibernateAppRes()             {}
-func (*ErrorInternalServerStatusCode) listAppsRes()                 {}
-func (*ErrorInternalServerStatusCode) listExemptionsRes()           {}
-func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes()    {}
-func (*ErrorInternalServerStatusCode) listOperatorPrincipalsRes()   {}
-func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()        {}
-func (*ErrorInternalServerStatusCode) listReposRes()                {}
-func (*ErrorInternalServerStatusCode) listTiersRes()                {}
-func (*ErrorInternalServerStatusCode) prepareRepoDeployRes()        {}
-func (*ErrorInternalServerStatusCode) removeAppExemptionRes()       {}
-func (*ErrorInternalServerStatusCode) removeOperatorPrincipalRes()  {}
-func (*ErrorInternalServerStatusCode) removeRepoExemptionRes()      {}
-func (*ErrorInternalServerStatusCode) setDefaultTierRes()           {}
-func (*ErrorInternalServerStatusCode) syncRepoRes()                 {}
-func (*ErrorInternalServerStatusCode) tokenDeployRes()              {}
-func (*ErrorInternalServerStatusCode) tokenOIDCRes()                {}
-func (*ErrorInternalServerStatusCode) tokenRefreshRes()             {}
-func (*ErrorInternalServerStatusCode) updateOperatorConfigRes()     {}
-func (*ErrorInternalServerStatusCode) updateRepoTierRes()           {}
-func (*ErrorInternalServerStatusCode) updateTierRes()               {}
-func (*ErrorInternalServerStatusCode) upsertAppRes()                {}
-func (*ErrorInternalServerStatusCode) wakeAppRes()                  {}
+func (*ErrorInternalServerStatusCode) addAppExemptionRes()                     {}
+func (*ErrorInternalServerStatusCode) addOperatorPrincipalRes()                {}
+func (*ErrorInternalServerStatusCode) addRepoExemptionRes()                    {}
+func (*ErrorInternalServerStatusCode) batchActionApprovalsRes()                {}
+func (*ErrorInternalServerStatusCode) createTierRes()                          {}
+func (*ErrorInternalServerStatusCode) deleteAppRes()                           {}
+func (*ErrorInternalServerStatusCode) deleteRepoRes()                          {}
+func (*ErrorInternalServerStatusCode) deleteTierRes()                          {}
+func (*ErrorInternalServerStatusCode) getAppHistoryRes()                       {}
+func (*ErrorInternalServerStatusCode) getAppRes()                              {}
+func (*ErrorInternalServerStatusCode) getAppStatusRes()                        {}
+func (*ErrorInternalServerStatusCode) getAppUtilisationRes()                   {}
+func (*ErrorInternalServerStatusCode) getDeploymentInfoRes()                   {}
+func (*ErrorInternalServerStatusCode) getOperationRes()                        {}
+func (*ErrorInternalServerStatusCode) getOperatorApprovalRes()                 {}
+func (*ErrorInternalServerStatusCode) getOperatorConfigRes()                   {}
+func (*ErrorInternalServerStatusCode) getOperatorCostRes()                     {}
+func (*ErrorInternalServerStatusCode) getOperatorPricesHistoryRes()            {}
+func (*ErrorInternalServerStatusCode) getOperatorStatusRes()                   {}
+func (*ErrorInternalServerStatusCode) getRepoRes()                             {}
+func (*ErrorInternalServerStatusCode) hibernateAppRes()                        {}
+func (*ErrorInternalServerStatusCode) invalidateOperatorPrincipalPasswordRes() {}
+func (*ErrorInternalServerStatusCode) listAppsRes()                            {}
+func (*ErrorInternalServerStatusCode) listExemptionsRes()                      {}
+func (*ErrorInternalServerStatusCode) listOperatorApprovalsRes()               {}
+func (*ErrorInternalServerStatusCode) listOperatorPrincipalsRes()              {}
+func (*ErrorInternalServerStatusCode) listRepoApprovalsRes()                   {}
+func (*ErrorInternalServerStatusCode) listReposRes()                           {}
+func (*ErrorInternalServerStatusCode) listTiersRes()                           {}
+func (*ErrorInternalServerStatusCode) prepareRepoDeployRes()                   {}
+func (*ErrorInternalServerStatusCode) removeAppExemptionRes()                  {}
+func (*ErrorInternalServerStatusCode) removeOperatorPrincipalRes()             {}
+func (*ErrorInternalServerStatusCode) removeRepoExemptionRes()                 {}
+func (*ErrorInternalServerStatusCode) requirePasswordResetForPrincipalRes()    {}
+func (*ErrorInternalServerStatusCode) resetOperatorPasswordRes()               {}
+func (*ErrorInternalServerStatusCode) setDefaultTierRes()                      {}
+func (*ErrorInternalServerStatusCode) setOperatorPrincipalPasswordRes()        {}
+func (*ErrorInternalServerStatusCode) syncRepoRes()                            {}
+func (*ErrorInternalServerStatusCode) tokenDeployRes()                         {}
+func (*ErrorInternalServerStatusCode) tokenOIDCRes()                           {}
+func (*ErrorInternalServerStatusCode) tokenRefreshRes()                        {}
+func (*ErrorInternalServerStatusCode) updateOperatorConfigRes()                {}
+func (*ErrorInternalServerStatusCode) updateRepoTierRes()                      {}
+func (*ErrorInternalServerStatusCode) updateTierRes()                          {}
+func (*ErrorInternalServerStatusCode) upsertAppRes()                           {}
+func (*ErrorInternalServerStatusCode) wakeAppRes()                             {}
 
 // Envelope returned for all error responses.
 // Ref: #
@@ -1791,6 +1825,23 @@ type HibernateAppUnauthorized ErrorResponse
 
 func (*HibernateAppUnauthorized) hibernateAppRes() {}
 
+type InvalidateOperatorPrincipalPasswordForbidden ErrorResponse
+
+func (*InvalidateOperatorPrincipalPasswordForbidden) invalidateOperatorPrincipalPasswordRes() {}
+
+// InvalidateOperatorPrincipalPasswordNoContent is response for InvalidateOperatorPrincipalPassword operation.
+type InvalidateOperatorPrincipalPasswordNoContent struct{}
+
+func (*InvalidateOperatorPrincipalPasswordNoContent) invalidateOperatorPrincipalPasswordRes() {}
+
+type InvalidateOperatorPrincipalPasswordNotFound ErrorResponse
+
+func (*InvalidateOperatorPrincipalPasswordNotFound) invalidateOperatorPrincipalPasswordRes() {}
+
+type InvalidateOperatorPrincipalPasswordUnauthorized ErrorResponse
+
+func (*InvalidateOperatorPrincipalPasswordUnauthorized) invalidateOperatorPrincipalPasswordRes() {}
+
 type ListAppsForbidden ErrorResponse
 
 func (*ListAppsForbidden) listAppsRes() {}
@@ -1999,20 +2050,61 @@ func (s *OperationStatus) UnmarshalText(data []byte) error {
 	}
 }
 
-// The set of principals (email addresses) authorised to access the operator UI.
+// An operator principal with its current status.
+// Ref: #
+type OperatorPrincipalDetail struct {
+	// The principal's identity (email address).
+	Username string `json:"username"`
+	// Whether this principal must change their password on next login.
+	PasswordResetRequired bool `json:"password_reset_required"`
+	// Whether this principal has admin privileges.
+	IsAdmin bool `json:"is_admin"`
+}
+
+// GetUsername returns the value of Username.
+func (s *OperatorPrincipalDetail) GetUsername() string {
+	return s.Username
+}
+
+// GetPasswordResetRequired returns the value of PasswordResetRequired.
+func (s *OperatorPrincipalDetail) GetPasswordResetRequired() bool {
+	return s.PasswordResetRequired
+}
+
+// GetIsAdmin returns the value of IsAdmin.
+func (s *OperatorPrincipalDetail) GetIsAdmin() bool {
+	return s.IsAdmin
+}
+
+// SetUsername sets the value of Username.
+func (s *OperatorPrincipalDetail) SetUsername(val string) {
+	s.Username = val
+}
+
+// SetPasswordResetRequired sets the value of PasswordResetRequired.
+func (s *OperatorPrincipalDetail) SetPasswordResetRequired(val bool) {
+	s.PasswordResetRequired = val
+}
+
+// SetIsAdmin sets the value of IsAdmin.
+func (s *OperatorPrincipalDetail) SetIsAdmin(val bool) {
+	s.IsAdmin = val
+}
+
+// The set of principals authorised to access the operator UI.
 // Ref: #
 type OperatorPrincipals struct {
-	// Email addresses of all authorised operator principals.
-	Principals []string `json:"principals"`
+	// All authorised operator principals.
+	Principals []OperatorPrincipalDetail `json:"principals"`
 }
 
 // GetPrincipals returns the value of Principals.
-func (s *OperatorPrincipals) GetPrincipals() []string {
+func (s *OperatorPrincipals) GetPrincipals() []OperatorPrincipalDetail {
 	return s.Principals
 }
 
 // SetPrincipals sets the value of Principals.
-func (s *OperatorPrincipals) SetPrincipals(val []string) {
+func (s *OperatorPrincipals) SetPrincipals(val []OperatorPrincipalDetail) {
 	s.Principals = val
 }
 
@@ -2932,6 +3024,40 @@ func (s *RepoExemptionReq) SetRepoSlug(val string) {
 	s.RepoSlug = val
 }
 
+type RequirePasswordResetForPrincipalForbidden ErrorResponse
+
+func (*RequirePasswordResetForPrincipalForbidden) requirePasswordResetForPrincipalRes() {}
+
+// RequirePasswordResetForPrincipalNoContent is response for RequirePasswordResetForPrincipal operation.
+type RequirePasswordResetForPrincipalNoContent struct{}
+
+func (*RequirePasswordResetForPrincipalNoContent) requirePasswordResetForPrincipalRes() {}
+
+type RequirePasswordResetForPrincipalNotFound ErrorResponse
+
+func (*RequirePasswordResetForPrincipalNotFound) requirePasswordResetForPrincipalRes() {}
+
+type RequirePasswordResetForPrincipalUnauthorized ErrorResponse
+
+func (*RequirePasswordResetForPrincipalUnauthorized) requirePasswordResetForPrincipalRes() {}
+
+type ResetOperatorPasswordBadRequest ErrorResponse
+
+func (*ResetOperatorPasswordBadRequest) resetOperatorPasswordRes() {}
+
+type ResetOperatorPasswordForbidden ErrorResponse
+
+func (*ResetOperatorPasswordForbidden) resetOperatorPasswordRes() {}
+
+// ResetOperatorPasswordNoContent is response for ResetOperatorPassword operation.
+type ResetOperatorPasswordNoContent struct{}
+
+func (*ResetOperatorPasswordNoContent) resetOperatorPasswordRes() {}
+
+type ResetOperatorPasswordUnauthorized ErrorResponse
+
+func (*ResetOperatorPasswordUnauthorized) resetOperatorPasswordRes() {}
+
 type SetDefaultTierForbidden ErrorResponse
 
 func (*SetDefaultTierForbidden) setDefaultTierRes() {}
@@ -2943,6 +3069,56 @@ func (*SetDefaultTierNotFound) setDefaultTierRes() {}
 type SetDefaultTierUnauthorized ErrorResponse
 
 func (*SetDefaultTierUnauthorized) setDefaultTierRes() {}
+
+type SetOperatorPrincipalPasswordBadRequest ErrorResponse
+
+func (*SetOperatorPrincipalPasswordBadRequest) setOperatorPrincipalPasswordRes() {}
+
+type SetOperatorPrincipalPasswordForbidden ErrorResponse
+
+func (*SetOperatorPrincipalPasswordForbidden) setOperatorPrincipalPasswordRes() {}
+
+// SetOperatorPrincipalPasswordNoContent is response for SetOperatorPrincipalPassword operation.
+type SetOperatorPrincipalPasswordNoContent struct{}
+
+func (*SetOperatorPrincipalPasswordNoContent) setOperatorPrincipalPasswordRes() {}
+
+type SetOperatorPrincipalPasswordNotFound ErrorResponse
+
+func (*SetOperatorPrincipalPasswordNotFound) setOperatorPrincipalPasswordRes() {}
+
+type SetOperatorPrincipalPasswordUnauthorized ErrorResponse
+
+func (*SetOperatorPrincipalPasswordUnauthorized) setOperatorPrincipalPasswordRes() {}
+
+// Admin request to set a password for any operator principal.
+// Ref: #
+type SetPrincipalPasswordReq struct {
+	// The password to set for the principal. Must be at least 8 characters.
+	NewPassword string `json:"new_password"`
+	// If true, mark the password as requiring a reset on next login (temporary password flow).
+	Invalidate OptBool `json:"invalidate"`
+}
+
+// GetNewPassword returns the value of NewPassword.
+func (s *SetPrincipalPasswordReq) GetNewPassword() string {
+	return s.NewPassword
+}
+
+// GetInvalidate returns the value of Invalidate.
+func (s *SetPrincipalPasswordReq) GetInvalidate() OptBool {
+	return s.Invalidate
+}
+
+// SetNewPassword sets the value of NewPassword.
+func (s *SetPrincipalPasswordReq) SetNewPassword(val string) {
+	s.NewPassword = val
+}
+
+// SetInvalidate sets the value of Invalidate.
+func (s *SetPrincipalPasswordReq) SetInvalidate(val OptBool) {
+	s.Invalidate = val
+}
 
 type SyncRepoConflict ErrorResponse
 
@@ -3202,6 +3378,8 @@ type TokenPairResponse struct {
 	ExpiresIn int `json:"expires_in"`
 	// Seconds until the refresh token expires.
 	RefreshExpiresIn int `json:"refresh_expires_in"`
+	// When true the operator must change their password before accessing the platform.
+	PasswordResetRequired OptBool `json:"password_reset_required"`
 }
 
 // GetAccessToken returns the value of AccessToken.
@@ -3224,6 +3402,11 @@ func (s *TokenPairResponse) GetRefreshExpiresIn() int {
 	return s.RefreshExpiresIn
 }
 
+// GetPasswordResetRequired returns the value of PasswordResetRequired.
+func (s *TokenPairResponse) GetPasswordResetRequired() OptBool {
+	return s.PasswordResetRequired
+}
+
 // SetAccessToken sets the value of AccessToken.
 func (s *TokenPairResponse) SetAccessToken(val string) {
 	s.AccessToken = val
@@ -3242,6 +3425,11 @@ func (s *TokenPairResponse) SetExpiresIn(val int) {
 // SetRefreshExpiresIn sets the value of RefreshExpiresIn.
 func (s *TokenPairResponse) SetRefreshExpiresIn(val int) {
 	s.RefreshExpiresIn = val
+}
+
+// SetPasswordResetRequired sets the value of PasswordResetRequired.
+func (s *TokenPairResponse) SetPasswordResetRequired(val OptBool) {
+	s.PasswordResetRequired = val
 }
 
 func (*TokenPairResponse) tokenOIDCRes()    {}

@@ -83,7 +83,7 @@ func (c *cli) serviceDeployCmd() *cobra.Command {
 			if bt, ok := b.(interface{ BootstrapToken() string }); ok {
 				bootstrapToken = bt.BootstrapToken()
 			}
-			passwd, err := bootstrapOperator(cmd.Context(), prof.APIURL, initialUsernameFlag, bootstrapToken)
+			passwd, err := c.handler.BootstrapOperator(cmd.Context(), prof.APIURL, initialUsernameFlag, bootstrapToken)
 			if err != nil {
 				return err
 			}
@@ -100,7 +100,7 @@ func (c *cli) serviceDeployCmd() *cobra.Command {
 				}
 
 				if !noLoginFlag {
-					loginProf, err := c.handler.OperatorLogin(cmd.Context(), prof.APIURL, initialUsernameFlag, passwd)
+					loginProf, _, err := c.handler.OperatorLogin(cmd.Context(), prof.APIURL, initialUsernameFlag, passwd)
 					if err != nil {
 						return fmt.Errorf("auto-login: %w", err)
 					}
@@ -184,6 +184,10 @@ func (h *cliHandler) ServiceDeploy(ctx context.Context, kubeconfig string, b pla
 	fmt.Println("✓")
 
 	return &Profile{APIURL: b.APIURL()}, nil
+}
+
+func (h *cliHandler) BootstrapOperator(ctx context.Context, apiURL, username, bootstrapToken string) (string, error) {
+	return bootstrapOperator(ctx, apiURL, username, bootstrapToken)
 }
 
 // bootstrapOperator calls POST /bootstrap on a freshly provisioned instance.

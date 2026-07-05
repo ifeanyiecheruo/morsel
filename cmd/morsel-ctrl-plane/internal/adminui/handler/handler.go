@@ -34,8 +34,9 @@ type apiSessionCtxKey struct{}
 
 // session holds the tokens for an authenticated admin session.
 type session struct {
-	AccessToken  string `json:"at"`
-	RefreshToken string `json:"rt"`
+	AccessToken           string `json:"at"`
+	RefreshToken          string `json:"rt"`
+	PasswordResetRequired bool   `json:"prr,omitempty"`
 }
 
 func sessionFromContext(ctx context.Context) *session {

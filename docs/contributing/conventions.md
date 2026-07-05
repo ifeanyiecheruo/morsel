@@ -37,3 +37,9 @@ Only use context.Background() in main.go and tests, never use it anywhere else i
 Always get a logger from the contex, never log with the default logger or a privately created logger.
 Alway log any error that does not need to be checked and is not returned to the caller.
 Do not directly print, always write to the context logger
+
+## Generated code
+
+All SQL must be authored as .sql files which are then code generated. No hand written SQL queries should be in the codebase.
+
+All server generated HTML must be authored as .templ files which are then code generated. No hand written HTML should be in the codebase

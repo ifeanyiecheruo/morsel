@@ -235,6 +235,14 @@ type Invoker interface {
 	//
 	// POST /api/repos/{org}/{repo}/apps/{name}/hibernate
 	HibernateApp(ctx context.Context, params HibernateAppParams, options ...RequestOption) (HibernateAppRes, error)
+	// InvalidateOperatorPrincipalPassword invokes invalidateOperatorPrincipalPassword operation.
+	//
+	// Admin-only. Marks the specified principal as requiring a password reset and immediately invalidates
+	// all existing refresh tokens. The password hash is preserved so the principal can still perform a
+	// self-service reset using their old password via POST /api/operator/password.
+	//
+	// POST /api/operator/principals/{principal}/invalidate-password
+	InvalidateOperatorPrincipalPassword(ctx context.Context, params InvalidateOperatorPrincipalPasswordParams, options ...RequestOption) (InvalidateOperatorPrincipalPasswordRes, error)
 	// ListApps invokes listApps operation.
 	//
 	// Returns every app currently deployed in the repo, including their status and image.
@@ -308,12 +316,34 @@ type Invoker interface {
 	//
 	// DELETE /api/operator/repo-exemptions/{org}/{repo}
 	RemoveRepoExemption(ctx context.Context, params RemoveRepoExemptionParams, options ...RequestOption) (RemoveRepoExemptionRes, error)
+	// RequirePasswordResetForPrincipal invokes requirePasswordResetForPrincipal operation.
+	//
+	// Flags the specified principal so they must change their password on next login.
+	//
+	// POST /api/operator/principals/{principal}/require-password-reset
+	RequirePasswordResetForPrincipal(ctx context.Context, params RequirePasswordResetForPrincipalParams, options ...RequestOption) (RequirePasswordResetForPrincipalRes, error)
+	// ResetOperatorPassword invokes resetOperatorPassword operation.
+	//
+	// Self-service password reset. The operator must supply their current password for verification. On
+	// success, the password-reset flag is cleared and all refresh tokens issued before this change are
+	// invalidated.
+	//
+	// POST /api/operator/password
+	ResetOperatorPassword(ctx context.Context, request *ChangePasswordReq, options ...RequestOption) (ResetOperatorPasswordRes, error)
 	// SetDefaultTier invokes setDefaultTier operation.
 	//
 	// Set the platform default tier for new repos.
 	//
 	// POST /api/operator/tiers/{name}/set-default
 	SetDefaultTier(ctx context.Context, params SetDefaultTierParams, options ...RequestOption) (SetDefaultTierRes, error)
+	// SetOperatorPrincipalPassword invokes setOperatorPrincipalPassword operation.
+	//
+	// Admin-only. Sets a new password for the specified principal without requiring the current password.
+	// If `invalidate` is true, the principal will be required to change their password on next login
+	// (temporary password flow). Invalidates all existing refresh tokens for that principal.
+	//
+	// POST /api/operator/principals/{principal}/set-password
+	SetOperatorPrincipalPassword(ctx context.Context, request *SetPrincipalPasswordReq, params SetOperatorPrincipalPasswordParams, options ...RequestOption) (SetOperatorPrincipalPasswordRes, error)
 	// SyncRepo invokes syncRepo operation.
 	//
 	// Reconciles the cluster against the supplied app list. Apps present in the cluster but absent from
@@ -4003,6 +4033,166 @@ func (c *Client) sendHibernateApp(ctx context.Context, params HibernateAppParams
 	return result, nil
 }
 
+// InvalidateOperatorPrincipalPassword invokes invalidateOperatorPrincipalPassword operation.
+//
+// Admin-only. Marks the specified principal as requiring a password reset and immediately invalidates
+// all existing refresh tokens. The password hash is preserved so the principal can still perform a
+// self-service reset using their old password via POST /api/operator/password.
+//
+// POST /api/operator/principals/{principal}/invalidate-password
+func (c *Client) InvalidateOperatorPrincipalPassword(ctx context.Context, params InvalidateOperatorPrincipalPasswordParams, options ...RequestOption) (InvalidateOperatorPrincipalPasswordRes, error) {
+	res, err := c.sendInvalidateOperatorPrincipalPassword(ctx, params, options...)
+	return res, err
+}
+
+func (c *Client) sendInvalidateOperatorPrincipalPassword(ctx context.Context, params InvalidateOperatorPrincipalPasswordParams, requestOptions ...RequestOption) (res InvalidateOperatorPrincipalPasswordRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("invalidateOperatorPrincipalPassword"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/operator/principals/{principal}/invalidate-password"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, InvalidateOperatorPrincipalPasswordOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [3]string
+	pathParts[0] = "/api/operator/principals/"
+	{
+		// Encode "principal" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "principal",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Principal))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/invalidate-password"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, InvalidateOperatorPrincipalPasswordOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeInvalidateOperatorPrincipalPasswordResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // ListApps invokes listApps operation.
 //
 // Returns every app currently deployed in the repo, including their status and image.
@@ -5785,6 +5975,308 @@ func (c *Client) sendRemoveRepoExemption(ctx context.Context, params RemoveRepoE
 	return result, nil
 }
 
+// RequirePasswordResetForPrincipal invokes requirePasswordResetForPrincipal operation.
+//
+// Flags the specified principal so they must change their password on next login.
+//
+// POST /api/operator/principals/{principal}/require-password-reset
+func (c *Client) RequirePasswordResetForPrincipal(ctx context.Context, params RequirePasswordResetForPrincipalParams, options ...RequestOption) (RequirePasswordResetForPrincipalRes, error) {
+	res, err := c.sendRequirePasswordResetForPrincipal(ctx, params, options...)
+	return res, err
+}
+
+func (c *Client) sendRequirePasswordResetForPrincipal(ctx context.Context, params RequirePasswordResetForPrincipalParams, requestOptions ...RequestOption) (res RequirePasswordResetForPrincipalRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("requirePasswordResetForPrincipal"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/operator/principals/{principal}/require-password-reset"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, RequirePasswordResetForPrincipalOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [3]string
+	pathParts[0] = "/api/operator/principals/"
+	{
+		// Encode "principal" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "principal",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Principal))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/require-password-reset"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, RequirePasswordResetForPrincipalOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeRequirePasswordResetForPrincipalResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// ResetOperatorPassword invokes resetOperatorPassword operation.
+//
+// Self-service password reset. The operator must supply their current password for verification. On
+// success, the password-reset flag is cleared and all refresh tokens issued before this change are
+// invalidated.
+//
+// POST /api/operator/password
+func (c *Client) ResetOperatorPassword(ctx context.Context, request *ChangePasswordReq, options ...RequestOption) (ResetOperatorPasswordRes, error) {
+	res, err := c.sendResetOperatorPassword(ctx, request, options...)
+	return res, err
+}
+
+func (c *Client) sendResetOperatorPassword(ctx context.Context, request *ChangePasswordReq, requestOptions ...RequestOption) (res ResetOperatorPasswordRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("resetOperatorPassword"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/operator/password"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, ResetOperatorPasswordOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [1]string
+	pathParts[0] = "/api/operator/password"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeResetOperatorPasswordRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, ResetOperatorPasswordOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeResetOperatorPasswordResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // SetDefaultTier invokes setDefaultTier operation.
 //
 // Set the platform default tier for new repos.
@@ -5936,6 +6428,169 @@ func (c *Client) sendSetDefaultTier(ctx context.Context, params SetDefaultTierPa
 
 	stage = "DecodeResponse"
 	result, err := decodeSetDefaultTierResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// SetOperatorPrincipalPassword invokes setOperatorPrincipalPassword operation.
+//
+// Admin-only. Sets a new password for the specified principal without requiring the current password.
+// If `invalidate` is true, the principal will be required to change their password on next login
+// (temporary password flow). Invalidates all existing refresh tokens for that principal.
+//
+// POST /api/operator/principals/{principal}/set-password
+func (c *Client) SetOperatorPrincipalPassword(ctx context.Context, request *SetPrincipalPasswordReq, params SetOperatorPrincipalPasswordParams, options ...RequestOption) (SetOperatorPrincipalPasswordRes, error) {
+	res, err := c.sendSetOperatorPrincipalPassword(ctx, request, params, options...)
+	return res, err
+}
+
+func (c *Client) sendSetOperatorPrincipalPassword(ctx context.Context, request *SetPrincipalPasswordReq, params SetOperatorPrincipalPasswordParams, requestOptions ...RequestOption) (res SetOperatorPrincipalPasswordRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("setOperatorPrincipalPassword"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/operator/principals/{principal}/set-password"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, SetOperatorPrincipalPasswordOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	var reqCfg requestConfig
+	reqCfg.setDefaults(c.baseClient)
+	for _, o := range requestOptions {
+		o(&reqCfg)
+	}
+
+	stage = "BuildURL"
+	u := c.serverURL
+	if override := reqCfg.ServerURL; override != nil {
+		u = override
+	}
+	u = uri.Clone(u)
+	var pathParts [3]string
+	pathParts[0] = "/api/operator/principals/"
+	{
+		// Encode "principal" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "principal",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Principal))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/set-password"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeSetOperatorPrincipalPasswordRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, SetOperatorPrincipalPasswordOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	if err := c.onRequest(ctx, r); err != nil {
+		return res, errors.Wrap(err, "client edit request")
+	}
+
+	if err := reqCfg.onRequest(r); err != nil {
+		return res, errors.Wrap(err, "edit request")
+	}
+
+	stage = "SendRequest"
+	resp, err := reqCfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	if err := c.onResponse(ctx, resp); err != nil {
+		return res, errors.Wrap(err, "client edit response")
+	}
+
+	if err := reqCfg.onResponse(resp); err != nil {
+		return res, errors.Wrap(err, "edit response")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeSetOperatorPrincipalPasswordResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

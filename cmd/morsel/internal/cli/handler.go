@@ -25,7 +25,13 @@ type Handler interface {
 	// Called by serviceDeployCmd when the operator is already logged in.
 	ServiceDeployPlatform(ctx context.Context, prof *Profile) (string, error)
 
-	OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, error)
+	// BootstrapOperator calls POST /bootstrap on a freshly provisioned instance.
+	// Returns the generated password on first deploy (201 Created), empty string on
+	// subsequent deploys (409 Conflict).
+	BootstrapOperator(ctx context.Context, apiURL, username, bootstrapToken string) (string, error)
+
+	OperatorLogin(ctx context.Context, apiURL, username, password string) (*Profile, bool, error)
+	OperatorChangePassword(ctx context.Context, prof *Profile, newPassword string) error
 	SaveProfile(ctx context.Context, name string, prof *Profile) error
 	DeleteProfile(ctx context.Context, name string) error
 	Lint(ctx context.Context, staged, fix bool) error
@@ -38,6 +44,7 @@ type Handler interface {
 	OperatorPrincipalAdd(ctx context.Context, prof *Profile, principal string) error
 	OperatorPrincipalRemove(ctx context.Context, prof *Profile, principal string) error
 	OperatorPrincipalList(ctx context.Context, prof *Profile) error
+	OperatorPrincipalRequirePasswordReset(ctx context.Context, prof *Profile, principal string) error
 	TierList(ctx context.Context, prof *Profile) error
 	TierCreate(ctx context.Context, prof *Profile, flags TierFlags) error
 	TierEdit(ctx context.Context, prof *Profile, flags TierFlags) error

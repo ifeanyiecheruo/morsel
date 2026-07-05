@@ -104,6 +104,18 @@ type StalePageData struct {
 	Rows []StaleRow
 }
 
+type OperatorRow struct {
+	Username              string
+	PasswordResetRequired bool
+	IsAdmin               bool
+}
+
+type OperatorsPageData struct {
+	Rows          []OperatorRow
+	Flash         string
+	ViewerIsAdmin bool
+}
+
 // FormatCost formats a monthly cost as "$12.40/mo".
 func FormatCost(v float64) string {
 	return fmt.Sprintf("$%.2f/mo", v)

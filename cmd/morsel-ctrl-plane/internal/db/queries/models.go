@@ -72,10 +72,13 @@ type PriceSnapshot struct {
 }
 
 type Principal struct {
-	Username     string
-	PasswordHash sql.NullString
-	Salt         sql.NullString
-	CreatedAt    time.Time
+	Username              string
+	PasswordHash          sql.NullString
+	Salt                  sql.NullString
+	CreatedAt             time.Time
+	PasswordResetRequired int64
+	PasswordChangedAt     sql.NullTime
+	IsAdmin               int64
 }
 
 type RefreshToken struct {

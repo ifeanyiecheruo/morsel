@@ -15,3 +15,6 @@ properties:
   refresh_expires_in:
     description: Seconds until the refresh token expires.
     type: integer
+  password_reset_required:
+    description: When true the operator must change their password before accessing the platform.
+    type: boolean
