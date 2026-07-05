@@ -52,8 +52,13 @@ func (h *cliHandler) AppDeploy(ctx context.Context, prof *Profile) error {
 	if err != nil {
 		return fmt.Errorf("prepare deploy: %w", err)
 	}
-	session, ok := res.(*oas.DeployConfig)
-	if !ok {
+	var session *oas.DeployConfig
+	switch r := res.(type) {
+	case *oas.DeployConfig:
+		session = r
+	case *oas.PrepareRepoDeployUnauthorized, *oas.PrepareRepoDeployForbidden:
+		return errStaleCredentials
+	default:
 		return fmt.Errorf("prepare deploy: unexpected response type %T", res)
 	}
 
@@ -170,9 +175,18 @@ func buildPushDeploy(ctx context.Context, client *client.Client, org, repo strin
 	if err != nil {
 		return "", fmt.Errorf("deploy app: %w", err)
 	}
-	headers, ok := deployRes.(*oas.AcceptedOperationHeaders)
-	if !ok {
-		return "", fmt.Errorf("deploy: unexpected response type %T", deployRes)
+	var headers *oas.AcceptedOperationHeaders
+	switch r := deployRes.(type) {
+	case *oas.AcceptedOperationHeaders:
+		headers = r
+	case *oas.UpsertAppUnauthorized, *oas.UpsertAppForbidden:
+		return "", errStaleCredentials
+	case *oas.UpsertAppUnprocessableEntity:
+		return "", fmt.Errorf("deploy app: %s", oas.ErrorResponse(*r).Error.Message)
+	case *oas.UpsertAppConflict:
+		return "", fmt.Errorf("deploy app: %s", oas.ErrorResponse(*r).Error.Message)
+	default:
+		return "", fmt.Errorf("deploy app: unexpected response type %T", deployRes)
 	}
 
 	if err := pollOperation(ctx, client, org, repo, cfg.Name, headers.Response.OperationID); err != nil {
@@ -207,9 +221,16 @@ func pollOperation(ctx context.Context, client *client.Client, org, repo, name, 
 		if err != nil {
 			return fmt.Errorf("poll operation: %w", err)
 		}
-		op, ok := res.(*oas.Operation)
-		if !ok {
-			return fmt.Errorf("unexpected poll response: %T", res)
+		var op *oas.Operation
+		switch r := res.(type) {
+		case *oas.Operation:
+			op = r
+		case *oas.GetOperationUnauthorized, *oas.GetOperationForbidden:
+			return errStaleCredentials
+		case *oas.GetOperationNotFound:
+			return fmt.Errorf("operation not found: %s", oas.ErrorResponse(*r).Error.Message)
+		default:
+			return fmt.Errorf("poll operation: unexpected response type %T", res)
 		}
 		switch op.Status {
 		case oas.OperationStatusComplete:

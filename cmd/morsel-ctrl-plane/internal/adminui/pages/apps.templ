@@ -35,7 +35,13 @@ templ AppsPage(d AppsPageData) {
 					<tbody>
 						for _, app := range d.Apps {
 							<tr>
-								<td><strong>{ app.Name }</strong></td>
+								<td>
+									if app.URL != "" {
+										<strong><a href={ templ.SafeURL(app.URL) } target="_blank" rel="noopener noreferrer">{ app.Name }</a></strong>
+									} else {
+										<strong>{ app.Name }</strong>
+									}
+								</td>
 								<td>{ app.RepoSlug }</td>
 								<td>@statusBadge(app.Status, app.Hibernated)</td>
 								<td>{ app.Tier }</td>

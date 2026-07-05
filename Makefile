@@ -90,16 +90,11 @@ fix: ## Auto-fix all fixable issues
 	golangci-lint run --fix
 	go fmt ./...
 
-.PHONY: run
-run: ## Run the CLI against LocalPlatform
-	go run ./cmd/morsel --platform local
+.PHONY: generate
+generate: $(LOCAL)/gen/templ.stamp $(LOCAL)/gen/sql-db.stamp $(LOCAL)/gen/sql-queue.stamp $(LOCAL)/gen/ogen-server.stamp $(LOCAL)/gen/ogen-client.stamp ## Regenerate go code (stamp-tracked; only reruns what changed)
 
 .PHONY: ci
 ci: generate-ci lint build test ## what CI runs
-
-.PHONY: generate
-generate: ## Regenerate go code
-	go generate ./...
 
 .PHONY: generate-ci
 generate-ci:
@@ -189,9 +184,39 @@ ifeq ($(CONTAINER_RUNTIME),podman)
 	fi
 endif
 
-bin/morsel$(EXE): $(shell find cmd/morsel internal -name '*.go')
+bin/morsel$(EXE): $(LOCAL)/gen/ogen-client.stamp $(shell find cmd/morsel internal -name '*.go')
 	go build -o bin/morsel$(EXE) ./cmd/morsel
 
-bin/morsel-ctrl-plane$(EXE): $(shell find cmd/morsel-ctrl-plane internal -name '*.go')
+bin/morsel-ctrl-plane$(EXE): $(LOCAL)/gen/templ.stamp $(LOCAL)/gen/sql-db.stamp $(LOCAL)/gen/sql-queue.stamp $(LOCAL)/gen/ogen-server.stamp $(shell find cmd/morsel-ctrl-plane internal -name '*.go')
 	go build -o bin/morsel-ctrl-plane$(EXE) ./cmd/morsel-ctrl-plane
+
+# ---- Code generation (timestamp-tracked) -------------------------------------
+# Stamp files in .local/gen/ record the last time each generator ran.
+# Make compares them against source files and only regenerates what changed.
+
+TEMPL_SRCS     := $(shell find cmd -name '*.templ' 2>/dev/null)
+SQL_DB_SRCS    := $(shell find cmd/morsel-ctrl-plane/internal/db    -name '*.sql' -o -name 'sqlc.yaml' 2>/dev/null)
+SQL_QUEUE_SRCS := $(shell find cmd/morsel-ctrl-plane/internal/queue -name '*.sql' -o -name 'sqlc.yaml' 2>/dev/null)
+OAS_SRCS       := $(shell find cmd/morsel-ctrl-plane/internal/api/oas -name '*.yaml' -o -name '*.yml' 2>/dev/null)
+
+$(LOCAL)/gen/templ.stamp: $(TEMPL_SRCS)
+	cd cmd/morsel-ctrl-plane/internal/adminui/pages && go generate
+	@mkdir -p $(dir $@) && touch $@
+
+$(LOCAL)/gen/sql-db.stamp: $(SQL_DB_SRCS)
+	cd cmd/morsel-ctrl-plane/internal/db/queries && go generate
+	@mkdir -p $(dir $@) && touch $@
+
+$(LOCAL)/gen/sql-queue.stamp: $(SQL_QUEUE_SRCS)
+	cd cmd/morsel-ctrl-plane/internal/queue/queries && go generate
+	@mkdir -p $(dir $@) && touch $@
+
+$(LOCAL)/gen/ogen-server.stamp: $(OAS_SRCS)
+	cd cmd/morsel-ctrl-plane/internal/api && go generate
+	@mkdir -p $(dir $@) && touch $@
+
+$(LOCAL)/gen/ogen-client.stamp: $(OAS_SRCS)
+	cd cmd/morsel/internal/client && go generate
+	@mkdir -p $(dir $@) && touch $@
+# -------------------------------------------------------------------------------
 

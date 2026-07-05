@@ -3,6 +3,7 @@
 #
 # Build output
 bin/
+.sta
 
 # Local installs
 .local/

@@ -1854,18 +1854,13 @@ func (s *ChangePasswordReq) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *ChangePasswordReq) encodeFields(e *jx.Encoder) {
 	{
-		e.FieldStart("current_password")
-		e.Str(s.CurrentPassword)
-	}
-	{
 		e.FieldStart("new_password")
 		e.Str(s.NewPassword)
 	}
 }
 
-var jsonFieldsNameOfChangePasswordReq = [2]string{
-	0: "current_password",
-	1: "new_password",
+var jsonFieldsNameOfChangePasswordReq = [1]string{
+	0: "new_password",
 }
 
 // Decode decodes ChangePasswordReq from json.
@@ -1877,20 +1872,8 @@ func (s *ChangePasswordReq) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
-		case "current_password":
-			requiredBitSet[0] |= 1 << 0
-			if err := func() error {
-				v, err := d.Str()
-				s.CurrentPassword = string(v)
-				if err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"current_password\"")
-			}
 		case "new_password":
-			requiredBitSet[0] |= 1 << 1
+			requiredBitSet[0] |= 1 << 0
 			if err := func() error {
 				v, err := d.Str()
 				s.NewPassword = string(v)
@@ -1911,7 +1894,7 @@ func (s *ChangePasswordReq) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000011,
+		0b00000001,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.

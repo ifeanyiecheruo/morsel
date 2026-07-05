@@ -37,18 +37,26 @@ func (c *cli) serviceDeployCmd() *cobra.Command {
 			if loggedIn && !forceFlag {
 				name, err := c.handler.ServiceDeployPlatform(cmd.Context(), c.profile)
 				if err != nil {
-					if isConnectionError(err) {
+					switch {
+					case isConnectionError(err):
 						return fmt.Errorf(
 							"morsel instance at %s is unreachable — if the cluster was deleted, re-run with --force to recreate it",
 							c.profile.APIURL,
 						)
+					case errors.Is(err, errStaleCredentials):
+						if platformFlag == "" {
+							return fmt.Errorf("%w\nspecify --platform to continue without a valid session", err)
+						}
+						fmt.Fprintf(os.Stderr, "warning: %v — proceeding with --platform=%s\n", err, platformFlag)
+					default:
+						return fmt.Errorf("get platform from instance: %w", err)
 					}
-					return fmt.Errorf("get platform from instance: %w", err)
+				} else {
+					if cmd.Flags().Changed("platform") && platformFlag != name {
+						return fmt.Errorf("instance is running platform %q but --platform %q was specified", name, platformFlag)
+					}
+					platformFlag = name
 				}
-				if cmd.Flags().Changed("platform") && platformFlag != name {
-					return fmt.Errorf("instance is running platform %q but --platform %q was specified", name, platformFlag)
-				}
-				platformFlag = name
 			} else {
 				// Not logged in, or --force was given — platform must be supplied explicitly.
 				if platformFlag == "" {
@@ -115,6 +123,13 @@ func (c *cli) serviceDeployCmd() *cobra.Command {
 				} else {
 					fmt.Println("Run 'morsel operator login' to authenticate.")
 				}
+			} else if c.profile != nil {
+				// Re-deploy — the stored tokens may be stale. Attempt a silent
+				// refresh so subsequent commands (e.g. morsel app deploy) work
+				// without a manual login step.
+				if _, err := silentRefresh(cmd.Context(), prof, c.profileName); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: could not refresh session — run 'morsel operator login' before deploying apps\n")
+				}
 			}
 
 			return nil
@@ -129,6 +144,10 @@ func (c *cli) serviceDeployCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&noLoginFlag, "no-login", false, "skip automatic login after first-time bootstrap")
 	return cmd
 }
+
+// errStaleCredentials is returned by ServiceDeployPlatform when the stored
+// token is rejected (401/403) by the running instance.
+var errStaleCredentials = errors.New("session has expired — run 'morsel operator login' to re-authenticate")
 
 // isConnectionError reports whether err is a network connectivity failure
 // (connection refused, host unreachable, DNS failure, etc.).
@@ -146,11 +165,14 @@ func (h *cliHandler) ServiceDeployPlatform(ctx context.Context, prof *Profile) (
 	if err != nil {
 		return "", fmt.Errorf("get deployment info: %w", err)
 	}
-	info, ok := res.(*oas.DeploymentInfo)
-	if !ok {
-		return "", fmt.Errorf("get deployment info: unexpected response type")
+	switch r := res.(type) {
+	case *oas.DeploymentInfo:
+		return r.Platform, nil
+	case *oas.GetDeploymentInfoUnauthorized, *oas.GetDeploymentInfoForbidden:
+		return "", errStaleCredentials
+	default:
+		return "", fmt.Errorf("get deployment info: unexpected response type %T", res)
 	}
-	return info.Platform, nil
 }
 
 func (h *cliHandler) ServiceDeploy(ctx context.Context, kubeconfig string, b platform.ServiceDeployer, dockerfile []byte, yes bool) (*Profile, error) {

@@ -305,27 +305,6 @@ func (h *Handler) ResetOperatorPassword(ctx context.Context, req *server.ChangeP
 		}
 	}
 
-	storedHash, err := h.store.GetPrincipalPasswordHash(ctx, claims.Subject)
-	if err != nil {
-		return nil, fmt.Errorf("get password hash: %w", err)
-	}
-	if !storedHash.Valid || storedHash.String == "" {
-		return nil, &apiError{
-			httpStatus: http.StatusUnprocessableEntity,
-			code:       "no_password_set",
-			message:    "no password is set for this principal",
-			remedy:     "ask an admin to set a new password for your account",
-		}
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(storedHash.String), []byte(req.CurrentPassword)); err != nil {
-		return nil, &apiError{
-			httpStatus: http.StatusUnprocessableEntity,
-			code:       "invalid_current_password",
-			message:    "current password is incorrect",
-			remedy:     "provide the correct current password",
-		}
-	}
-
 	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)

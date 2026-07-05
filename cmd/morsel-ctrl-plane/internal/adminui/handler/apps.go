@@ -13,6 +13,7 @@ import (
 type apiAppRow struct {
 	RepoSlug    string    `json:"repo_slug"`
 	Name        string    `json:"name"`
+	URL         string    `json:"url"`
 	Status      string    `json:"status"`
 	Hibernated  bool      `json:"hibernated"`
 	Tier        string    `json:"tier"`
@@ -55,6 +56,7 @@ func (h *Handler) ServeApps(w http.ResponseWriter, r *http.Request) {
 		rows = append(rows, pages.AppRow{
 			RepoSlug:   a.RepoSlug,
 			Name:       a.Name,
+			URL:        a.URL,
 			Status:     a.Status,
 			Hibernated: a.Hibernated,
 			Tier:       a.Tier,

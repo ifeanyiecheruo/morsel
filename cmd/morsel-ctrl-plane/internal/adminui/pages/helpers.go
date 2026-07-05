@@ -10,6 +10,7 @@ import (
 type AppRow struct {
 	RepoSlug   string
 	Name       string
+	URL        string
 	Status     string
 	Hibernated bool
 	Tier       string

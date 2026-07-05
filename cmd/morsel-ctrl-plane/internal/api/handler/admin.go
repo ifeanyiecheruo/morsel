@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
 )
 
@@ -29,6 +30,7 @@ func (h *Handler) requireOperatorHTTP(w http.ResponseWriter, r *http.Request) bo
 type adminAppRow struct {
 	RepoSlug    string    `json:"repo_slug"`
 	Name        string    `json:"name"`
+	URL         string    `json:"url,omitempty"`
 	Status      string    `json:"status"`
 	Hibernated  bool      `json:"hibernated"`
 	Tier        string    `json:"tier"`
@@ -53,14 +55,20 @@ func (h *Handler) HandleAdminListApps(w http.ResponseWriter, r *http.Request) {
 	prices := h.latestPrices(ctx)
 	now := time.Now().UTC()
 
+	baseDomain := h.plat.BaseDomain()
 	out := make([]adminAppRow, 0, len(allApps))
 	for _, app := range allApps {
 		repo, _ := h.store.GetRepo(ctx, app.RepoSlug)
 		tier, _ := h.store.GetTier(ctx, repo.Tier)
 		appCost := h.appCostMonthly(ctx, app, tier, prices, now)
+		var appURL string
+		if app.Type == "http" {
+			appURL = "https://" + names.AppHostname(app.Name, names.RepoName(app.RepoSlug), baseDomain)
+		}
 		out = append(out, adminAppRow{
 			RepoSlug:    app.RepoSlug,
 			Name:        app.Name,
+			URL:         appURL,
 			Status:      app.Status,
 			Hibernated:  app.Hibernated != 0,
 			Tier:        repo.Tier,

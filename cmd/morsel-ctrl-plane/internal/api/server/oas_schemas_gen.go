@@ -772,29 +772,17 @@ func (s *BearerAuth) SetRoles(val []string) {
 	s.Roles = val
 }
 
-// Request to reset the currently authenticated operator's password. Requires the current password for
-// verification.
+// Request to reset the currently authenticated operator's password. A valid bearer token is sufficient
+// proof of identity.
 // Ref: #
 type ChangePasswordReq struct {
-	// The operator's current password, used to verify identity before the change is accepted.
-	CurrentPassword string `json:"current_password"`
 	// The new password to set. Must be at least 8 characters.
 	NewPassword string `json:"new_password"`
-}
-
-// GetCurrentPassword returns the value of CurrentPassword.
-func (s *ChangePasswordReq) GetCurrentPassword() string {
-	return s.CurrentPassword
 }
 
 // GetNewPassword returns the value of NewPassword.
 func (s *ChangePasswordReq) GetNewPassword() string {
 	return s.NewPassword
-}
-
-// SetCurrentPassword sets the value of CurrentPassword.
-func (s *ChangePasswordReq) SetCurrentPassword(val string) {
-	s.CurrentPassword = val
 }
 
 // SetNewPassword sets the value of NewPassword.
