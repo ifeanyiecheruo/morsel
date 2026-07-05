@@ -102,3 +102,59 @@ input:focus,textarea:focus,select:focus { outline: none; border-color: #f6821f; 
 /* Section heading inside card */
 .section-heading { font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 8px; }
 .section-heading .count { font-size: 12px; font-weight: 400; background: #f3f4f6; color: #6b7280; padding: 1px 7px; border-radius: 9999px; }
+
+/* Dark mode — honors system preference */
+@media (prefers-color-scheme: dark) {
+  body { color: #f1f5f9; background: #111827; }
+
+  .topbar { background: #0f1724; }
+  .sidebar { background: #0f1724; }
+  .nav-item:hover { background: #1a2535; }
+  .nav-item--active { background: #1a2535; }
+
+  .page-sub { color: #9ca3af; }
+  hr { border-top-color: #374151; }
+
+  .table-wrap { border-color: #374151; }
+  table { background: #1f2937; }
+  th { background: #252d3a; color: #9ca3af; border-bottom-color: #374151; }
+  td { border-bottom-color: #2d3748; }
+  tr:hover td { background: #252d3a; }
+
+  .badge--green  { background: #14532d; color: #86efac; }
+  .badge--red    { background: #450a0a; color: #fca5a5; }
+  .badge--gray   { background: #374151; color: #9ca3af; }
+  .badge--yellow { background: #451a03; color: #fcd34d; }
+
+  .btn--secondary      { background: #1f2937; color: #d1d5db; border-color: #4b5563; }
+  .btn--secondary:hover{ background: #252d3a; }
+  .btn--danger         { background: #1f2937; color: #f87171; border-color: #7f1d1d; }
+  .btn--danger:hover   { background: #2d1b1b; }
+
+  label { color: #d1d5db; }
+  input[type=text],input[type=password],textarea,select { background: #1f2937; color: #f1f5f9; border-color: #4b5563; }
+
+  .card { background: #1f2937; border-color: #374151; }
+  .card-title { color: #d1d5db; }
+
+  .progress { background: #374151; }
+  .progress-label { color: #9ca3af; }
+
+  .alert--info { background: #1e3a5f; color: #93c5fd; border-color: #1d4ed8; }
+  .alert--warn { background: #3b2a00; color: #fcd34d; border-color: #d97706; }
+
+  .filter-select { background: #1f2937; color: #d1d5db; border-color: #4b5563; }
+
+  .pagination { color: #9ca3af; }
+  .empty { color: #9ca3af; }
+
+  .login-shell { background: #111827; }
+  .login-card  { background: #1f2937; border-color: #374151; }
+  .login-logo  { color: #f1f5f9; }
+  .login-sub   { color: #9ca3af; }
+
+  .batch-bar { border-bottom-color: #374151; }
+
+  .section-heading { color: #d1d5db; border-bottom-color: #2d3748; }
+  .section-heading .count { background: #374151; color: #9ca3af; }
+}
