@@ -13,6 +13,8 @@ endif
 
 CLUSTER_NAME  ?= morsel-local
 K3D_VERSION   ?= v5.7.5
+VERSION       := $(shell cat VERSION 2>/dev/null || echo dev)
+LDFLAGS       := -X github.com/ifeanyiecheruo/morsel/internal/version.Version=$(VERSION)
 
 # ---- Container runtime --------------------------------------------------------
 # docker takes precedence when its daemon is reachable; otherwise fall back to
@@ -101,11 +103,33 @@ generate-ci:
 	go generate ./...
 	git diff --exit-code -- .
 
+.PHONY: bump-major
+bump-major: ## Increment the major version (e.g. 1.2.3 → 2.0.0)
+	@v=$$(cat VERSION 2>/dev/null | sed 's/^v//'); \
+	major=$$(echo $$v | cut -d. -f1); \
+	echo "$$(( major + 1 )).0.0" > VERSION; \
+	cat VERSION
+
+.PHONY: bump-minor
+bump-minor: ## Increment the minor version (e.g. 1.2.3 → 1.3.0)
+	@v=$$(cat VERSION 2>/dev/null | sed 's/^v//'); \
+	major=$$(echo $$v | cut -d. -f1); \
+	minor=$$(echo $$v | cut -d. -f2); \
+	echo "$$major.$$(( minor + 1 )).0" > VERSION; \
+	cat VERSION
+
+.PHONY: bump-patch
+bump-patch: ## Increment the patch version (e.g. 1.2.3 → 1.2.4)
+	@v=$$(cat VERSION 2>/dev/null | sed 's/^v//'); \
+	major=$$(echo $$v | cut -d. -f1); \
+	minor=$$(echo $$v | cut -d. -f2); \
+	patch=$$(echo $$v | cut -d. -f3); \
+	echo "$$major.$$minor.$$(( patch + 1 ))" > VERSION; \
+	cat VERSION
+
 .PHONY: pre-commit
 pre-commit: ## Pre-commit git hook
-	@git stash --keep-index --quiet || true; \
-	$(MAKE) generate fix && git add -u; \
-	git stash pop --quiet || true
+	go generate ./... && $(MAKE) fix && git add -u
 
 .PHONY: pre-push
 pre-push: ci ## Pre-push git hook
@@ -184,11 +208,11 @@ ifeq ($(CONTAINER_RUNTIME),podman)
 	fi
 endif
 
-bin/morsel$(EXE): $(LOCAL)/gen/ogen-client.stamp $(shell find cmd/morsel internal -name '*.go')
-	go build -o bin/morsel$(EXE) ./cmd/morsel
+bin/morsel$(EXE): VERSION $(LOCAL)/gen/ogen-client.stamp $(shell find cmd/morsel internal -name '*.go')
+	go build -ldflags "$(LDFLAGS)" -o bin/morsel$(EXE) ./cmd/morsel
 
-bin/morsel-ctrl-plane$(EXE): $(LOCAL)/gen/templ.stamp $(LOCAL)/gen/sql-db.stamp $(LOCAL)/gen/sql-queue.stamp $(LOCAL)/gen/ogen-server.stamp $(shell find cmd/morsel-ctrl-plane internal -name '*.go')
-	go build -o bin/morsel-ctrl-plane$(EXE) ./cmd/morsel-ctrl-plane
+bin/morsel-ctrl-plane$(EXE): VERSION $(LOCAL)/gen/templ.stamp $(LOCAL)/gen/sql-db.stamp $(LOCAL)/gen/sql-queue.stamp $(LOCAL)/gen/ogen-server.stamp $(shell find cmd/morsel-ctrl-plane internal -name '*.go')
+	go build -ldflags "$(LDFLAGS)" -o bin/morsel-ctrl-plane$(EXE) ./cmd/morsel-ctrl-plane
 
 # ---- Code generation (timestamp-tracked) -------------------------------------
 # Stamp files in .local/gen/ record the last time each generator ran.

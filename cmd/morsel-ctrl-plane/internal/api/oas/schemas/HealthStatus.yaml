@@ -1,0 +1,13 @@
+type: object
+required: [status, version, components]
+properties:
+  status:
+    description: '"ok" when all critical components healthy, "degraded" otherwise.'
+    type: string
+  version:
+    description: Version and build info of the running binary.
+    type: string
+  components:
+    type: array
+    items:
+      $ref: './ComponentHealth.yaml'

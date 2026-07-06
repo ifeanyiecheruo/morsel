@@ -2672,8 +2672,8 @@ func (s *Server) handleGetDeploymentInfoRequest(args [0]string, argsEscaped bool
 
 // handleGetHealthzRequest handles getHealthz operation.
 //
-// Returns 200 when the API server is up and able to handle requests. Does not check downstream
-// dependencies.
+// Returns 200 when all critical subsystems are healthy, 503 when one or more are degraded. The
+// response body is always present and describes the status.
 //
 // GET /healthz
 func (s *Server) handleGetHealthzRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -2746,7 +2746,7 @@ func (s *Server) handleGetHealthzRequest(args [0]string, argsEscaped bool, w htt
 
 	var rawBody []byte
 
-	var response *GetHealthzOK
+	var response GetHealthzRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
@@ -2762,7 +2762,7 @@ func (s *Server) handleGetHealthzRequest(args [0]string, argsEscaped bool, w htt
 		type (
 			Request  = struct{}
 			Params   = struct{}
-			Response = *GetHealthzOK
+			Response = GetHealthzRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,

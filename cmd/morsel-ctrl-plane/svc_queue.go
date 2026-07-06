@@ -18,6 +18,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/queue"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/health"
 )
 
 func newQueueCmd(ctx context.Context) *cobra.Command {
@@ -38,8 +39,18 @@ func newQueueCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("QUEUE_INTERNAL_TOKEN environment variable is required")
 			}
 
-			logger := ctxlog.From(ctx)
-			kubeClient := initializeKube(logger, kubeconfigPath)
+			reporter, err := health.From(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get health reporter: %w", err)
+			}
+
+			queueHealth := reporter.NewComponent("queue", true)
+
+			kubeClient := initializeKube(ctx, kubeconfigPath)
+
+			reporter, receiver := health.NewReporter()
+			ctx = health.With(ctx, reporter)
+			go receiver.Run(ctx)
 
 			h := &queueHandler{
 				baseDir:       dataDir,
@@ -48,7 +59,9 @@ func newQueueCmd(ctx context.Context) *cobra.Command {
 			}
 
 			mux := http.NewServeMux()
-			mux.HandleFunc("GET /healthz", h.healthz)
+			mux.HandleFunc("GET /livez", receiver.LivezHandler)
+			mux.HandleFunc("GET /readyz", receiver.ReadyzHandler)
+			mux.HandleFunc("GET /healthz", receiver.HealthzHandler)
 			mux.HandleFunc("PUT /queues/{name}", h.createQueue)
 			mux.HandleFunc("DELETE /queues/{name}", h.deleteQueue)
 			mux.HandleFunc("GET /queues", h.listQueues)
@@ -59,6 +72,7 @@ func newQueueCmd(ctx context.Context) *cobra.Command {
 			mux.HandleFunc("POST /internal/quota/{namespace}/{app}", h.setQuota)
 			mux.HandleFunc("GET /internal/queues/{namespace}/{app}", h.idleStatus)
 
+			queueHealth.Report(true, "ready")
 			runServer(ctx, addr, 30*time.Second, func() *http.Server {
 				return &http.Server{
 					Handler:      mux,
@@ -140,11 +154,6 @@ func queueWriteError(w http.ResponseWriter, code int, errCode, message string) {
 }
 
 // — handlers —
-
-func (h *queueHandler) healthz(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok"))
-}
 
 func (h *queueHandler) createQueue(w http.ResponseWriter, r *http.Request) {
 	ns, err := h.identify(r)

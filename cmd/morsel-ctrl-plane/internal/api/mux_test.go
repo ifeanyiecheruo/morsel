@@ -17,6 +17,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform/local"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
+	"github.com/ifeanyiecheruo/morsel/internal/health"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
@@ -113,9 +114,14 @@ func testSetup(t *testing.T) (*local.LocalPlatform, *store.Store, http.Handler) 
 		t.Fatalf("migrate test database: %v", err)
 	}
 
-	s := store.New(dbqueries.New(database))
+	s := store.New(dbqueries.New(database), database)
 	plat := local.NewWithSecretStore(s, newMemSecretStore())
-	mux := api.NewMux(context.Background(), plat, s, &fakeDeployer{})
+	reporter, receiver := health.NewReporter()
+	testComponent := reporter.NewComponent("test", true)
+	testComponent.Report(true, "ready")
+
+	receiver.DrainForTest()
+	mux := api.NewMux(context.Background(), plat, s, &fakeDeployer{}, receiver)
 	return plat, s, mux
 }
 
@@ -130,12 +136,14 @@ func TestHealthzReturnsOK(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
-	var body map[string]string
+	var body struct {
+		Status string `json:"status"`
+	}
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body["status"] != "ok" {
-		t.Errorf("status = %q, want ok", body["status"])
+	if body.Status != "ok" {
+		t.Errorf("status = %q, want ok", body.Status)
 	}
 }
 

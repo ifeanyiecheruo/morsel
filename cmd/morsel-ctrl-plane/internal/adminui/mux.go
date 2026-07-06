@@ -10,15 +10,18 @@ import (
 	uihandler "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/adminui/handler"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/middleware"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/health"
 )
 
 // NewMux constructs the root HTTP handler for the Morsel admin UI.
 // apiURL is the base URL of the Morsel REST API (e.g. "http://localhost:8080").
 // sessionKey is used to sign session cookies; must be at least 32 bytes.
-func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, sessionKey []byte) http.Handler {
+func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, sessionKey []byte, receiver *health.Receiver) http.Handler {
 	h := uihandler.New(apiURL, httpClient, sessionKey)
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /livez", receiver.LivezHandler)
+	mux.HandleFunc("GET /readyz", receiver.ReadyzHandler)
 
 	// Unauthenticated routes.
 	mux.HandleFunc("GET /login", h.ServeLogin)
@@ -57,9 +60,7 @@ func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, session
 	mux.Handle("GET /password-reset", h.RequireSession(http.HandlerFunc(h.ServePasswordReset)))
 	mux.Handle("POST /password-reset", h.RequireSession(http.HandlerFunc(h.HandlePasswordReset)))
 
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	mux.HandleFunc("GET /healthz", receiver.HealthzHandler)
 
 	// Root → /apps redirect.
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {

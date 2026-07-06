@@ -96,11 +96,11 @@ type Handler interface {
 	GetDeploymentInfo(ctx context.Context) (GetDeploymentInfoRes, error)
 	// GetHealthz implements getHealthz operation.
 	//
-	// Returns 200 when the API server is up and able to handle requests. Does not check downstream
-	// dependencies.
+	// Returns 200 when all critical subsystems are healthy, 503 when one or more are degraded. The
+	// response body is always present and describes the status.
 	//
 	// GET /healthz
-	GetHealthz(ctx context.Context) (*GetHealthzOK, error)
+	GetHealthz(ctx context.Context) (GetHealthzRes, error)
 	// GetOperation implements getOperation operation.
 	//
 	// Fetch the current state of a long-running operation. Retry until status is "complete" or "failed".

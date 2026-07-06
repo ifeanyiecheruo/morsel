@@ -1,0 +1,16 @@
+type: object
+required: [name, critical, healthy, reason, updatedAt]
+properties:
+  name:
+    type: string
+  critical:
+    type: boolean
+  healthy:
+    type: boolean
+  reason:
+    description: Human-readable explanation when the component is not healthy. Empty when healthy.
+    type: string
+  updatedAt:
+    description: Timestamp of the last update for the component's health status.
+    type: string
+    format: date-time

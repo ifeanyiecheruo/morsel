@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/watchers"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/health"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
@@ -31,20 +31,22 @@ func newAPICmd(ctx context.Context) *cobra.Command {
 		Use:   "api",
 		Short: "Run the control-plane REST API server",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			logger := ctxlog.From(ctx)
+			reporter, receiver := health.NewReporter()
+			ctx = health.With(ctx, reporter)
+			go receiver.Run(ctx)
 
-			s, closeStore := initializeStore(ctx, logger, dbPath)
+			storeInstance, closeStore := initializeStore(ctx, dbPath)
 			defer closeStore()
 
-			plat := initializePlatform(ctx, logger, platformName, s)
-			kubeClient := initializeKube(logger, kubeconfigPath)
+			plat := initializePlatform(ctx, platformName, storeInstance)
+			kubeClient := initializeKube(ctx, kubeconfigPath)
 
-			go runCertRenewal(ctx, plat, kubeClient, logger)
-			go watchers.NewHibernation(s, kubeClient, plat, 0).Run(ctx)
-			go watchers.NewBudget(s, kubeClient, plat, 0).Run(ctx)
-			go runPriceFetch(ctx, plat, s, logger)
+			go runCertRenewal(ctx, plat, kubeClient)
+			go watchers.NewHibernation(storeInstance, kubeClient, plat, 0).Run(ctx)
+			go watchers.NewBudget(storeInstance, kubeClient, plat, 0).Run(ctx)
+			go runPriceFetch(ctx, plat, storeInstance)
 
-			apiH := api.NewMux(ctx, plat, s, kubeClient)
+			apiH := api.NewMux(ctx, plat, storeInstance, kubeClient, receiver)
 			runServer(ctx, addr, 30*time.Second, func() *http.Server {
 				return &http.Server{Handler: apiH}
 			})
@@ -60,7 +62,16 @@ func newAPICmd(ctx context.Context) *cobra.Command {
 	return cmd
 }
 
-func initializeStore(ctx context.Context, logger *slog.Logger, dbPath string) (*store.Store, func()) {
+func initializeStore(ctx context.Context, dbPath string) (*store.Store, func()) {
+	logger := ctxlog.From(ctx)
+	reporter, err := health.From(ctx)
+	if err != nil {
+		logger.Error("failed to get health reporter", "err", err)
+		os.Exit(1)
+	}
+
+	storeHealth := reporter.NewComponent("database", true)
+
 	database, err := db.Open(ctx, dbPath)
 	if err != nil {
 		logger.Error("database error", "err", err)
@@ -75,10 +86,23 @@ func initializeStore(ctx context.Context, logger *slog.Logger, dbPath string) (*
 			logger.Error("database close error", "err", err)
 		}
 	}
-	return store.New(dbqueries.New(database)), closeStore
+
+	result := store.New(dbqueries.New(database), database)
+	storeHealth.Report(true, "ready")
+
+	return result, closeStore
 }
 
-func initializePlatform(ctx context.Context, logger *slog.Logger, platformName string, s *store.Store) platform.Platform {
+func initializePlatform(ctx context.Context, platformName string, s *store.Store) platform.Platform {
+	logger := ctxlog.From(ctx)
+	reporter, err := health.From(ctx)
+	if err != nil {
+		logger.Error("failed to get health reporter", "err", err)
+		os.Exit(1)
+	}
+
+	platformHealth := reporter.NewComponent("platform", true)
+
 	plat, err := platforms.Create(platformName, s)
 	if err != nil {
 		logger.Error("platform error", "err", err)
@@ -94,10 +118,13 @@ func initializePlatform(ctx context.Context, logger *slog.Logger, platformName s
 			os.Exit(1)
 		}
 	}
+
+	platformHealth.Report(true, "ready")
+
 	return plat
 }
 
-func runCertRenewal(ctx context.Context, plat platform.Platform, kubeClient *kube.Client, logger *slog.Logger) {
+func runCertRenewal(ctx context.Context, plat platform.Platform, kubeClient *kube.Client) {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 	for {
@@ -105,12 +132,13 @@ func runCertRenewal(ctx context.Context, plat platform.Platform, kubeClient *kub
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			checkAndRenewCert(ctx, plat, kubeClient, logger)
+			checkAndRenewCert(ctx, plat, kubeClient)
 		}
 	}
 }
 
-func checkAndRenewCert(ctx context.Context, plat platform.Platform, kubeClient *kube.Client, logger *slog.Logger) {
+func checkAndRenewCert(ctx context.Context, plat platform.Platform, kubeClient *kube.Client) {
+	logger := ctxlog.From(ctx)
 	ns := plat.Namespace()
 	expiry, err := kubeClient.GetTLSCertExpiry(ctx, ns, kube.MorselTLSSecret)
 	if err != nil {
@@ -136,7 +164,16 @@ func checkAndRenewCert(ctx context.Context, plat platform.Platform, kubeClient *
 	logger.Info("tls cert renewed")
 }
 
-func initializeKube(logger *slog.Logger, kubeconfigPath string) *kube.Client {
+func initializeKube(ctx context.Context, kubeconfigPath string) *kube.Client {
+	logger := ctxlog.From(ctx)
+	reporter, err := health.From(ctx)
+	if err != nil {
+		logger.Error("failed to get health reporter", "err", err)
+		os.Exit(1)
+	}
+
+	k8sHealth := reporter.NewComponent("kubernetes", true)
+
 	deployer, err := kube.New(kubeconfigPath)
 	if err != nil {
 		var ce *kube.ConfigError
@@ -160,10 +197,13 @@ func initializeKube(logger *slog.Logger, kubeconfigPath string) *kube.Client {
 		}
 		os.Exit(1)
 	}
+
+	k8sHealth.Report(true, "ready")
 	return deployer
 }
 
-func runPriceFetch(ctx context.Context, plat platform.Platform, s *store.Store, logger *slog.Logger) {
+func runPriceFetch(ctx context.Context, plat platform.Platform, s *store.Store) {
+	logger := ctxlog.From(ctx)
 	fetch := func() {
 		prices, err := plat.Pricing().Prices(ctx)
 		if err != nil {

@@ -8,22 +8,17 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/version"
 )
 
 func main() {
 	ctx, levelVar := ctxlog.Init(context.Background())
 
 	var logLevelFlag string
-	// TODO: add version support and build info support
-	// embedd version info from version file in repo
-	// embed build info from file generated during build
-	// will need bump-version make target to update version file
-	// expose version info via a `version` command and `--version` flag
-	// expose build info in help output
-	// do this for all cli commands
 	root := &cobra.Command{
 		Use:           "morsel-ctrl-plane",
 		Short:         "Morsel control plane",
+		Version:       version.Get().String(),
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
@@ -52,6 +47,7 @@ func main() {
 		newAdminUICmd(ctx),
 	)
 	root.AddCommand(run)
+	root.AddCommand(newVersionCmd())
 
 	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)

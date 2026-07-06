@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/adminui"
+	"github.com/ifeanyiecheruo/morsel/internal/health"
 )
 
 func newAdminUICmd(ctx context.Context) *cobra.Command {
@@ -49,8 +50,14 @@ access to the database or Kubernetes.`,
 				fmt.Fprintln(os.Stderr, "warning: --session-secret not set; using ephemeral key — sessions will not survive restart")
 			}
 
+			reporter, receiver := health.NewReporter()
+			ctx = health.With(ctx, reporter)
+			go receiver.Run(ctx)
+			uiHealth := reporter.NewComponent("ui", true)
+
 			httpClient := &http.Client{Timeout: 30 * time.Second}
-			h := adminui.NewMux(ctx, apiURL, httpClient, sessionKey)
+			h := adminui.NewMux(ctx, apiURL, httpClient, sessionKey, receiver)
+			uiHealth.Report(true, "ready")
 
 			runServer(ctx, addr, 30*time.Second, func() *http.Server {
 				return &http.Server{Handler: h}

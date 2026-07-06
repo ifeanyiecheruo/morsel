@@ -280,6 +280,22 @@ func (s *GetAppUtilisationOK) Validate() error {
 	return nil
 }
 
+func (s *GetHealthzOK) Validate() error {
+	alias := (*HealthStatus)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *GetHealthzServiceUnavailable) Validate() error {
+	alias := (*HealthStatus)(s)
+	if err := alias.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *GetOperatorCostOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -442,6 +458,29 @@ func (s *GetOperatorPricesHistoryOKSnapshotsItem) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "registry_per_gb_month",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *HealthStatus) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if s.Components == nil {
+			return errors.New("nil is invalid value")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "components",
 			Error: err,
 		})
 	}

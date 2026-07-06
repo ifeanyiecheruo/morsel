@@ -53,6 +53,10 @@ type GetDeploymentInfoRes interface {
 	getDeploymentInfoRes()
 }
 
+type GetHealthzRes interface {
+	getHealthzRes()
+}
+
 type GetOperationRes interface {
 	getOperationRes()
 }

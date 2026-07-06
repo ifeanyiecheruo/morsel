@@ -18,19 +18,20 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/health"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
 // NewMux constructs the root HTTP handler for the Morsel API using the
 // ogen-generated router. Panics if the server cannot be constructed (indicates
 // a programmer error such as a nil handler).
-func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deployer handler.AppDeployer) http.Handler {
+func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deployer handler.AppDeployer, receiver *health.Receiver) http.Handler {
 	keys, err := plat.Secrets().EnsureSigningKey(ctx)
 	if err != nil || len(keys) == 0 {
 		panic("morsel api: signing key unavailable: " + err.Error())
 	}
 	signingKey := keys[0]
-	h := handler.New(plat, s, signingKey, deployer)
+	h := handler.New(plat, s, signingKey, deployer, receiver)
 	sec := handler.NewSecurityHandler(signingKey)
 
 	srv, err := server.NewServer(h, sec,
@@ -48,6 +49,8 @@ func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deploye
 
 	// ── API mux (api.<baseDomain>) ────────────────────────────────────────────
 	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("GET /livez", receiver.LivezHandler)
+	apiMux.HandleFunc("GET /readyz", receiver.ReadyzHandler)
 	apiMux.Handle("/.well-known/", wellknown.New("/.well-known"))
 	apiMux.Handle("/internal/wake", internalWakeHandler(ctx, s, deployer, plat))
 	apiMux.HandleFunc("POST /bootstrap", h.HandleBootstrap)

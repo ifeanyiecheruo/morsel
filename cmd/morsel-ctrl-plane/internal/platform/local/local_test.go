@@ -107,7 +107,7 @@ func platWithStore(t *testing.T) (*local.LocalPlatform, *store.Store) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	s := store.New(dbqueries.New(database))
+	s := store.New(dbqueries.New(database), database)
 	return local.NewWithSecretStore(s, newMemSecretStore()), s
 }
 

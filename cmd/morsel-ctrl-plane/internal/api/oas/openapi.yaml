@@ -65,6 +65,10 @@ components:
       $ref: './schemas/RepoExemptionReq.yaml'
     ExemptionList:
       $ref: './schemas/ExemptionList.yaml'
+    HealthStatus:
+      $ref: './schemas/HealthStatus.yaml'
+    ComponentHealth:
+      $ref: './schemas/ComponentHealth.yaml'
 
   parameters:
     OrgParam:

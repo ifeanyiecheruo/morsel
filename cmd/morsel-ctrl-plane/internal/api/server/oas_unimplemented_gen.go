@@ -140,11 +140,11 @@ func (UnimplementedHandler) GetDeploymentInfo(ctx context.Context) (r GetDeploym
 
 // GetHealthz implements getHealthz operation.
 //
-// Returns 200 when the API server is up and able to handle requests. Does not check downstream
-// dependencies.
+// Returns 200 when all critical subsystems are healthy, 503 when one or more are degraded. The
+// response body is always present and describes the status.
 //
 // GET /healthz
-func (UnimplementedHandler) GetHealthz(ctx context.Context) (r *GetHealthzOK, _ error) {
+func (UnimplementedHandler) GetHealthz(ctx context.Context) (r GetHealthzRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 

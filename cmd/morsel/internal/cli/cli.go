@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/version"
 )
 
 // Execute runs the morsel CLI with the production handler against os.Args.
@@ -40,6 +41,7 @@ func (c *cli) buildRoot() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "morsel",
 		Short:         "morsel — self-hosted PaaS for non-production applications",
+		Version:       version.Get().String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -63,6 +65,7 @@ func (c *cli) buildRoot() *cobra.Command {
 	cmd.AddCommand(c.operatorCmd())
 	cmd.AddCommand(c.appCmd())
 	cmd.AddCommand(c.lintCmd())
+	cmd.AddCommand(c.versionCmd())
 
 	return cmd
 }

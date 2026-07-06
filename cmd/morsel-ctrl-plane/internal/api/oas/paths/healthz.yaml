@@ -1,19 +1,22 @@
 get:
   operationId: getHealthz
   summary: Health check
-  description: Returns 200 when the API server is up and able to handle requests. Does not check downstream dependencies.
+  description: >
+    Returns 200 when all critical subsystems are healthy, 503 when one or more
+    are degraded. The response body is always present and describes the status.
   tags: [system]
   responses:
     '200':
-      description: OK
+      description: All critical subsystems healthy.
       content:
         application/json:
           schema:
-            type: object
-            required: [status]
-            properties:
-              status:
-                description: Always "ok" when the server is healthy.
-                type: string
+            $ref: '../schemas/HealthStatus.yaml'
+    '503':
+      description: One or more critical subsystems are degraded.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/HealthStatus.yaml'
     default:
       $ref: '../responses.yaml#/ErrorInternalServer'

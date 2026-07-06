@@ -16,7 +16,9 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
+	"github.com/ifeanyiecheruo/morsel/internal/health"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
+	"github.com/ifeanyiecheruo/morsel/internal/version"
 )
 
 // AppDeployer is the subset of kube.Client methods used by the handler.
@@ -43,11 +45,12 @@ type Handler struct {
 	store      *store.Store
 	signingKey []byte
 	deployer   AppDeployer
+	receiver   *health.Receiver
 }
 
 // New constructs a Handler.
-func New(plat platform.Platform, s *store.Store, signingKey []byte, deployer AppDeployer) *Handler {
-	return &Handler{plat: plat, store: s, signingKey: signingKey, deployer: deployer}
+func New(plat platform.Platform, s *store.Store, signingKey []byte, deployer AppDeployer, receiver *health.Receiver) *Handler {
+	return &Handler{plat: plat, store: s, signingKey: signingKey, deployer: deployer, receiver: receiver}
 }
 
 // apiError is the internal structured error type. It is written by WriteError
@@ -178,8 +181,33 @@ func requireAdmin(ctx context.Context) error {
 
 // ── Health ────────────────────────────────────────────────────────────────────
 
-func (h *Handler) GetHealthz(_ context.Context) (*server.GetHealthzOK, error) {
-	return &server.GetHealthzOK{Status: "ok"}, nil
+func (h *Handler) GetHealthz(_ context.Context) (server.GetHealthzRes, error) {
+	ready, snaps := h.receiver.Read()
+	comps := make([]server.ComponentHealth, len(snaps))
+	for i, upd := range snaps {
+		comps[i] = server.ComponentHealth{
+			Name:      upd.Component,
+			Critical:  upd.Critical,
+			Healthy:   upd.Healthy,
+			Reason:    upd.Reason,
+			UpdatedAt: upd.UpdatedAt,
+		}
+	}
+	statusStr := "ok"
+	if !ready {
+		statusStr = "degraded"
+	}
+	hs := server.HealthStatus{
+		Status:     statusStr,
+		Version:    version.Get().String(),
+		Components: comps,
+	}
+	if !ready {
+		unavail := server.GetHealthzServiceUnavailable(hs)
+		return &unavail, nil
+	}
+	ok := server.GetHealthzOK(hs)
+	return &ok, nil
 }
 
 // NewError converts any handler error into the ogen convenient-error envelope.

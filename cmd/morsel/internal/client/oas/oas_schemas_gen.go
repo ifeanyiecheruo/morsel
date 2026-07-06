@@ -790,6 +790,67 @@ func (s *ChangePasswordReq) SetNewPassword(val string) {
 	s.NewPassword = val
 }
 
+// Ref: #
+type ComponentHealth struct {
+	Name     string `json:"name"`
+	Critical bool   `json:"critical"`
+	Healthy  bool   `json:"healthy"`
+	// Human-readable explanation when the component is not healthy. Empty when healthy.
+	Reason string `json:"reason"`
+	// Timestamp of the last update for the component's health status.
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// GetName returns the value of Name.
+func (s *ComponentHealth) GetName() string {
+	return s.Name
+}
+
+// GetCritical returns the value of Critical.
+func (s *ComponentHealth) GetCritical() bool {
+	return s.Critical
+}
+
+// GetHealthy returns the value of Healthy.
+func (s *ComponentHealth) GetHealthy() bool {
+	return s.Healthy
+}
+
+// GetReason returns the value of Reason.
+func (s *ComponentHealth) GetReason() string {
+	return s.Reason
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *ComponentHealth) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// SetName sets the value of Name.
+func (s *ComponentHealth) SetName(val string) {
+	s.Name = val
+}
+
+// SetCritical sets the value of Critical.
+func (s *ComponentHealth) SetCritical(val bool) {
+	s.Critical = val
+}
+
+// SetHealthy sets the value of Healthy.
+func (s *ComponentHealth) SetHealthy(val bool) {
+	s.Healthy = val
+}
+
+// SetReason sets the value of Reason.
+func (s *ComponentHealth) SetReason(val string) {
+	s.Reason = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *ComponentHealth) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
 type CreateTierBadRequest ErrorResponse
 
 func (*CreateTierBadRequest) createTierRes() {}
@@ -1452,20 +1513,13 @@ type GetDeploymentInfoUnauthorized ErrorResponse
 
 func (*GetDeploymentInfoUnauthorized) getDeploymentInfoRes() {}
 
-type GetHealthzOK struct {
-	// Always "ok" when the server is healthy.
-	Status string `json:"status"`
-}
+type GetHealthzOK HealthStatus
 
-// GetStatus returns the value of Status.
-func (s *GetHealthzOK) GetStatus() string {
-	return s.Status
-}
+func (*GetHealthzOK) getHealthzRes() {}
 
-// SetStatus sets the value of Status.
-func (s *GetHealthzOK) SetStatus(val string) {
-	s.Status = val
-}
+type GetHealthzServiceUnavailable HealthStatus
+
+func (*GetHealthzServiceUnavailable) getHealthzRes() {}
 
 type GetOperationForbidden ErrorResponse
 
@@ -1800,6 +1854,45 @@ func (*GetRepoNotFound) getRepoRes() {}
 type GetRepoUnauthorized ErrorResponse
 
 func (*GetRepoUnauthorized) getRepoRes() {}
+
+// Ref: #
+type HealthStatus struct {
+	// "ok" when all critical components healthy, "degraded" otherwise.
+	Status string `json:"status"`
+	// Version and build info of the running binary.
+	Version    string            `json:"version"`
+	Components []ComponentHealth `json:"components"`
+}
+
+// GetStatus returns the value of Status.
+func (s *HealthStatus) GetStatus() string {
+	return s.Status
+}
+
+// GetVersion returns the value of Version.
+func (s *HealthStatus) GetVersion() string {
+	return s.Version
+}
+
+// GetComponents returns the value of Components.
+func (s *HealthStatus) GetComponents() []ComponentHealth {
+	return s.Components
+}
+
+// SetStatus sets the value of Status.
+func (s *HealthStatus) SetStatus(val string) {
+	s.Status = val
+}
+
+// SetVersion sets the value of Version.
+func (s *HealthStatus) SetVersion(val string) {
+	s.Version = val
+}
+
+// SetComponents sets the value of Components.
+func (s *HealthStatus) SetComponents(val []ComponentHealth) {
+	s.Components = val
+}
 
 type HibernateAppForbidden ErrorResponse
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/client/oas"
 )
 
 func (c *cli) serviceStatusCmd() *cobra.Command {
@@ -37,7 +39,12 @@ func (h *cliHandler) ServiceStatus(ctx context.Context, prof *Profile) error {
 	if err != nil {
 		fmt.Printf("  ✗ API (%s): %v\n", prof.APIURL, err)
 	} else {
-		fmt.Printf("  ✓ API (%s): %s\n", prof.APIURL, resp.Status)
+		switch r := resp.(type) {
+		case *oas.GetHealthzOK:
+			fmt.Printf("  ✓ API (%s): %s (server %s)\n", prof.APIURL, r.Status, r.Version)
+		case *oas.GetHealthzServiceUnavailable:
+			fmt.Printf("  ✗ API (%s): %s (server %s)\n", prof.APIURL, r.Status, r.Version)
+		}
 	}
 
 	return nil

@@ -607,13 +607,8 @@
         "type": "object"
       },
       "ChangePasswordReq": {
-        "description": "Request to reset the currently authenticated operator's password. Requires the current password for verification.",
+        "description": "Request to reset the currently authenticated operator's password. A valid bearer token is sufficient proof of identity.",
         "properties": {
-          "current_password": {
-            "description": "The operator's current password, used to verify identity before the change is accepted.",
-            "minLength": 1,
-            "type": "string"
-          },
           "new_password": {
             "description": "The new password to set. Must be at least 8 characters.",
             "minLength": 8,
@@ -621,8 +616,37 @@
           }
         },
         "required": [
-          "current_password",
           "new_password"
+        ],
+        "type": "object"
+      },
+      "ComponentHealth": {
+        "properties": {
+          "critical": {
+            "type": "boolean"
+          },
+          "healthy": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "description": "Human-readable explanation when the component is not healthy. Empty when healthy.",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Timestamp of the last update for the component's health status.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "critical",
+          "healthy",
+          "reason",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -815,6 +839,57 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "HealthStatus": {
+        "properties": {
+          "components": {
+            "items": {
+              "properties": {
+                "critical": {
+                  "type": "boolean"
+                },
+                "healthy": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "reason": {
+                  "description": "Human-readable explanation when the component is not healthy. Empty when healthy.",
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "description": "Timestamp of the last update for the component's health status.",
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "critical",
+                "healthy",
+                "reason",
+                "updatedAt"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "status": {
+            "description": "\"ok\" when all critical components healthy, \"degraded\" otherwise.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Version and build info of the running binary.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "components"
+        ],
         "type": "object"
       },
       "Operation": {
@@ -3650,13 +3725,8 @@
           "content": {
             "application/json": {
               "schema": {
-                "description": "Request to reset the currently authenticated operator's password. Requires the current password for verification.",
+                "description": "Request to reset the currently authenticated operator's password. A valid bearer token is sufficient proof of identity.",
                 "properties": {
-                  "current_password": {
-                    "description": "The operator's current password, used to verify identity before the change is accepted.",
-                    "minLength": 1,
-                    "type": "string"
-                  },
                   "new_password": {
                     "description": "The new password to set. Must be at least 8 characters.",
                     "minLength": 8,
@@ -3664,7 +3734,6 @@
                   }
                 },
                 "required": [
-                  "current_password",
                   "new_password"
                 ],
                 "type": "object"
@@ -14089,7 +14158,7 @@
     },
     "/healthz": {
       "get": {
-        "description": "Returns 200 when the API server is up and able to handle requests. Does not check downstream dependencies.",
+        "description": "Returns 200 when all critical subsystems are healthy, 503 when one or more are degraded. The response body is always present and describes the status.\n",
         "operationId": "getHealthz",
         "responses": {
           "200": {
@@ -14097,19 +14166,116 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "components": {
+                      "items": {
+                        "properties": {
+                          "critical": {
+                            "type": "boolean"
+                          },
+                          "healthy": {
+                            "type": "boolean"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "description": "Human-readable explanation when the component is not healthy. Empty when healthy.",
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "description": "Timestamp of the last update for the component's health status.",
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "critical",
+                          "healthy",
+                          "reason",
+                          "updatedAt"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "status": {
-                      "description": "Always \"ok\" when the server is healthy.",
+                      "description": "\"ok\" when all critical components healthy, \"degraded\" otherwise.",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "Version and build info of the running binary.",
                       "type": "string"
                     }
                   },
                   "required": [
-                    "status"
+                    "status",
+                    "version",
+                    "components"
                   ],
                   "type": "object"
                 }
               }
             },
-            "description": "OK"
+            "description": "All critical subsystems healthy."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "components": {
+                      "items": {
+                        "properties": {
+                          "critical": {
+                            "type": "boolean"
+                          },
+                          "healthy": {
+                            "type": "boolean"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "description": "Human-readable explanation when the component is not healthy. Empty when healthy.",
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "description": "Timestamp of the last update for the component's health status.",
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "critical",
+                          "healthy",
+                          "reason",
+                          "updatedAt"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "status": {
+                      "description": "\"ok\" when all critical components healthy, \"degraded\" otherwise.",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "Version and build info of the running binary.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "version",
+                    "components"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One or more critical subsystems are degraded."
           },
           "default": {
             "content": {

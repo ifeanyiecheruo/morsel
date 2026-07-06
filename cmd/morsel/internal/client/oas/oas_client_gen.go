@@ -176,11 +176,11 @@ type Invoker interface {
 	GetDeploymentInfo(ctx context.Context, options ...RequestOption) (GetDeploymentInfoRes, error)
 	// GetHealthz invokes getHealthz operation.
 	//
-	// Returns 200 when the API server is up and able to handle requests. Does not check downstream
-	// dependencies.
+	// Returns 200 when all critical subsystems are healthy, 503 when one or more are degraded. The
+	// response body is always present and describes the status.
 	//
 	// GET /healthz
-	GetHealthz(ctx context.Context, options ...RequestOption) (*GetHealthzOK, error)
+	GetHealthz(ctx context.Context, options ...RequestOption) (GetHealthzRes, error)
 	// GetOperation invokes getOperation operation.
 	//
 	// Fetch the current state of a long-running operation. Retry until status is "complete" or "failed".
@@ -2623,16 +2623,16 @@ func (c *Client) sendGetDeploymentInfo(ctx context.Context, requestOptions ...Re
 
 // GetHealthz invokes getHealthz operation.
 //
-// Returns 200 when the API server is up and able to handle requests. Does not check downstream
-// dependencies.
+// Returns 200 when all critical subsystems are healthy, 503 when one or more are degraded. The
+// response body is always present and describes the status.
 //
 // GET /healthz
-func (c *Client) GetHealthz(ctx context.Context, options ...RequestOption) (*GetHealthzOK, error) {
+func (c *Client) GetHealthz(ctx context.Context, options ...RequestOption) (GetHealthzRes, error) {
 	res, err := c.sendGetHealthz(ctx, options...)
 	return res, err
 }
 
-func (c *Client) sendGetHealthz(ctx context.Context, requestOptions ...RequestOption) (res *GetHealthzOK, err error) {
+func (c *Client) sendGetHealthz(ctx context.Context, requestOptions ...RequestOption) (res GetHealthzRes, err error) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("getHealthz"),
 		semconv.HTTPRequestMethodKey.String("GET"),

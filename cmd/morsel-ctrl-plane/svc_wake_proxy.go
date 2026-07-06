@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"github.com/ifeanyiecheruo/morsel/internal/health"
 )
 
 func newWakeProxyCmd(ctx context.Context) *cobra.Command {
@@ -36,11 +37,16 @@ func newWakeProxyCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("WAKE_PROXY_TOKEN environment variable is required")
 			}
 
+			reporter, receiver := health.NewReporter()
+			ctx = health.With(ctx, reporter)
+			go receiver.Run(ctx)
+
+			proxyHealth := reporter.NewComponent("proxy", true)
+
 			mux := http.NewServeMux()
-			mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("ok"))
-			})
+			mux.HandleFunc("GET /livez", receiver.LivezHandler)
+			mux.HandleFunc("GET /readyz", receiver.ReadyzHandler)
+			mux.HandleFunc("GET /healthz", receiver.HealthzHandler)
 			mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 				rlog := ctxlog.From(r.Context())
 				host := r.Host
@@ -76,6 +82,7 @@ func newWakeProxyCmd(ctx context.Context) *cobra.Command {
 				proxy.ServeHTTP(w, r)
 			})
 
+			proxyHealth.Report(true, "ready")
 			logger.Info("wake proxy starting", "api", ctrlPlane)
 			runServer(ctx, addr, 30*time.Second, func() *http.Server {
 				return &http.Server{

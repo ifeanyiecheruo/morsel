@@ -27,12 +27,19 @@ const fallbackDefaultTier = "small"
 
 // Store wraps the sqlc-generated query layer with typed, domain-level methods.
 type Store struct {
-	q *dbqueries.Queries
+	q  *dbqueries.Queries
+	db *sql.DB
 }
 
-// New constructs a Store backed by the given queries instance.
-func New(q *dbqueries.Queries) *Store {
-	return &Store{q: q}
+// New constructs a Store backed by the given queries instance and raw DB handle.
+// The raw DB handle is used only for health checks (Ping).
+func New(q *dbqueries.Queries, db *sql.DB) *Store {
+	return &Store{q: q, db: db}
+}
+
+// Ping checks that the underlying database is reachable.
+func (s *Store) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
 }
 
 // ── Principals ───────────────────────────────────────────────────────────────
