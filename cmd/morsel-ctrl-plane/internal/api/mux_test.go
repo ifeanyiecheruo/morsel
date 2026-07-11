@@ -85,6 +85,7 @@ func (fakeDeployer) AppReplicaCounts(_ context.Context, _, _ string) (int32, int
 func (fakeDeployer) ApplyNamespaceTier(_ context.Context, _ string, _ kube.TierLimits) error {
 	return nil
 }
+func (fakeDeployer) VerifyWakeToken(_ context.Context, _ string) error { return nil }
 
 var _ handler.AppDeployer = fakeDeployer{}
 

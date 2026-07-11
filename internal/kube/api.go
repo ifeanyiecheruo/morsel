@@ -99,6 +99,11 @@ func (c *Client) applyAPIRBAC(ctx context.Context, ns string) error {
 				Resources: []string{"gatewayclasses", "gateways", "httproutes"},
 				Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
 			},
+			{
+				APIGroups: []string{"authentication.k8s.io"},
+				Resources: []string{"tokenreviews"},
+				Verbs:     []string{"create"},
+			},
 		},
 	}
 	existing, err := c.cs.RbacV1().ClusterRoles().Get(ctx, apiName, metav1.GetOptions{})
@@ -247,18 +252,6 @@ func (c *Client) applyAPIDeployment(ctx context.Context, ns, image, dbPath strin
 							},
 							Env: []corev1.EnvVar{
 								{Name: "MORSEL_LOCAL_DATA_DIR", Value: apiDataMount},
-								{
-									Name: "WAKE_PROXY_TOKEN",
-									ValueFrom: &corev1.EnvVarSource{
-										SecretKeyRef: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: wakeProxySecretName,
-											},
-											Key:      wakeProxyTokenKey,
-											Optional: func() *bool { b := true; return &b }(),
-										},
-									},
-								},
 							},
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: apiPort, Name: "http"},

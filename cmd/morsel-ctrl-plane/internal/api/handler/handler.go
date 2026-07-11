@@ -37,6 +37,7 @@ type AppDeployer interface {
 	WatchDeploymentReady(ctx context.Context, namespace string, timeout time.Duration) error
 	AppReplicaCounts(ctx context.Context, namespace, appType string) (desired, ready int32)
 	ApplyNamespaceTier(ctx context.Context, namespace string, limits kube.TierLimits) error
+	VerifyWakeToken(ctx context.Context, token string) error
 }
 
 // Handler implements server.Handler for all Morsel API operations.

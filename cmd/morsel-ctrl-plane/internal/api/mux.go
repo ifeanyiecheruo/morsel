@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -71,19 +70,20 @@ type wakeResponse struct {
 // the wake proxy. It scales up the app if hibernated, waits for it to become
 // ready, then returns the in-cluster service address for the proxy to forward to.
 func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.AppDeployer, plat platform.Platform) http.Handler {
-	wakeToken := os.Getenv("WAKE_PROXY_TOKEN")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required", "use POST")
 			return
 		}
 
-		if wakeToken != "" {
-			got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if got != wakeToken {
-				writeJSONError(w, http.StatusUnauthorized, "unauthorized", "invalid wake token", "")
-				return
-			}
+		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if token == "" {
+			writeJSONError(w, http.StatusUnauthorized, "unauthorized", "missing wake token", "")
+			return
+		}
+		if err := deployer.VerifyWakeToken(r.Context(), token); err != nil {
+			writeJSONError(w, http.StatusUnauthorized, "unauthorized", "invalid wake token", "")
+			return
 		}
 
 		host := r.URL.Query().Get("host")

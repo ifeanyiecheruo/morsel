@@ -2,11 +2,10 @@ package kube
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
+	authv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,21 +14,28 @@ import (
 )
 
 const (
-	wakeProxySecretName = "wake-proxy-token"
-	wakeProxyTokenKey   = "token"
-	wakeProxyNetpolName = "morsel-wake-proxy-netpol"
+	wakeProxyNetpolName         = "morsel-wake-proxy-netpol"
+	wakeProxyServiceAccountName = "morsel-wake-proxy"
+	wakeProxyTokenVolumeName    = "wake-proxy-token"
+	wakeProxyTokenAudience      = "morsel-internal-wake"
+	wakeProxyTokenMountDir      = "/var/run/secrets/morsel.io/wake-proxy"
+
+	// WakeProxyTokenPath is the path of the projected service account token inside
+	// the wake proxy pod. The morsel-ctrl-plane binary reads this file on each
+	// request and forwards it as a Bearer token to /internal/wake.
+	WakeProxyTokenPath = wakeProxyTokenMountDir + "/token"
 )
 
 // EnsureWakeProxy provisions the wake-on-request proxy in the morsel-services
-// namespace. It creates a shared token Secret in both morsel-services and apiNS
-// so the wake proxy can authenticate to the control plane's /internal/wake
-// endpoint. Idempotent — safe to call on every bootstrap run.
+// namespace. The proxy authenticates to the control plane's /internal/wake
+// endpoint using a projected service account token (audience: morsel-internal-wake)
+// that kubelet rotates automatically. Idempotent — safe to call on every bootstrap run.
 func (c *Client) EnsureWakeProxy(ctx context.Context, apiNS, image string) error {
 	if err := c.ensureServicesNamespace(ctx); err != nil {
 		return fmt.Errorf("namespace: %w", err)
 	}
-	if err := c.ensureWakeProxyToken(ctx, apiNS); err != nil {
-		return fmt.Errorf("token secret: %w", err)
+	if err := c.applyWakeProxySA(ctx); err != nil {
+		return fmt.Errorf("service account: %w", err)
 	}
 	if err := c.applyWakeProxyNetworkPolicy(ctx); err != nil {
 		return fmt.Errorf("network policy: %w", err)
@@ -59,51 +65,17 @@ func (c *Client) ensureServicesNamespace(ctx context.Context) error {
 	return err
 }
 
-// ensureWakeProxyToken generates a random bearer token on first run and stores
-// it as a Secret in both wakeProxyNamespace (for the wake proxy pod) and apiNS
-// (for the control plane pod). On subsequent runs it is a no-op.
-func (c *Client) ensureWakeProxyToken(ctx context.Context, apiNS string) error {
-	existing, err := c.cs.CoreV1().Secrets(wakeProxyNamespace).Get(ctx, wakeProxySecretName, metav1.GetOptions{})
-	var token string
-	if k8serrors.IsNotFound(err) {
-		raw := make([]byte, 32)
-		if _, err := rand.Read(raw); err != nil {
-			return fmt.Errorf("generate token: %w", err)
-		}
-
-		// TODO: Use a Kubernetes Secret of type "kubernetes.io/service-account-token" instead of a random string, which would allow automatic rotation and expiration.
-		token = hex.EncodeToString(raw)
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      wakeProxySecretName,
-				Namespace: wakeProxyNamespace,
-				Labels:    map[string]string{"morsel.io/managed": "true"},
-			},
-			StringData: map[string]string{wakeProxyTokenKey: token},
-		}
-		if _, err := c.cs.CoreV1().Secrets(wakeProxyNamespace).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
-			return fmt.Errorf("create token secret in %s: %w", wakeProxyNamespace, err)
-		}
-	} else if err != nil {
-		return err
-	} else {
-		token = string(existing.Data[wakeProxyTokenKey])
+func (c *Client) applyWakeProxySA(ctx context.Context) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      wakeProxyServiceAccountName,
+			Namespace: wakeProxyNamespace,
+			Labels:    map[string]string{"morsel.io/managed": "true"},
+		},
 	}
-
-	// Mirror the token into the control-plane namespace so the API pod can read
-	// it from its own namespace without cross-namespace RBAC.
-	_, err = c.cs.CoreV1().Secrets(apiNS).Get(ctx, wakeProxySecretName, metav1.GetOptions{})
+	_, err := c.cs.CoreV1().ServiceAccounts(wakeProxyNamespace).Get(ctx, wakeProxyServiceAccountName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
-		mirror := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      wakeProxySecretName,
-				Namespace: apiNS,
-				Labels:    map[string]string{"morsel.io/managed": "true"},
-			},
-			StringData: map[string]string{wakeProxyTokenKey: token},
-		}
-		_, err = c.cs.CoreV1().Secrets(apiNS).Create(ctx, mirror, metav1.CreateOptions{})
-		return err
+		_, err = c.cs.CoreV1().ServiceAccounts(wakeProxyNamespace).Create(ctx, sa, metav1.CreateOptions{})
 	}
 	return err
 }
@@ -157,7 +129,7 @@ func (c *Client) applyWakeProxyNetworkPolicy(ctx context.Context) error {
 func (c *Client) applyWakeProxyDeployment(ctx context.Context, image, ctrlPlaneAddr string) error {
 	replicas := int32(1)
 	labels := map[string]string{"morsel.io/component": wakeProxyService}
-	optionalTrue := true
+	tokenExpiry := int64(3600)
 	desired := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      wakeProxyService,
@@ -170,6 +142,7 @@ func (c *Client) applyWakeProxyDeployment(ctx context.Context, image, ctrlPlaneA
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
+					ServiceAccountName: wakeProxyServiceAccountName,
 					Containers: []corev1.Container{
 						{
 							Name:            wakeProxyService,
@@ -179,20 +152,6 @@ func (c *Client) applyWakeProxyDeployment(ctx context.Context, image, ctrlPlaneA
 								"run", "wake-proxy",
 								"--addr", fmt.Sprintf(":%d", wakeProxyPort),
 								"--api", ctrlPlaneAddr,
-							},
-							Env: []corev1.EnvVar{
-								{
-									Name: "WAKE_PROXY_TOKEN",
-									ValueFrom: &corev1.EnvVarSource{
-										SecretKeyRef: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: wakeProxySecretName,
-											},
-											Key:      wakeProxyTokenKey,
-											Optional: &optionalTrue,
-										},
-									},
-								},
 							},
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: wakeProxyPort, Name: "http"},
@@ -207,6 +166,31 @@ func (c *Client) applyWakeProxyDeployment(ctx context.Context, image, ctrlPlaneA
 								InitialDelaySeconds: 3,
 								PeriodSeconds:       5,
 								FailureThreshold:    6,
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      wakeProxyTokenVolumeName,
+									MountPath: wakeProxyTokenMountDir,
+									ReadOnly:  true,
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: wakeProxyTokenVolumeName,
+							VolumeSource: corev1.VolumeSource{
+								Projected: &corev1.ProjectedVolumeSource{
+									Sources: []corev1.VolumeProjection{
+										{
+											ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+												Audience:          wakeProxyTokenAudience,
+												ExpirationSeconds: &tokenExpiry,
+												Path:              "token",
+											},
+										},
+									},
+								},
 							},
 						},
 					},
@@ -259,4 +243,29 @@ func (c *Client) applyWakeProxyService(ctx context.Context) error {
 	existing.Spec.Selector = desired.Spec.Selector
 	_, err = c.cs.CoreV1().Services(wakeProxyNamespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return err
+}
+
+// VerifyWakeToken validates a projected service account token sent by the wake
+// proxy pod to /internal/wake. It calls the Kubernetes TokenReview API to
+// confirm the token is authentic, unexpired, and bound to the wake proxy
+// service account — without sharing any static secret.
+func (c *Client) VerifyWakeToken(ctx context.Context, token string) error {
+	tr := &authv1.TokenReview{
+		Spec: authv1.TokenReviewSpec{
+			Token:     token,
+			Audiences: []string{wakeProxyTokenAudience},
+		},
+	}
+	result, err := c.cs.AuthenticationV1().TokenReviews().Create(ctx, tr, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("token review: %w", err)
+	}
+	if !result.Status.Authenticated {
+		return fmt.Errorf("token not authenticated")
+	}
+	want := fmt.Sprintf("system:serviceaccount:%s:%s", wakeProxyNamespace, wakeProxyServiceAccountName)
+	if result.Status.User.Username != want {
+		return fmt.Errorf("unexpected service account: %s", result.Status.User.Username)
+	}
+	return nil
 }
