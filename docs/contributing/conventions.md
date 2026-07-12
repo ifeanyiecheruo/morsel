@@ -38,6 +38,23 @@ Always get a logger from the contex, never log with the default logger or a priv
 Alway log any error that does not need to be checked and is not returned to the caller.
 Do not directly print, always write to the context logger
 
+## Error handling
+
+No error may be silently discarded. 
+If not handled inline, prefer returning to the caller, otherwise log via the context logger before it is dropped. Errors that vanish with no trace make production incidents impossible to diagnose.
+
+**Deferred cleanup** — when a deferred Close or Flush cannot return its error, log it instead:
+
+```go
+defer func() {
+    if err := rc.Close(); err != nil {
+        ctxlog.From(ctx).Warn("close resource", "err", err)
+    }
+}()
+```
+
+**Goroutine errors** — pass the context into the goroutine and log before returning.
+
 ## Generated code
 
 All SQL must be authored as .sql files which are then code generated. No hand written SQL queries should be in the codebase.

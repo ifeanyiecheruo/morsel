@@ -3,6 +3,7 @@ package kube
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,8 +35,11 @@ const (
 // EnsureAPI provisions the morsel-api PVC, Deployment, and NodePort Service in
 // ns. dbPath is the path inside the container where the SQLite database lives
 // (e.g. /data/morsel.db); its parent directory is the PVC mount point.
+// githubClientID, when non-empty, is passed as --github-client-id to the API
+// process so the Device Flow login endpoint returns a usable client ID.
+// gatewayPort is passed as --gateway-port so the API can generate correct app URLs.
 // Idempotent — safe to call on every bootstrap run.
-func (c *Client) EnsureAPI(ctx context.Context, ns, image, dbPath string) error {
+func (c *Client) EnsureAPI(ctx context.Context, ns, image, dbPath, githubClientID string, gatewayPort int) error {
 	if err := c.ensureNamespace(ctx, ns); err != nil {
 		return fmt.Errorf("namespace: %w", err)
 	}
@@ -45,7 +49,7 @@ func (c *Client) EnsureAPI(ctx context.Context, ns, image, dbPath string) error 
 	if err := c.applyAPIPVC(ctx, ns); err != nil {
 		return fmt.Errorf("api data pvc: %w", err)
 	}
-	if err := c.applyAPIDeployment(ctx, ns, image, dbPath); err != nil {
+	if err := c.applyAPIDeployment(ctx, ns, image, dbPath, githubClientID, gatewayPort); err != nil {
 		return fmt.Errorf("api deployment: %w", err)
 	}
 	if err := c.applyAPIService(ctx, ns); err != nil {
@@ -214,7 +218,7 @@ func (c *Client) applyAPIPVC(ctx context.Context, ns string) error {
 	return err
 }
 
-func (c *Client) applyAPIDeployment(ctx context.Context, ns, image, dbPath string) error {
+func (c *Client) applyAPIDeployment(ctx context.Context, ns, image, dbPath, githubClientID string, gatewayPort int) error {
 	replicas := int32(1)
 	labels := map[string]string{"morsel.io/component": apiName}
 
@@ -245,11 +249,18 @@ func (c *Client) applyAPIDeployment(ctx context.Context, ns, image, dbPath strin
 							Name:            apiContainerName,
 							Image:           image,
 							ImagePullPolicy: corev1.PullNever,
-							Args: []string{
-								"run", "api",
-								"--platform", "local",
-								"--db", dbPath,
-							},
+							Args: func() []string {
+								args := []string{
+									"run", "api",
+									"--platform", "local",
+									"--db", dbPath,
+									"--gateway-port", strconv.Itoa(gatewayPort),
+								}
+								if githubClientID != "" {
+									args = append(args, "--github-client-id", githubClientID)
+								}
+								return args
+							}(),
 							Env: []corev1.EnvVar{
 								{Name: "MORSEL_LOCAL_DATA_DIR", Value: apiDataMount},
 							},
@@ -299,8 +310,10 @@ func (c *Client) applyAPIDeployment(ctx context.Context, ns, image, dbPath strin
 	return err
 }
 
-// WaitForAPIReady polls until the morsel-api deployment reaches ReadyReplicas ≥ 1
-// or timeout elapses. It fails immediately on terminal pod failure states.
+// WaitForAPIReady polls until the morsel-api deployment rollout completes:
+// the observed generation matches the spec generation, all desired replicas
+// are updated, and at least one is ready. This ensures we wait for a new pod
+// to replace an old one after a spec change, not just for any ready replica.
 func (c *Client) WaitForAPIReady(ctx context.Context, ns string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
@@ -308,7 +321,15 @@ func (c *Client) WaitForAPIReady(ctx context.Context, ns string, timeout time.Du
 		if err != nil {
 			return fmt.Errorf("get morsel-api deployment: %w", err)
 		}
-		if deploy.Status.ReadyReplicas >= 1 {
+		desired := int32(1)
+		if deploy.Spec.Replicas != nil {
+			desired = *deploy.Spec.Replicas
+		}
+		st := deploy.Status
+		if st.ObservedGeneration >= deploy.Generation &&
+			st.UpdatedReplicas >= desired &&
+			st.ReadyReplicas >= desired &&
+			st.UnavailableReplicas == 0 {
 			return nil
 		}
 		if err := c.checkAPIFailures(ctx, ns); err != nil {

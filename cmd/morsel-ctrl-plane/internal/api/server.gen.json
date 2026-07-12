@@ -1,0 +1,5 @@
+{
+  "cmd": "go run github.com/ogen-go/ogen/cmd/ogen --config oas/server.ogen.yml --target ./server --package server --clean oas/openapi.yaml",
+  "inputs": ["oas/server.ogen.yml", "oas/openapi.yaml"],
+  "outputs": ["server"]
+}

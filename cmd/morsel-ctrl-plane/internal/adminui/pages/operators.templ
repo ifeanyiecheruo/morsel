@@ -16,51 +16,19 @@ templ OperatorsPage(d OperatorsPageData) {
 				<table>
 					<thead>
 						<tr>
-							<th>Username</th>
+							<th>GitHub login</th>
 							<th>Role</th>
-							<th>Status</th>
-							<th></th>
 						</tr>
 					</thead>
 					<tbody>
 						for _, row := range d.Rows {
 							<tr>
-								<td>{ row.Username }</td>
+								<td>{ row.GithubLogin }</td>
 								<td>
 									if row.IsAdmin {
 										<span class="badge badge--blue">Admin</span>
 									} else {
 										<span class="badge">Operator</span>
-									}
-								</td>
-								<td>
-									if row.PasswordResetRequired {
-										<span class="badge badge--yellow">⚠ Password reset required</span>
-									} else {
-										<span class="badge badge--green">● Active</span>
-									}
-								</td>
-								<td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-									if !row.PasswordResetRequired {
-										<form method="post" action={ templ.SafeURL("/operators/" + row.Username + "/require-password-reset") }>
-											<button type="submit" class="btn btn--secondary btn--small">Require reset</button>
-										</form>
-									}
-									if d.ViewerIsAdmin {
-										<form method="post" action={ templ.SafeURL("/operators/" + row.Username + "/invalidate-password") }>
-											<button type="submit" class="btn btn--danger btn--small">Invalidate password</button>
-										</form>
-										<details class="inline-form-details">
-											<summary class="btn btn--secondary btn--small">Set password</summary>
-											<form method="post" action={ templ.SafeURL("/operators/" + row.Username + "/set-password") } style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-												<input type="password" name="new_password" placeholder="New password" minlength="8" required class="input input--small"/>
-												<label style="display:flex;gap:4px;align-items:center;font-size:0.85em">
-													<input type="checkbox" name="invalidate" value="true"/>
-													Force reset on login
-												</label>
-												<button type="submit" class="btn btn--primary btn--small">Set</button>
-											</form>
-										</details>
 									}
 								</td>
 							</tr>

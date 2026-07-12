@@ -3,16 +3,17 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
@@ -106,14 +107,22 @@ func (h *Handler) UpdateRepoTier(ctx context.Context, req *server.UpdateRepoTier
 
 	// Propagate new quota limits to all app namespaces in this repo.
 	limits := kube.TierLimits{CPUMilli: int(newTier.CpuMilli), MemoryMB: int(newTier.MemoryMb)}
-	apps, _ := h.store.ListApps(ctx, slug)
+	apps, appsErr := h.store.ListApps(ctx, slug)
+	if appsErr != nil {
+		ctxlog.From(ctx).Warn("list apps for tier propagation", "err", appsErr)
+	}
 	for _, app := range apps {
 		if app.Namespace.Valid && app.Namespace.String != "" {
-			_ = h.deployer.ApplyNamespaceTier(ctx, app.Namespace.String, limits)
+			if err := h.deployer.ApplyNamespaceTier(ctx, app.Namespace.String, limits); err != nil {
+				ctxlog.From(ctx).Warn("apply namespace tier", "namespace", app.Namespace.String, "err", err)
+			}
 		}
 	}
 
-	count, _ := h.store.CountAppsByRepo(ctx, slug)
+	count, countErr := h.store.CountAppsByRepo(ctx, slug)
+	if countErr != nil {
+		ctxlog.From(ctx).Warn("count apps by repo", "err", countErr)
+	}
 	prices := h.latestPrices(ctx)
 	cost := h.repoCostMonthly(ctx, slug, prices, time.Now().UTC())
 	out := dbRepoToOAS(updated, count, cost)
@@ -249,144 +258,128 @@ func (h *Handler) ListOperatorPrincipals(ctx context.Context) (server.ListOperat
 	return h.listPrincipalsResponse(ctx)
 }
 
+// AddOperatorPrincipal grants operator role to an existing principal by GitHub login.
+// The principal must have already authenticated via GitHub OAuth (they are upserted on
+// first login). Admin role required.
 func (h *Handler) AddOperatorPrincipal(ctx context.Context, req *server.PrincipalReq) (server.AddOperatorPrincipalRes, error) {
-	if err := requireOperator(ctx); err != nil {
+	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.store.AddPrincipal(ctx, req.Principal); err != nil {
-		return nil, fmt.Errorf("add principal: %w", err)
+	login := strings.TrimSpace(req.Principal)
+	if login == "" {
+		return nil, &apiError{httpStatus: http.StatusBadRequest, code: "invalid_request", message: "principal (github_login) is required"}
+	}
+	principal, err := h.store.GetPrincipalByLogin(ctx, login)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, &apiError{httpStatus: http.StatusNotFound, code: "not_found",
+			message: fmt.Sprintf("principal %q not found — they must log in via GitHub OAuth first", login)}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get principal: %w", err)
+	}
+	if err := h.store.SetOperator(ctx, principal.GithubID, true); err != nil {
+		return nil, fmt.Errorf("set operator: %w", err)
 	}
 	return h.listPrincipalsResponse(ctx)
 }
 
+// RemoveOperatorPrincipal deletes a principal entirely by GitHub login.
+// Admin role required.
 func (h *Handler) RemoveOperatorPrincipal(ctx context.Context, params server.RemoveOperatorPrincipalParams) (server.RemoveOperatorPrincipalRes, error) {
-	if err := requireOperator(ctx); err != nil {
+	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.store.RemovePrincipal(ctx, params.Principal); err != nil {
-		return nil, fmt.Errorf("remove principal: %w", err)
+	principal, err := h.store.GetPrincipalByLogin(ctx, params.Principal)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, &apiError{httpStatus: http.StatusNotFound, code: "not_found",
+			message: fmt.Sprintf("principal %q not found", params.Principal)}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get principal: %w", err)
+	}
+	if err := h.store.DeletePrincipal(ctx, principal.GithubID); err != nil {
+		return nil, fmt.Errorf("delete principal: %w", err)
 	}
 	return h.listPrincipalsResponse(ctx)
 }
 
-func (h *Handler) RequirePasswordResetForPrincipal(ctx context.Context, params server.RequirePasswordResetForPrincipalParams) (server.RequirePasswordResetForPrincipalRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
+// HandlePrincipalPatch handles PATCH /api/operator/principals/{github_login}.
+// Accepts a partial JSON body: { "is_operator": bool, "is_admin": bool }.
+// Fields absent from the body are left unchanged. Admin role required.
+func (h *Handler) HandlePrincipalPatch(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAdminHTTP(w, r) {
+		return
 	}
-	exists, err := h.store.PrincipalExists(ctx, params.Principal)
+	ctx := r.Context()
+	login := r.PathValue("github_login")
+
+	var req struct {
+		IsOperator *bool `json:"is_operator"`
+		IsAdmin    *bool `json:"is_admin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(ctx, w, http.StatusBadRequest, "invalid_request", "request body must be valid JSON", "")
+		return
+	}
+
+	principal, err := h.store.GetPrincipalByLogin(ctx, login)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSONError(ctx, w, http.StatusNotFound, "not_found", fmt.Sprintf("principal %q not found", login), "")
+		return
+	}
 	if err != nil {
-		return nil, fmt.Errorf("check principal: %w", err)
+		writeJSONError(ctx, w, http.StatusInternalServerError, "internal_error", "could not retrieve principal", "")
+		return
 	}
-	if !exists {
-		return nil, &apiError{
-			httpStatus: http.StatusNotFound,
-			code:       "not_found",
-			message:    fmt.Sprintf("principal %q not found", params.Principal),
-			remedy:     "check the principal identity with: morsel operator principal list",
+
+	if req.IsOperator != nil {
+		if err := h.store.SetOperator(ctx, principal.GithubID, *req.IsOperator); err != nil {
+			writeJSONError(ctx, w, http.StatusInternalServerError, "internal_error", "could not update operator flag", "")
+			return
 		}
 	}
-	if err := h.store.SetPasswordResetRequired(ctx, params.Principal, true); err != nil {
-		return nil, fmt.Errorf("set password reset required: %w", err)
+	if req.IsAdmin != nil {
+		if err := h.store.SetAdmin(ctx, principal.GithubID, *req.IsAdmin); err != nil {
+			writeJSONError(ctx, w, http.StatusInternalServerError, "internal_error", "could not update admin flag", "")
+			return
+		}
 	}
-	return &server.RequirePasswordResetForPrincipalNoContent{}, nil
+
+	principals, err := h.store.ListPrincipals(ctx)
+	if err != nil {
+		writeJSONError(ctx, w, http.StatusInternalServerError, "internal_error", "could not list principals", "")
+		return
+	}
+	items := make([]struct {
+		GithubLogin string `json:"github_login"`
+		IsOperator  bool   `json:"is_operator"`
+		IsAdmin     bool   `json:"is_admin"`
+	}, len(principals))
+	for i, p := range principals {
+		items[i].GithubLogin = p.GithubLogin
+		items[i].IsOperator = p.IsOperator != 0
+		items[i].IsAdmin = p.IsAdmin != 0
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(struct {
+		Principals any `json:"principals"`
+	}{Principals: items}); err != nil {
+		ctxlog.From(ctx).Warn("write principals response", "err", err)
+	}
 }
 
-func (h *Handler) ResetOperatorPassword(ctx context.Context, req *server.ChangePasswordReq) (server.ResetOperatorPasswordRes, error) {
-	if err := requireOperator(ctx); err != nil {
-		return nil, err
-	}
-	claims := claimsFromContext(ctx)
-	if claims == nil {
-		return nil, &apiError{
-			httpStatus: http.StatusUnauthorized,
-			code:       "invalid_token",
-			message:    "could not identify operator from token",
-			remedy:     "re-authenticate to obtain a fresh token",
-		}
-	}
-
-	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, fmt.Errorf("hash password: %w", err)
-	}
-	if err := h.store.AddPrincipalWithPasswordHash(ctx, claims.Subject, string(newHash)); err != nil {
-		return nil, fmt.Errorf("set password: %w", err)
-	}
-	if err := h.store.SetPasswordChangedAt(ctx, claims.Subject, time.Now()); err != nil {
-		return nil, fmt.Errorf("record password change: %w", err)
-	}
-	return &server.ResetOperatorPasswordNoContent{}, nil
-}
-
-func (h *Handler) SetOperatorPrincipalPassword(ctx context.Context, req *server.SetPrincipalPasswordReq, params server.SetOperatorPrincipalPasswordParams) (server.SetOperatorPrincipalPasswordRes, error) {
-	if err := requireAdmin(ctx); err != nil {
-		return nil, err
-	}
-	exists, err := h.store.PrincipalExists(ctx, params.Principal)
-	if err != nil {
-		return nil, fmt.Errorf("check principal: %w", err)
-	}
-	if !exists {
-		return nil, &apiError{
-			httpStatus: http.StatusNotFound,
-			code:       "not_found",
-			message:    fmt.Sprintf("principal %q not found", params.Principal),
-			remedy:     "check the principal identity with: morsel operator principal list",
-		}
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, fmt.Errorf("hash password: %w", err)
-	}
-	if err := h.store.AddPrincipalWithPasswordHash(ctx, params.Principal, string(hash)); err != nil {
-		return nil, fmt.Errorf("set password: %w", err)
-	}
-	now := time.Now()
-	if err := h.store.SetPasswordChangedAt(ctx, params.Principal, now); err != nil {
-		return nil, fmt.Errorf("record password change: %w", err)
-	}
-	if req.Invalidate.Or(false) {
-		if err := h.store.SetPasswordResetRequired(ctx, params.Principal, true); err != nil {
-			return nil, fmt.Errorf("set password reset required: %w", err)
-		}
-	}
-	return &server.SetOperatorPrincipalPasswordNoContent{}, nil
-}
-
-func (h *Handler) InvalidateOperatorPrincipalPassword(ctx context.Context, params server.InvalidateOperatorPrincipalPasswordParams) (server.InvalidateOperatorPrincipalPasswordRes, error) {
-	if err := requireAdmin(ctx); err != nil {
-		return nil, err
-	}
-	exists, err := h.store.PrincipalExists(ctx, params.Principal)
-	if err != nil {
-		return nil, fmt.Errorf("check principal: %w", err)
-	}
-	if !exists {
-		return nil, &apiError{
-			httpStatus: http.StatusNotFound,
-			code:       "not_found",
-			message:    fmt.Sprintf("principal %q not found", params.Principal),
-			remedy:     "check the principal identity with: morsel operator principal list",
-		}
-	}
-	if err := h.store.InvalidatePrincipalPassword(ctx, params.Principal, time.Now()); err != nil {
-		return nil, fmt.Errorf("invalidate password: %w", err)
-	}
-	return &server.InvalidateOperatorPrincipalPasswordNoContent{}, nil
-}
-
-// listPrincipalsResponse returns an OperatorPrincipals response populated with details.
+// listPrincipalsResponse returns an OperatorPrincipals response populated with principals.
 func (h *Handler) listPrincipalsResponse(ctx context.Context) (*server.OperatorPrincipals, error) {
-	details, err := h.store.ListPrincipalsWithDetails(ctx)
+	principals, err := h.store.ListPrincipals(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read principals: %w", err)
 	}
-	items := make([]server.OperatorPrincipalDetail, len(details))
-	for i, d := range details {
+	items := make([]server.OperatorPrincipalDetail, len(principals))
+	for i, p := range principals {
 		items[i] = server.OperatorPrincipalDetail{
-			Username:              d.Username,
-			PasswordResetRequired: d.PasswordResetRequired,
-			IsAdmin:               d.IsAdmin,
+			GithubLogin: p.GithubLogin,
+			IsOperator:  p.IsOperator != 0,
+			IsAdmin:     p.IsAdmin != 0,
 		}
 	}
 	return &server.OperatorPrincipals{Principals: items}, nil

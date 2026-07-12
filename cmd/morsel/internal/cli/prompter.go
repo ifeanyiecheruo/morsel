@@ -2,12 +2,14 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel/internal/platform"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 // Prompter handles interactive terminal input during multi-step wizards.
@@ -22,13 +24,14 @@ type Prompter interface {
 // When autoAcceptDefault is true, prompts with a default skip reading and
 // Confirm returns true without input — equivalent to pressing Enter everywhere.
 type ConsolePrompter struct {
+	ctx               context.Context
 	r                 *bufio.Reader
 	w                 io.Writer
 	autoAcceptDefault bool
 }
 
-func NewConsolePrompter(r io.Reader, w io.Writer) *ConsolePrompter {
-	return &ConsolePrompter{r: bufio.NewReader(r), w: w}
+func NewConsolePrompter(ctx context.Context, r io.Reader, w io.Writer) *ConsolePrompter {
+	return &ConsolePrompter{ctx: ctx, r: bufio.NewReader(r), w: w}
 }
 
 func (p *ConsolePrompter) Ask(prompts []platform.Prompt) (map[string]string, error) {
@@ -120,17 +123,31 @@ func (p *ConsolePrompter) Confirm(prompt string) bool {
 	if p.autoAcceptDefault {
 		return true
 	}
-	_, _ = fmt.Fprint(p.w, "  "+prompt)
-	line, _ := p.r.ReadString('\n')
+	if _, err := fmt.Fprint(p.w, "  "+prompt); err != nil {
+		ctxlog.From(p.ctx).Warn("write confirm prompt", "err", err)
+	}
+	line, err := p.r.ReadString('\n')
+	if err != nil {
+		ctxlog.From(p.ctx).Warn("read confirm response", "err", err)
+	}
 	ans := strings.TrimRight(line, "\r\n")
 	return strings.EqualFold(ans, "y") || strings.EqualFold(ans, "yes")
 }
 
 func (p *ConsolePrompter) PrintPlan(plan platform.Plan) {
-	_, _ = fmt.Fprintf(p.w, "\n  %s\n\n", plan.Summary)
-	_, _ = fmt.Fprintln(p.w, "  Resources to be created:")
-	for _, r := range plan.Resources {
-		_, _ = fmt.Fprintf(p.w, "    • %s — %s\n", r.Name, r.Description)
+	log := ctxlog.From(p.ctx)
+	if _, err := fmt.Fprintf(p.w, "\n  %s\n\n", plan.Summary); err != nil {
+		log.Warn("write plan summary", "err", err)
 	}
-	_, _ = fmt.Fprintln(p.w)
+	if _, err := fmt.Fprintln(p.w, "  Resources to be created:"); err != nil {
+		log.Warn("write plan header", "err", err)
+	}
+	for _, r := range plan.Resources {
+		if _, err := fmt.Fprintf(p.w, "    • %s — %s\n", r.Name, r.Description); err != nil {
+			log.Warn("write plan resource", "err", err)
+		}
+	}
+	if _, err := fmt.Fprintln(p.w); err != nil {
+		log.Warn("write plan footer", "err", err)
+	}
 }

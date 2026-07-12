@@ -23,7 +23,9 @@ func (h *Handler) ServeCost(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.apiGet(ctx, "/api/operator/cost")
 	if err != nil || resp.StatusCode == http.StatusUnauthorized {
 		if resp != nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+			}
 		}
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -35,7 +37,9 @@ func (h *Handler) ServeCost(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	var costData apiCostResponse
-	_ = json.NewDecoder(resp.Body).Decode(&costData)
+	if err := json.NewDecoder(resp.Body).Decode(&costData); err != nil {
+		ctxlog.From(ctx).Warn("decode cost response", "err", err)
+	}
 
 	// Get platform config for budget ceiling.
 	cfgResp, cfgErr := h.apiGet(ctx, "/api/operator/config")
@@ -49,10 +53,14 @@ func (h *Handler) ServeCost(w http.ResponseWriter, r *http.Request) {
 		var cfg struct {
 			BudgetCeilingMonthly float64 `json:"budget_ceiling_monthly"`
 		}
-		_ = json.NewDecoder(cfgResp.Body).Decode(&cfg)
+		if err := json.NewDecoder(cfgResp.Body).Decode(&cfg); err != nil {
+			ctxlog.From(ctx).Warn("decode config response", "err", err)
+		}
 		budget = cfg.BudgetCeilingMonthly
 	} else if cfgResp != nil {
-		_ = cfgResp.Body.Close()
+		if closeErr := cfgResp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+		}
 	}
 
 	byRepo := make([]pages.CostRepoRow, 0, len(costData.ByRepo))
@@ -63,9 +71,11 @@ func (h *Handler) ServeCost(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	_ = pages.CostPage(pages.CostPageData{
+	if err := pages.CostPage(pages.CostPageData{
 		TotalCost: costData.EstimatedMonthly,
 		Budget:    budget,
 		ByRepo:    byRepo,
-	}).Render(ctx, w)
+	}).Render(ctx, w); err != nil {
+		ctxlog.From(ctx).Warn("render cost page", "err", err)
+	}
 }

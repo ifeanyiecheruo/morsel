@@ -1,0 +1,5 @@
+{
+  "cmd": "go run github.com/a-h/templ/cmd/templ generate",
+  "inputs": ["*.templ"],
+  "outputs": ["."]
+}

@@ -11,6 +11,7 @@
 package names
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
@@ -50,6 +51,16 @@ func AppNamespace(repoSlug, appName string) string {
 // a slug if needed.
 func AppHostname(appName, repoName, baseDomain string) string {
 	return appName + "." + repoName + ".app." + baseDomain
+}
+
+// AppURL returns the HTTPS URL for an app, omitting the port when it is the
+// standard HTTPS port (443).
+func AppURL(appName, repoName, baseDomain string, gatewayPort int) string {
+	host := AppHostname(appName, repoName, baseDomain)
+	if gatewayPort == 443 {
+		return "https://" + host
+	}
+	return "https://" + host + ":" + strconv.Itoa(gatewayPort)
 }
 
 // AppServiceAddr returns the in-cluster HTTP address for an app's Kubernetes

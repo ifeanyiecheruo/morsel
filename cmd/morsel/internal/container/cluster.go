@@ -89,7 +89,10 @@ type k3dCluster struct {
 }
 
 func (k k3dCluster) Ensure(ctx context.Context) error {
-	out, _ := exec.CommandContext(ctx, k.k3dPath, "cluster", "list", "--no-headers").Output()
+	out, listErr := exec.CommandContext(ctx, k.k3dPath, "cluster", "list", "--no-headers").Output()
+	if listErr != nil {
+		ctxlog.From(ctx).Warn("list k3d clusters", "err", listErr)
+	}
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), clusterName) {
 			return nil // already exists
@@ -117,12 +120,20 @@ func (k k3dCluster) create(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create registries config: %w", err)
 	}
-	defer func() { _ = os.Remove(f.Name()) }()
+	defer func() {
+		if err := os.Remove(f.Name()); err != nil {
+			ctxlog.From(ctx).Warn("remove temp registries config", "err", err)
+		}
+	}()
 	if _, err := f.WriteString(registriesYAML); err != nil {
-		_ = f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close registries config file", "err", closeErr)
+		}
 		return fmt.Errorf("write registries config: %w", err)
 	}
-	_ = f.Close()
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close registries config: %w", err)
+	}
 
 	args := []string{
 		"cluster", "create", clusterName,

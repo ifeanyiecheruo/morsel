@@ -152,7 +152,9 @@ func (w *Hibernation) checkWorker(ctx context.Context, logger *slog.Logger, appI
 
 	for _, info := range infos {
 		if !info.Idle {
-			_ = w.store.UpdateLastActiveAt(ctx, appID)
+			if err := w.store.UpdateLastActiveAt(ctx, appID); err != nil {
+				logger.Warn("hibernation: update last active at", "app", name, "err", err)
+			}
 			return
 		}
 	}

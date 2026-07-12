@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -13,7 +14,7 @@ func TestConsolePrompter_Ask_CollectsAnswers(t *testing.T) {
 		{Key: "region", Label: "Region", Default: "us-east-1"},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader("my-cluster\n\n"), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader("my-cluster\n\n"), &out)
 
 	answers, err := p.Ask(prompts)
 	if err != nil {
@@ -32,7 +33,7 @@ func TestConsolePrompter_Ask_RequiredFieldEmpty(t *testing.T) {
 		{Key: "name", Label: "Cluster name", Required: true},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader("\n"), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader("\n"), &out)
 
 	_, err := p.Ask(prompts)
 	if err == nil {
@@ -45,7 +46,7 @@ func TestConsolePrompter_Ask_DefaultShownInPrompt(t *testing.T) {
 		{Key: "region", Label: "Region", Default: "eu-west-1"},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader("\n"), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader("\n"), &out)
 
 	if _, err := p.Ask(prompts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -64,7 +65,7 @@ func TestConsolePrompter_PrintPlan_IncludesSummaryAndResources(t *testing.T) {
 		},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader(""), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader(""), &out)
 	p.PrintPlan(plan)
 
 	got := out.String()
@@ -82,7 +83,7 @@ func TestConsolePrompter_PrintPlan_IncludesSummaryAndResources(t *testing.T) {
 func TestConsolePrompter_Confirm_AcceptsY(t *testing.T) {
 	for _, input := range []string{"y\n", "Y\n", "yes\n", "YES\n"} {
 		var out strings.Builder
-		p := NewConsolePrompter(strings.NewReader(input), &out)
+		p := NewConsolePrompter(context.Background(), strings.NewReader(input), &out)
 		if !p.Confirm("Proceed? [y/N]: ") {
 			t.Errorf("expected true for input %q", input)
 		}
@@ -94,7 +95,7 @@ func TestConsolePrompter_Ask_ChoiceByNumber(t *testing.T) {
 		{Key: "provider", Label: "K8s provider", Choices: []string{"k3d", "docker-desktop", "minikube"}, Default: "k3d"},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader("2\n"), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader("2\n"), &out)
 
 	answers, err := p.Ask(prompts)
 	if err != nil {
@@ -113,7 +114,7 @@ func TestConsolePrompter_Ask_ChoiceDefaultOnEnter(t *testing.T) {
 		{Key: "provider", Label: "K8s provider", Choices: []string{"k3d", "docker-desktop", "minikube"}, Default: "minikube"},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader("\n"), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader("\n"), &out)
 
 	answers, err := p.Ask(prompts)
 	if err != nil {
@@ -132,7 +133,7 @@ func TestConsolePrompter_Ask_ChoiceInvalidNumber(t *testing.T) {
 		{Key: "provider", Label: "K8s provider", Choices: []string{"k3d", "docker-desktop"}, Default: "k3d"},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader("5\n"), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader("5\n"), &out)
 
 	if _, err := p.Ask(prompts); err == nil {
 		t.Fatal("expected error for out-of-range choice number, got nil")
@@ -142,7 +143,7 @@ func TestConsolePrompter_Ask_ChoiceInvalidNumber(t *testing.T) {
 func TestConsolePrompter_Confirm_RejectsOther(t *testing.T) {
 	for _, input := range []string{"n\n", "\n", "no\n", "maybe\n"} {
 		var out strings.Builder
-		p := NewConsolePrompter(strings.NewReader(input), &out)
+		p := NewConsolePrompter(context.Background(), strings.NewReader(input), &out)
 		if p.Confirm("Proceed? [y/N]: ") {
 			t.Errorf("expected false for input %q", input)
 		}
@@ -155,7 +156,7 @@ func TestConsolePrompter_AutoAcceptDefault_SkipsReadForDefaults(t *testing.T) {
 		{Key: "provider", Label: "Provider", Choices: []string{"k3d", "docker-desktop"}, Default: "k3d"},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader(""), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader(""), &out)
 	p.autoAcceptDefault = true
 
 	answers, err := p.Ask(prompts)
@@ -172,7 +173,7 @@ func TestConsolePrompter_AutoAcceptDefault_SkipsReadForDefaults(t *testing.T) {
 
 func TestConsolePrompter_AutoAcceptDefault_ConfirmReturnsTrue(t *testing.T) {
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader(""), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader(""), &out)
 	p.autoAcceptDefault = true
 	if !p.Confirm("Proceed? [y/N]: ") {
 		t.Error("expected Confirm to return true with autoAcceptDefault")
@@ -184,7 +185,7 @@ func TestConsolePrompter_AutoAcceptDefault_StillPromptsRequired(t *testing.T) {
 		{Key: "name", Label: "Name", Required: true},
 	}
 	var out strings.Builder
-	p := NewConsolePrompter(strings.NewReader("my-value\n"), &out)
+	p := NewConsolePrompter(context.Background(), strings.NewReader("my-value\n"), &out)
 	p.autoAcceptDefault = true
 
 	answers, err := p.Ask(prompts)

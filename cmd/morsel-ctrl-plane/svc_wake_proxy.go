@@ -138,7 +138,10 @@ func wakeProxyWakeApp(ctx context.Context, ctrlPlane, host, token string) (servi
 			ctxlog.From(ctx).Error("close wake response body", "err", err)
 		}
 	}()
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		ctxlog.From(ctx).Warn("read wake response body", "err", readErr)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", resp.Header.Get("Retry-After"), fmt.Errorf("wake returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}

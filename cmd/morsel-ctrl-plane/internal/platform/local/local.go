@@ -4,6 +4,7 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,8 @@ func (lp *LocalPlatform) Name() string { return "local" }
 // BaseDomain returns the base domain for app URLs on the local platform.
 func (lp *LocalPlatform) BaseDomain() string { return selfcert.LocalBaseDomain }
 
+func (lp *LocalPlatform) GatewayPort() int { return lp.gatewayPort }
+
 // Namespace returns the Kubernetes namespace this service is running in,
 // read from the service-account projection that Kubernetes injects into every pod.
 func (lp *LocalPlatform) Namespace() string { return controlPlaneNamespace() }
@@ -37,24 +40,25 @@ func controlPlaneNamespace() string {
 
 // LocalPlatform implements platform.Platform with no cloud dependencies.
 type LocalPlatform struct {
-	secrets *localSecrets
-	tok     *localTokens
-	store   *store.Store
+	secrets     *localSecrets
+	tok         *localTokens
+	store       *store.Store
+	gatewayPort int
 }
 
 // New creates a LocalPlatform. The kube client for secret storage is built
 // lazily on first secret access using the in-cluster service-account config;
 // the morsel-api always runs in-cluster so this never fails in production.
-func New(s *store.Store) *LocalPlatform {
-	return NewWithSecretStore(s, newKubeSecretStore(controlPlaneNamespace()))
+func New(s *store.Store, gatewayPort int) *LocalPlatform {
+	return NewWithSecretStore(s, newKubeSecretStore(controlPlaneNamespace()), gatewayPort)
 }
 
 // NewWithSecretStore creates a LocalPlatform with an explicit SecretStore backend.
 // Intended for tests that need to run without a live Kubernetes cluster.
-func NewWithSecretStore(s *store.Store, ss SecretStore) *LocalPlatform {
+func NewWithSecretStore(s *store.Store, ss SecretStore, gatewayPort int) *LocalPlatform {
 	sec := &localSecrets{store: ss}
 	tok := &localTokens{secrets: sec, store: s}
-	return &LocalPlatform{secrets: sec, tok: tok, store: s}
+	return &LocalPlatform{secrets: sec, tok: tok, store: s, gatewayPort: gatewayPort}
 }
 
 // localDataDir returns the directory used to store local platform state.
@@ -64,7 +68,10 @@ func localDataDir() string {
 	if dir := os.Getenv("MORSEL_LOCAL_DATA_DIR"); dir != "" {
 		return dir
 	}
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		slog.Warn("get user home dir", "err", err)
+	}
 	return filepath.Join(home, ".morsel", "local")
 }
 

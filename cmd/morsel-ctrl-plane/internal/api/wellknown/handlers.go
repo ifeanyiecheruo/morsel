@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	openapi "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/oas"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 // handlers serves the three /.well-known/ discovery documents.
@@ -29,15 +30,19 @@ func (h *handlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
-func (h *handlers) handleOpenAPI(w http.ResponseWriter, _ *http.Request) {
+func (h *handlers) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/openapi+json")
-	_, _ = w.Write(openapi.SpecJSON)
+	if _, err := w.Write(openapi.SpecJSON); err != nil {
+		ctxlog.From(ctx).Warn("write openapi spec", "err", err)
+	}
 }
 
 func (h *handlers) handleCatalog(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	base := requestBase(r)
 	w.Header().Set("Content-Type", "application/linkset+json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"linkset": []any{
 			map[string]any{
 				"anchor": base,
@@ -49,13 +54,16 @@ func (h *handlers) handleCatalog(w http.ResponseWriter, r *http.Request) {
 				},
 			},
 		},
-	})
+	}); err != nil {
+		ctxlog.From(ctx).Warn("write catalog response", "err", err)
+	}
 }
 
 func (h *handlers) handleAIPlugin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	base := requestBase(r)
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"schema_version":        "v1",
 		"name_for_human":        "Morsel",
 		"name_for_model":        "morsel",
@@ -68,7 +76,9 @@ func (h *handlers) handleAIPlugin(w http.ResponseWriter, r *http.Request) {
 			"type": "openapi",
 			"url":  base + "/.well-known/openapi",
 		},
-	})
+	}); err != nil {
+		ctxlog.From(ctx).Warn("write ai-plugin response", "err", err)
+	}
 }
 
 // requestBase derives the scheme and host from the incoming request.

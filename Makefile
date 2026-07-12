@@ -92,15 +92,18 @@ fix: ## Auto-fix all fixable issues
 	golangci-lint run --fix
 	go fmt ./...
 
+_STAMP_FILES := $(addsuffix .stamp,$(shell find cmd internal -name '*.gen.json' 2>/dev/null))
+
 .PHONY: generate
-generate: $(LOCAL)/gen/templ.stamp $(LOCAL)/gen/sql-db.stamp $(LOCAL)/gen/sql-queue.stamp $(LOCAL)/gen/ogen-server.stamp $(LOCAL)/gen/ogen-client.stamp ## Regenerate go code (stamp-tracked; only reruns what changed)
+generate: $(_STAMP_FILES) ## Regenerate go code (stamp-tracked; only reruns what changed)
 
 .PHONY: ci
 ci: generate-ci lint build test ## what CI runs
 
 .PHONY: generate-ci
 generate-ci:
-	go generate ./...
+	rm -f $(_STAMP_FILES)
+	$(MAKE) generate
 	git diff --exit-code -- .
 
 .PHONY: bump-major
@@ -208,39 +211,21 @@ ifeq ($(CONTAINER_RUNTIME),podman)
 	fi
 endif
 
-bin/morsel$(EXE): VERSION $(LOCAL)/gen/ogen-client.stamp $(shell find cmd/morsel internal -name '*.go')
+bin/morsel$(EXE): VERSION $(shell go run ./cmd/go-deps get cmd/morsel internal)
 	go build -ldflags "$(LDFLAGS)" -o bin/morsel$(EXE) ./cmd/morsel
 
-bin/morsel-ctrl-plane$(EXE): VERSION $(LOCAL)/gen/templ.stamp $(LOCAL)/gen/sql-db.stamp $(LOCAL)/gen/sql-queue.stamp $(LOCAL)/gen/ogen-server.stamp $(shell find cmd/morsel-ctrl-plane internal -name '*.go')
+bin/morsel-ctrl-plane$(EXE): VERSION $(shell go run ./cmd/go-deps get cmd/morsel-ctrl-plane internal)
 	go build -ldflags "$(LDFLAGS)" -o bin/morsel-ctrl-plane$(EXE) ./cmd/morsel-ctrl-plane
 
-# ---- Code generation (timestamp-tracked) -------------------------------------
-# Stamp files in .local/gen/ record the last time each generator ran.
-# Make compares them against source files and only regenerates what changed.
+# ---- Code generation (.gen.json stamp rules) ----------------------------------
+# $(foreach) stamps out one rule per .gen.json at parse time.
+# Each rule's prerequisite list is computed by go-deps get (strips ".stamp" to
+# find the .gen.json), and the recipe runs go-deps gen on that same file.
+define stamp-rule
+$(1): $(shell go run ./cmd/go-deps get $(1:.stamp=))
+	go run ./cmd/go-deps gen $(1:.stamp=)
 
-TEMPL_SRCS     := $(shell find cmd -name '*.templ' 2>/dev/null)
-SQL_DB_SRCS    := $(shell find cmd/morsel-ctrl-plane/internal/db    -name '*.sql' -o -name 'sqlc.yaml' 2>/dev/null)
-SQL_QUEUE_SRCS := $(shell find cmd/morsel-ctrl-plane/internal/queue -name '*.sql' -o -name 'sqlc.yaml' 2>/dev/null)
-OAS_SRCS       := $(shell find cmd/morsel-ctrl-plane/internal/api/oas -name '*.yaml' -o -name '*.yml' 2>/dev/null)
-
-$(LOCAL)/gen/templ.stamp: $(TEMPL_SRCS)
-	cd cmd/morsel-ctrl-plane/internal/adminui/pages && go generate
-	@mkdir -p $(dir $@) && touch $@
-
-$(LOCAL)/gen/sql-db.stamp: $(SQL_DB_SRCS)
-	cd cmd/morsel-ctrl-plane/internal/db/queries && go generate
-	@mkdir -p $(dir $@) && touch $@
-
-$(LOCAL)/gen/sql-queue.stamp: $(SQL_QUEUE_SRCS)
-	cd cmd/morsel-ctrl-plane/internal/queue/queries && go generate
-	@mkdir -p $(dir $@) && touch $@
-
-$(LOCAL)/gen/ogen-server.stamp: $(OAS_SRCS)
-	cd cmd/morsel-ctrl-plane/internal/api && go generate
-	@mkdir -p $(dir $@) && touch $@
-
-$(LOCAL)/gen/ogen-client.stamp: $(OAS_SRCS)
-	cd cmd/morsel/internal/client && go generate
-	@mkdir -p $(dir $@) && touch $@
+endef
+$(foreach s,$(_STAMP_FILES),$(eval $(call stamp-rule,$(s))))
 # -------------------------------------------------------------------------------
 

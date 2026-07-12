@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/names"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 // requireOperatorHTTP validates the Bearer token in a non-ogen HTTP handler.
@@ -16,12 +18,27 @@ import (
 func (h *Handler) requireOperatorHTTP(w http.ResponseWriter, r *http.Request) bool {
 	tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if tok == "" {
-		adminWriteError(w, http.StatusUnauthorized, "invalid_token", "Authorization: Bearer header is required")
+		adminWriteError(r.Context(), w, http.StatusUnauthorized, "invalid_token", "Authorization: Bearer header is required")
 		return false
 	}
 	claims, err := tokens.VerifyToken(h.signingKey, tok)
 	if err != nil || !tokens.IsOperatorRole(claims.Role) {
-		adminWriteError(w, http.StatusForbidden, "insufficient_role", "operator role required")
+		adminWriteError(r.Context(), w, http.StatusForbidden, "insufficient_role", "operator role required")
+		return false
+	}
+	return true
+}
+
+// requireAdminHTTP validates the Bearer token and enforces admin role in a non-ogen HTTP handler.
+func (h *Handler) requireAdminHTTP(w http.ResponseWriter, r *http.Request) bool {
+	tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if tok == "" {
+		adminWriteError(r.Context(), w, http.StatusUnauthorized, "invalid_token", "Authorization: Bearer header is required")
+		return false
+	}
+	claims, err := tokens.VerifyToken(h.signingKey, tok)
+	if err != nil || claims.Role != tokens.RoleAdmin {
+		adminWriteError(r.Context(), w, http.StatusForbidden, "insufficient_role", "admin role required")
 		return false
 	}
 	return true
@@ -48,7 +65,7 @@ func (h *Handler) HandleAdminListApps(w http.ResponseWriter, r *http.Request) {
 
 	allApps, err := h.store.ListAllApps(ctx)
 	if err != nil {
-		adminWriteError(w, http.StatusInternalServerError, "internal_error", "list apps failed")
+		adminWriteError(ctx, w, http.StatusInternalServerError, "internal_error", "list apps failed")
 		return
 	}
 
@@ -58,12 +75,18 @@ func (h *Handler) HandleAdminListApps(w http.ResponseWriter, r *http.Request) {
 	baseDomain := h.plat.BaseDomain()
 	out := make([]adminAppRow, 0, len(allApps))
 	for _, app := range allApps {
-		repo, _ := h.store.GetRepo(ctx, app.RepoSlug)
-		tier, _ := h.store.GetTier(ctx, repo.Tier)
+		repo, repoErr := h.store.GetRepo(ctx, app.RepoSlug)
+		if repoErr != nil {
+			ctxlog.From(ctx).Warn("get repo for app", "repo", app.RepoSlug, "err", repoErr)
+		}
+		tier, tierErr := h.store.GetTier(ctx, repo.Tier)
+		if tierErr != nil {
+			ctxlog.From(ctx).Warn("get tier for repo", "tier", repo.Tier, "err", tierErr)
+		}
 		appCost := h.appCostMonthly(ctx, app, tier, prices, now)
 		var appURL string
 		if app.Type == "http" {
-			appURL = "https://" + names.AppHostname(app.Name, names.RepoName(app.RepoSlug), baseDomain)
+			appURL = names.AppURL(app.Name, names.RepoName(app.RepoSlug), baseDomain, h.plat.GatewayPort())
 		}
 		out = append(out, adminAppRow{
 			RepoSlug:    app.RepoSlug,
@@ -78,7 +101,9 @@ func (h *Handler) HandleAdminListApps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		ctxlog.From(ctx).Warn("write response", "err", err)
+	}
 }
 
 type adminStaleRow struct {
@@ -100,11 +125,14 @@ func (h *Handler) HandleAdminListStale(w http.ResponseWriter, r *http.Request) {
 
 	allApps, err := h.store.ListAllApps(ctx)
 	if err != nil {
-		adminWriteError(w, http.StatusInternalServerError, "internal_error", "list apps failed")
+		adminWriteError(ctx, w, http.StatusInternalServerError, "internal_error", "list apps failed")
 		return
 	}
 
-	suppressed, _ := h.store.ListActiveStaleSuppressed(ctx)
+	suppressed, err := h.store.ListActiveStaleSuppressed(ctx)
+	if err != nil {
+		ctxlog.From(ctx).Warn("list active stale suppressed", "err", err)
+	}
 	suppressedSet := map[string]struct{}{}
 	for _, s := range suppressed {
 		suppressedSet[s.RepoSlug+"/"+s.AppName] = struct{}{}
@@ -127,7 +155,9 @@ func (h *Handler) HandleAdminListStale(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(rows)
+	if err := json.NewEncoder(w).Encode(rows); err != nil {
+		ctxlog.From(ctx).Warn("write response", "err", err)
+	}
 }
 
 // HandleAdminIgnoreStale handles POST /api/operator/stale/{org}/{repo}/{appName}/ignore
@@ -139,16 +169,20 @@ func (h *Handler) HandleAdminIgnoreStale(w http.ResponseWriter, r *http.Request)
 	slug := r.PathValue("org") + "/" + r.PathValue("repo")
 	appName := r.PathValue("appName")
 	until := time.Now().Add(30 * 24 * time.Hour)
-	_ = h.store.SuppressStaleApp(r.Context(), slug, appName, until)
+	if err := h.store.SuppressStaleApp(r.Context(), slug, appName, until); err != nil {
+		ctxlog.From(r.Context()).Warn("suppress stale app", "err", err)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func adminWriteError(w http.ResponseWriter, status int, code, message string) {
+func adminWriteError(ctx context.Context, w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	type errBody struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	}
-	_ = json.NewEncoder(w).Encode(map[string]errBody{"error": {Code: code, Message: message}})
+	if err := json.NewEncoder(w).Encode(map[string]errBody{"error": {Code: code, Message: message}}); err != nil {
+		ctxlog.From(ctx).Warn("write error response", "err", err)
+	}
 }

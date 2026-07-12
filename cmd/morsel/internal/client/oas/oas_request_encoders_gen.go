@@ -80,34 +80,6 @@ func encodeCreateTierRequest(
 	return nil
 }
 
-func encodeResetOperatorPasswordRequest(
-	req *ChangePasswordReq,
-	r *http.Request,
-) error {
-	const contentType = "application/json"
-	e := new(jx.Encoder)
-	{
-		req.Encode(e)
-	}
-	encoded := e.Bytes()
-	ht.SetBody(r, bytes.NewReader(encoded), contentType)
-	return nil
-}
-
-func encodeSetOperatorPrincipalPasswordRequest(
-	req *SetPrincipalPasswordReq,
-	r *http.Request,
-) error {
-	const contentType = "application/json"
-	e := new(jx.Encoder)
-	{
-		req.Encode(e)
-	}
-	encoded := e.Bytes()
-	ht.SetBody(r, bytes.NewReader(encoded), contentType)
-	return nil
-}
-
 func encodeSyncRepoRequest(
 	req *SyncRepoReq,
 	r *http.Request,
@@ -124,20 +96,6 @@ func encodeSyncRepoRequest(
 
 func encodeTokenDeployRequest(
 	req *TokenDeployReq,
-	r *http.Request,
-) error {
-	const contentType = "application/json"
-	e := new(jx.Encoder)
-	{
-		req.Encode(e)
-	}
-	encoded := e.Bytes()
-	ht.SetBody(r, bytes.NewReader(encoded), contentType)
-	return nil
-}
-
-func encodeTokenOIDCRequest(
-	req *TokenOIDCReq,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

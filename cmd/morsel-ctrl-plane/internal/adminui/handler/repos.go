@@ -34,7 +34,9 @@ func (h *Handler) ServeRepos(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.apiGet(ctx, "/api/repos?all=true")
 	if err != nil || resp.StatusCode == http.StatusUnauthorized {
 		if resp != nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+			}
 		}
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -61,7 +63,9 @@ func (h *Handler) ServeRepos(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	_ = pages.ReposPage(pages.ReposPageData{Repos: rows}).Render(ctx, w)
+	if err := pages.ReposPage(pages.ReposPageData{Repos: rows}).Render(ctx, w); err != nil {
+		ctxlog.From(ctx).Warn("render repos page", "err", err)
+	}
 }
 
 // ServeRepoDeleteAllConfirm handles GET /repos/{org}/{repo}/delete-all.
@@ -83,10 +87,14 @@ func (h *Handler) ServeRepoDeleteAllConfirm(w http.ResponseWriter, r *http.Reque
 			count = repoData.AppCount
 		}
 	} else if resp != nil {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+		}
 	}
 
-	_ = pages.RepoDeleteAllConfirmPage(slug, int64(count)).Render(ctx, w)
+	if err := pages.RepoDeleteAllConfirmPage(slug, int64(count)).Render(ctx, w); err != nil {
+		ctxlog.From(ctx).Warn("render repo delete confirm page", "err", err)
+	}
 }
 
 // HandleRepoDeleteAll handles POST /repos/{org}/{repo}/delete-all.
@@ -108,14 +116,20 @@ func (h *Handler) HandleRepoDeleteAll(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	var apps []apiApp
-	_ = json.NewDecoder(resp.Body).Decode(&apps)
+	if err := json.NewDecoder(resp.Body).Decode(&apps); err != nil {
+		ctxlog.From(ctx).Warn("decode apps response", "err", err)
+	}
 
 	for _, app := range apps {
 		delResp, delErr := h.apiDelete(ctx, "/api/repos/"+org+"/"+repo+"/apps/"+app.Name)
 		if delResp != nil {
-			_ = delResp.Body.Close()
+			if closeErr := delResp.Body.Close(); closeErr != nil {
+				ctxlog.From(ctx).Warn("close delete response body", "err", closeErr)
+			}
 		}
-		_ = delErr
+		if delErr != nil {
+			ctxlog.From(ctx).Warn("delete app", "app", app.Name, "err", delErr)
+		}
 	}
 
 	http.Redirect(w, r, "/repos", http.StatusSeeOther)
@@ -186,11 +200,18 @@ func (h *Handler) handleRepoTierChange(w http.ResponseWriter, r *http.Request, d
 	}
 
 	newTier := tiers[next].Name
-	body, _ := jsonBody(map[string]string{"tier": newTier})
-	patchResp, err := h.apiDo(ctx, http.MethodPatch, "/api/operator/repos/"+org+"/"+repo, body)
-	if patchResp != nil {
-		_ = patchResp.Body.Close()
+	body, bodyErr := jsonBody(map[string]string{"tier": newTier})
+	if bodyErr != nil {
+		ctxlog.From(ctx).Warn("encode tier patch body", "err", bodyErr)
 	}
-	_ = err
+	patchResp, patchErr := h.apiDo(ctx, http.MethodPatch, "/api/operator/repos/"+org+"/"+repo, body)
+	if patchResp != nil {
+		if closeErr := patchResp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close patch response body", "err", closeErr)
+		}
+	}
+	if patchErr != nil {
+		ctxlog.From(ctx).Warn("patch repo tier", "err", patchErr)
+	}
 	http.Redirect(w, r, "/repos", http.StatusSeeOther)
 }

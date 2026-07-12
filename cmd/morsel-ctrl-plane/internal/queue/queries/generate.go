@@ -1,3 +1,3 @@
 package queries
 
-//go:generate sqlc generate
+//go:generate go-deps gen queries.gen.json

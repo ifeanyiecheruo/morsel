@@ -20,32 +20,44 @@ func hibernateApp(ctx context.Context, s *store.Store, d AppDeployer, platNS str
 	case "http":
 		if err := d.RouteToWakeProxy(ctx, ns, host, platNS, kube.GatewayExternal); err != nil {
 			logger.Error("route to wake proxy", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 		if err := d.ScaleDeployment(ctx, ns, 0); err != nil {
 			logger.Error("scale to zero", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 	case "worker":
 		if err := d.ScaleDeployment(ctx, ns, 0); err != nil {
 			logger.Error("scale to zero", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 	case "cron":
 		if err := d.SuspendCronJob(ctx, ns); err != nil {
 			logger.Error("suspend cron job", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 	}
-	_ = s.RecordScaleEvent(ctx, ns, appName, "scale_to_0")
+	if err := s.RecordScaleEvent(ctx, ns, appName, "scale_to_0"); err != nil {
+		logger.Warn("record scale event", "err", err)
+	}
 	if err := s.SetAppHibernated(ctx, appID, "manual"); err != nil {
 		logger.Error("set app hibernated", "err", err)
 	}
-	_ = s.UpdateAppStatus(ctx, appID, "hibernated")
+	if err := s.UpdateAppStatus(ctx, appID, "hibernated"); err != nil {
+		logger.Warn("update app status", "err", err)
+	}
 	if err := s.SucceedOperation(ctx, opID); err != nil {
 		logger.Error("succeed hibernate operation", "err", err)
 	}
@@ -62,37 +74,51 @@ func wakeApp(ctx context.Context, s *store.Store, d AppDeployer, platNS string, 
 	case "http":
 		if err := d.ScaleDeployment(ctx, ns, 1); err != nil {
 			logger.Error("scale up", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 		if err := d.WatchDeploymentReady(ctx, ns, 5*time.Minute); err != nil {
 			logger.Error("wait for ready", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 		if err := d.RestoreHTTPRoute(ctx, ns, host, platNS, kube.GatewayExternal, 8080); err != nil {
 			logger.Error("restore http route", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 	case "worker":
 		if err := d.ScaleDeployment(ctx, ns, 1); err != nil {
 			logger.Error("scale up", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 	case "cron":
 		if err := d.UnsuspendCronJob(ctx, ns); err != nil {
 			logger.Error("unsuspend cron job", "err", err)
-			_ = s.FailOperation(ctx, opID, err.Error())
+			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
 			return
 		}
 	}
-	_ = s.RecordScaleEvent(ctx, ns, appName, "scale_to_1")
+	if err := s.RecordScaleEvent(ctx, ns, appName, "scale_to_1"); err != nil {
+		logger.Warn("record scale event", "err", err)
+	}
 	if err := s.SetAppAwake(ctx, appID); err != nil {
 		logger.Error("set app awake", "err", err)
 	}
-	_ = s.UpdateAppStatus(ctx, appID, "running")
+	if err := s.UpdateAppStatus(ctx, appID, "running"); err != nil {
+		logger.Warn("update app status", "err", err)
+	}
 	if err := s.SucceedOperation(ctx, opID); err != nil {
 		logger.Error("succeed wake operation", "err", err)
 	}
@@ -106,10 +132,14 @@ func deleteApp(ctx context.Context, s *store.Store, d AppDeployer, opID string, 
 	}
 	if err := d.Delete(ctx, ns); err != nil {
 		logger.Error("delete kubernetes resources", "err", err)
-		_ = s.FailOperation(ctx, opID, err.Error())
+		if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
+			logger.Warn("fail operation", "err", fErr)
+		}
 		return
 	}
-	_ = s.UpdateAppStatus(ctx, appID, "deleted")
+	if err := s.UpdateAppStatus(ctx, appID, "deleted"); err != nil {
+		logger.Warn("update app status", "err", err)
+	}
 	if err := s.SucceedOperation(ctx, opID); err != nil {
 		logger.Error("succeed delete operation", "err", err)
 	}

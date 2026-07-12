@@ -29,7 +29,9 @@ func (h *Handler) ServeApps(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.apiGet(ctx, "/api/operator/apps")
 	if err != nil || resp.StatusCode == http.StatusUnauthorized {
 		if resp != nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+			}
 		}
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -70,30 +72,38 @@ func (h *Handler) ServeApps(w http.ResponseWriter, r *http.Request) {
 		repos = append(repos, slug)
 	}
 
-	_ = pages.AppsPage(pages.AppsPageData{
+	if err := pages.AppsPage(pages.AppsPageData{
 		Apps:       rows,
 		Total:      len(rows),
 		Repos:      repos,
 		RepoFilter: repoFilter,
-	}).Render(ctx, w)
+	}).Render(ctx, w); err != nil {
+		ctxlog.From(ctx).Warn("render apps page", "err", err)
+	}
 }
 
 // ServeAppDeleteConfirm handles GET /apps/{org}/{repo}/{appName}/delete.
 func (h *Handler) ServeAppDeleteConfirm(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	slug, appName := appParams(r)
-	_ = pages.AppDeleteConfirmPage(slug, appName).Render(r.Context(), w)
+	if err := pages.AppDeleteConfirmPage(slug, appName).Render(ctx, w); err != nil {
+		ctxlog.From(ctx).Warn("render app delete confirm page", "err", err)
+	}
 }
 
 // HandleAppDelete handles POST /apps/{org}/{repo}/{appName}/delete.
 // It calls DELETE /api/repos/{org}/{repo}/apps/{name} on the REST API.
 func (h *Handler) HandleAppDelete(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	slug, appName := appParams(r)
 	org, repo, _ := strings.Cut(slug, "/")
 	path := "/api/repos/" + org + "/" + repo + "/apps/" + appName
 
-	resp, err := h.apiDelete(r.Context(), path)
+	resp, err := h.apiDelete(ctx, path)
 	if resp != nil {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+		}
 	}
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -104,13 +114,16 @@ func (h *Handler) HandleAppDelete(w http.ResponseWriter, r *http.Request) {
 
 // HandleAppHibernate handles POST /apps/{org}/{repo}/{appName}/hibernate.
 func (h *Handler) HandleAppHibernate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	slug, appName := appParams(r)
 	org, repo, _ := strings.Cut(slug, "/")
 	path := "/api/repos/" + org + "/" + repo + "/apps/" + appName + "/hibernate"
 
-	resp, err := h.apiPost(r.Context(), path, nil)
+	resp, err := h.apiPost(ctx, path, nil)
 	if resp != nil {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+		}
 	}
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -121,13 +134,16 @@ func (h *Handler) HandleAppHibernate(w http.ResponseWriter, r *http.Request) {
 
 // HandleAppWake handles POST /apps/{org}/{repo}/{appName}/wake.
 func (h *Handler) HandleAppWake(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	slug, appName := appParams(r)
 	org, repo, _ := strings.Cut(slug, "/")
 	path := "/api/repos/" + org + "/" + repo + "/apps/" + appName + "/wake"
 
-	resp, err := h.apiPost(r.Context(), path, nil)
+	resp, err := h.apiPost(ctx, path, nil)
 	if resp != nil {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+		}
 	}
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)

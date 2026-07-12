@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -21,7 +24,12 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
-const sessionCookie = "morsel_admin"
+const (
+	sessionCookie    = "morsel_admin"
+	oauthStateCookie = "morsel_oauth_state"
+)
+
+// ── Session cookie ────────────────────────────────────────────────────────────
 
 // encodeSession base64url-encodes session JSON and appends an HMAC-SHA256 tag:
 // "<b64(json)>.<b64(hmac)>". The HMAC tag prevents cookie forgery while keeping
@@ -92,12 +100,16 @@ func clearSessionCookie(w http.ResponseWriter) {
 	})
 }
 
+// ── Session JWT helpers ───────────────────────────────────────────────────────
+
 // accessTokenExpiry parses the access token claims WITHOUT verifying the signature
 // and returns the expiry time. Returns zero time on parse failure.
-func accessTokenExpiry(accessToken string) time.Time {
+func accessTokenExpiry(ctx context.Context, accessToken string) time.Time {
 	var claims tokens.Claims
 	p := jwt.NewParser()
-	_, _, _ = p.ParseUnverified(accessToken, &claims)
+	if _, _, err := p.ParseUnverified(accessToken, &claims); err != nil {
+		ctxlog.From(ctx).Warn("parse access token expiry", "err", err)
+	}
 	if claims.ExpiresAt != nil {
 		return claims.ExpiresAt.Time
 	}
@@ -105,8 +117,6 @@ func accessTokenExpiry(accessToken string) time.Time {
 }
 
 // sessionIsAdmin reports whether the active session belongs to an admin principal.
-// Role is read from the access token claims without signature verification — the
-// API will enforce the admin requirement on any actual admin operation.
 func sessionIsAdmin(ctx context.Context) bool {
 	s := sessionFromContext(ctx)
 	if s == nil {
@@ -114,72 +124,29 @@ func sessionIsAdmin(ctx context.Context) bool {
 	}
 	var claims tokens.Claims
 	p := jwt.NewParser()
-	_, _, _ = p.ParseUnverified(s.AccessToken, &claims)
+	if _, _, err := p.ParseUnverified(s.AccessToken, &claims); err != nil {
+		ctxlog.From(ctx).Warn("parse session token role", "err", err)
+	}
 	return claims.Role == tokens.RoleAdmin
 }
 
-// RequireSession is middleware that validates the session cookie.
-// On success it injects the session into the request context.
-// If the access token is expired it attempts a silent refresh.
-// On any failure it redirects to /login.
-func (h *Handler) RequireSession(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(sessionCookie)
-		if err != nil {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-
-		s, err := h.decodeSession(cookie.Value)
-		if err != nil {
-			clearSessionCookie(w)
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-
-		// Refresh the access token if it has expired or will expire in under 30 s.
-		exp := accessTokenExpiry(s.AccessToken)
-		if !exp.IsZero() && time.Until(exp) < 30*time.Second {
-			refreshed, err := h.refreshSession(r.Context(), s.RefreshToken)
-			if err != nil {
-				clearSessionCookie(w)
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
-				return
-			}
-			// Preserve the password-reset flag across token refreshes.
-			refreshed.PasswordResetRequired = s.PasswordResetRequired
-			s = refreshed
-			_ = h.setSessionCookie(w, s)
-		}
-
-		// Force password change before accessing any other page.
-		if s.PasswordResetRequired && r.URL.Path != "/password-reset" {
-			http.Redirect(w, r, "/password-reset", http.StatusSeeOther)
-			return
-		}
-
-		next.ServeHTTP(w, r.WithContext(withSession(r.Context(), s)))
-	})
-}
-
-type tokenOIDCReq struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-type tokenPairResponse struct {
-	AccessToken           string `json:"access_token"`
-	RefreshToken          string `json:"refresh_token"`
-	PasswordResetRequired bool   `json:"password_reset_required,omitempty"`
-}
+// ── Session middleware ────────────────────────────────────────────────────────
 
 type tokenRefreshReq struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type tokenPairResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 // refreshSession exchanges a refresh token for a new token pair.
 func (h *Handler) refreshSession(ctx context.Context, refreshToken string) (*session, error) {
-	body, _ := json.Marshal(tokenRefreshReq{RefreshToken: refreshToken})
+	body, err := json.Marshal(tokenRefreshReq{RefreshToken: refreshToken})
+	if err != nil {
+		ctxlog.From(ctx).Error("marshal token refresh request", "err", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.apiURL+"/api/token/refresh", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("build refresh request: %w", err)
@@ -204,62 +171,225 @@ func (h *Handler) refreshSession(ctx context.Context, refreshToken string) (*ses
 	return &session{AccessToken: pair.AccessToken, RefreshToken: pair.RefreshToken}, nil
 }
 
-// ServeLogin handles GET /login.
-func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
-	_ = pages.LoginPage("").Render(r.Context(), w)
+// RequireSession is middleware that validates the session cookie.
+// On success it injects the session into the request context.
+// If the access token is expired it attempts a silent refresh.
+// On any failure it redirects to /login.
+func (h *Handler) RequireSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(sessionCookie)
+		if err != nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		s, err := h.decodeSession(cookie.Value)
+		if err != nil {
+			clearSessionCookie(w)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		// Refresh the access token if it has expired or will expire in under 30 s.
+		exp := accessTokenExpiry(r.Context(), s.AccessToken)
+		if !exp.IsZero() && time.Until(exp) < 30*time.Second {
+			refreshed, err := h.refreshSession(r.Context(), s.RefreshToken)
+			if err != nil {
+				clearSessionCookie(w)
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
+			s = refreshed
+			if err := h.setSessionCookie(w, s); err != nil {
+				ctxlog.From(r.Context()).Warn("set session cookie", "err", err)
+			}
+		}
+
+		next.ServeHTTP(w, r.WithContext(withSession(r.Context(), s)))
+	})
 }
 
-// HandleLogin handles POST /login. It exchanges credentials for tokens via the
-// REST API and stores the session in a signed HttpOnly cookie.
-func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+// ── GitHub OAuth ──────────────────────────────────────────────────────────────
+
+// callbackURL reconstructs the OAuth callback URL from the incoming request.
+func callbackURL(r *http.Request) string {
+	scheme := "https"
+	if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") != "https" {
+		scheme = "http"
+	}
+	return scheme + "://" + r.Host + "/oidc/callback"
+}
+
+// ServeLogin handles GET /login — redirects immediately to GitHub OAuth.
+func (h *Handler) ServeLogin(w http.ResponseWriter, r *http.Request) {
+	if h.githubClientID == "" {
+		ctx := r.Context()
+		if err := pages.LoginPage("GitHub OAuth is not configured for this deployment.").Render(ctx, w); err != nil {
+			ctxlog.From(ctx).Warn("render login page", "err", err)
+		}
 		return
 	}
-	username := strings.TrimSpace(r.FormValue("username"))
-	password := r.FormValue("password")
 
-	body, _ := json.Marshal(tokenOIDCReq{Username: username, Password: password})
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, h.apiURL+"/api/token/oidc", bytes.NewReader(body))
+	// Generate a cryptographically random CSRF state token.
+	stateBytes := make([]byte, 16)
+	if _, err := rand.Read(stateBytes); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	state := hex.EncodeToString(stateBytes)
+
+	// Store state in a short-lived HttpOnly cookie for CSRF verification on callback.
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthStateCookie,
+		Value:    state,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   600, // 10 minutes
+	})
+
+	authURL := "https://github.com/login/oauth/authorize?" + url.Values{
+		"client_id":    {h.githubClientID},
+		"redirect_uri": {callbackURL(r)},
+		"scope":        {"read:user"},
+		"state":        {state},
+	}.Encode()
+
+	http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+// HandleGitHubCallback handles GET /oidc/callback.
+func (h *Handler) HandleGitHubCallback(w http.ResponseWriter, r *http.Request) {
+	log := ctxlog.From(r.Context())
+
+	// Validate CSRF state.
+	stateCookie, err := r.Cookie(oauthStateCookie)
+	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
+		log.Warn("github oauth callback: state mismatch")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	// Clear the state cookie — single use.
+	http.SetCookie(w, &http.Cookie{Name: oauthStateCookie, Value: "", Path: "/", MaxAge: -1})
+
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		log.Warn("github oauth callback: missing code")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	// Exchange the code for a GitHub access token.
+	ghToken, err := h.exchangeGitHubCode(r.Context(), code, callbackURL(r))
 	if err != nil {
-		_ = pages.LoginPage("Login failed. Try again.").Render(r.Context(), w)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := h.httpClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
-		_ = pages.LoginPage("Invalid credentials.").Render(r.Context(), w)
-		return
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			ctxlog.From(r.Context()).Warn("close response body", "err", closeErr)
-		}
-	}()
-
-	var pair tokenPairResponse
-	if err := json.NewDecoder(resp.Body).Decode(&pair); err != nil || pair.AccessToken == "" {
-		_ = pages.LoginPage("Login failed. Try again.").Render(r.Context(), w)
+		log.Error("github oauth callback: code exchange failed", "err", err)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
-	s := &session{
-		AccessToken:           pair.AccessToken,
-		RefreshToken:          pair.RefreshToken,
-		PasswordResetRequired: pair.PasswordResetRequired,
+	// Exchange the GitHub token for a Morsel session.
+	s, err := h.githubTokenToSession(r.Context(), ghToken)
+	if err != nil {
+		log.Warn("github oauth callback: morsel token exchange failed", "err", err)
+		if renderErr := pages.LoginPage("Your GitHub account does not have access to this platform.").Render(r.Context(), w); renderErr != nil {
+			log.Warn("render login page", "err", renderErr)
+		}
+		return
 	}
+
 	if err := h.setSessionCookie(w, s); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if pair.PasswordResetRequired {
-		http.Redirect(w, r, "/password-reset", http.StatusSeeOther)
-		return
-	}
 	http.Redirect(w, r, "/apps", http.StatusSeeOther)
+}
+
+type githubAccessTokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	Error       string `json:"error"`
+}
+
+// exchangeGitHubCode exchanges a GitHub OAuth code for a GitHub access token.
+func (h *Handler) exchangeGitHubCode(ctx context.Context, code, redirectURI string) (string, error) {
+	body, err := json.Marshal(map[string]string{
+		"client_id":     h.githubClientID,
+		"client_secret": h.githubClientSecret,
+		"code":          code,
+		"redirect_uri":  redirectURI,
+	})
+	if err != nil {
+		return "", fmt.Errorf("marshal github token request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://github.com/login/oauth/access_token", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("build github token request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("exchange github code: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+		}
+	}()
+
+	var result githubAccessTokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("decode github token response: %w", err)
+	}
+	if result.Error != "" {
+		return "", fmt.Errorf("github token error: %s", result.Error)
+	}
+	if result.AccessToken == "" {
+		return "", errors.New("github returned empty access token")
+	}
+	return result.AccessToken, nil
+}
+
+type githubAuthRequest struct {
+	Token string `json:"token"`
+}
+
+// githubTokenToSession calls the Morsel API to exchange a GitHub token for
+// Morsel tokens, then returns a session containing those tokens.
+func (h *Handler) githubTokenToSession(ctx context.Context, githubToken string) (*session, error) {
+	body, err := json.Marshal(githubAuthRequest{Token: githubToken})
+	if err != nil {
+		return nil, fmt.Errorf("marshal morsel auth request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.apiURL+"/token/oidc", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build morsel auth request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("morsel github auth: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+		}
+	}()
+
+	if resp.StatusCode == http.StatusForbidden {
+		return nil, errors.New("principal has viewer access only")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("morsel github auth returned %d", resp.StatusCode)
+	}
+
+	var pair tokenPairResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pair); err != nil {
+		return nil, fmt.Errorf("decode morsel token response: %w", err)
+	}
+	return &session{AccessToken: pair.AccessToken, RefreshToken: pair.RefreshToken}, nil
 }
 
 // HandleLogout handles POST /logout.

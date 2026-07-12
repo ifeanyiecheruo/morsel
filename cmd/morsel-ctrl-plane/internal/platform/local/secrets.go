@@ -3,7 +3,6 @@ package local
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,9 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
-	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // SecretStore is the low-level storage backend for raw secret bytes.
@@ -301,29 +298,6 @@ func (lt *localTokens) VerifyDeployToken(ctx context.Context, tokenStr string) (
 		return "", fmt.Errorf("invalid deploy token: %w", lastErr)
 	}
 	return "", fmt.Errorf("invalid deploy token")
-}
-
-func (lt *localTokens) ValidateOperatorCredential(ctx context.Context, username, password string) (string, error) {
-	if username == "" {
-		return "", platform.ErrPrincipalNotAuthorized
-	}
-	if lt.store == nil {
-		return "", platform.ErrPrincipalNotAuthorized
-	}
-	ctxlog.From(ctx).Info("validating operator credential", "username", username)
-	hashVal, err := lt.store.GetPrincipalPasswordHash(ctx, username)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", platform.ErrPrincipalNotAuthorized
-	}
-	if err != nil {
-		return "", fmt.Errorf("validate operator credential: %w", err)
-	}
-	if hashVal.Valid {
-		if err := bcrypt.CompareHashAndPassword([]byte(hashVal.String), []byte(password)); err != nil {
-			return "", platform.ErrPrincipalNotAuthorized
-		}
-	}
-	return username, nil
 }
 
 func generateKey() ([]byte, error) {

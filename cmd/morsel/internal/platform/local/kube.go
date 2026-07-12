@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
+	"log/slog"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,7 +65,10 @@ func DefaultKubeconfigPath() string {
 	if v := os.Getenv("KUBECONFIG"); v != "" {
 		return v
 	}
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		slog.Warn("get user home dir", "err", err)
+	}
 	return filepath.Join(home, ".kube", "config")
 }
 
@@ -153,7 +159,9 @@ func (kc *KubeconfigContext) CheckAccess(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("connect to cluster %s: %w", kc.ServerURL, err)
 	}
-	_ = resp.Body.Close()
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		ctxlog.From(ctx).Warn("close cluster check response body", "err", closeErr)
+	}
 	if resp.StatusCode >= 500 {
 		return fmt.Errorf("cluster returned %d", resp.StatusCode)
 	}

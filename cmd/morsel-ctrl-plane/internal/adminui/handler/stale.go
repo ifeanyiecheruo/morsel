@@ -24,7 +24,9 @@ func (h *Handler) ServeStale(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.apiGet(ctx, "/api/operator/stale")
 	if err != nil || resp.StatusCode == http.StatusUnauthorized {
 		if resp != nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+			}
 		}
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -36,7 +38,9 @@ func (h *Handler) ServeStale(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	var apiRows []apiStaleRow
-	_ = json.NewDecoder(resp.Body).Decode(&apiRows)
+	if err := json.NewDecoder(resp.Body).Decode(&apiRows); err != nil {
+		ctxlog.From(ctx).Warn("decode stale rows", "err", err)
+	}
 
 	rows := make([]pages.StaleRow, 0, len(apiRows))
 	for _, row := range apiRows {
@@ -48,7 +52,9 @@ func (h *Handler) ServeStale(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	_ = pages.StalePage(pages.StalePageData{Rows: rows}).Render(ctx, w)
+	if err := pages.StalePage(pages.StalePageData{Rows: rows}).Render(ctx, w); err != nil {
+		ctxlog.From(ctx).Warn("render stale page", "err", err)
+	}
 }
 
 // HandleStaleIgnore handles POST /stale/{org}/{repo}/{appName}/ignore.
@@ -57,10 +63,15 @@ func (h *Handler) HandleStaleIgnore(w http.ResponseWriter, r *http.Request) {
 	org, repo, _ := strings.Cut(slug, "/")
 	path := "/api/operator/stale/" + org + "/" + repo + "/" + appName + "/ignore"
 
-	resp, err := h.apiPost(r.Context(), path, nil)
+	ctx := r.Context()
+	resp, err := h.apiPost(ctx, path, nil)
 	if resp != nil {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+		}
 	}
-	_ = err
+	if err != nil {
+		ctxlog.From(ctx).Warn("stale ignore api call", "err", err)
+	}
 	http.Redirect(w, r, "/stale", http.StatusSeeOther)
 }

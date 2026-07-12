@@ -10,6 +10,7 @@ import (
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 )
 
@@ -165,20 +166,25 @@ func (h *Handler) SetDefaultTier(ctx context.Context, params server.SetDefaultTi
 // propagateTierToNamespaces updates ResourceQuota and LimitRange in all app
 // namespaces belonging to repos assigned to the given tier.
 func (h *Handler) propagateTierToNamespaces(ctx context.Context, tierName string, limits kube.TierLimits) {
+	logger := ctxlog.From(ctx).With("tier", tierName)
 	repos, err := h.store.ListReposByTier(ctx, tierName)
 	if err != nil {
+		logger.Error("list repos by tier", "err", err)
 		return
 	}
 	for _, repo := range repos {
 		apps, err := h.store.ListApps(ctx, repo.Slug)
 		if err != nil {
+			logger.Error("list apps for tier propagation", "repo", repo.Slug, "err", err)
 			continue
 		}
 		for _, app := range apps {
 			if !app.Namespace.Valid || app.Namespace.String == "" {
 				continue
 			}
-			_ = h.deployer.ApplyNamespaceTier(ctx, app.Namespace.String, limits)
+			if err := h.deployer.ApplyNamespaceTier(ctx, app.Namespace.String, limits); err != nil {
+				logger.Warn("apply namespace tier", "app", app.Name, "err", err)
+			}
 		}
 	}
 }

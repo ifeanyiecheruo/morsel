@@ -7,11 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db"
-	dbqueries "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db/queries"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform/local"
-	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
@@ -52,7 +49,7 @@ func (m *memSecretStore) Delete(_ context.Context, name string) error {
 }
 
 func TestGetAmbientTokenReturnsEmpty(t *testing.T) {
-	plat := local.NewWithSecretStore(nil, newMemSecretStore())
+	plat := local.NewWithSecretStore(nil, newMemSecretStore(), 443)
 	token, err := plat.Tokens().GetAmbientToken(ctx)
 	if err != nil {
 		t.Fatalf("GetAmbientToken: unexpected error: %v", err)
@@ -89,44 +86,25 @@ func TestDeployTokenRoundTrip(t *testing.T) {
 // platWithSecrets returns a LocalPlatform (no DB store) backed by a fresh in-memory SecretStore.
 func platWithSecrets(t *testing.T) *local.LocalPlatform {
 	t.Helper()
-	return local.NewWithSecretStore(nil, newMemSecretStore())
-}
-
-// platWithStore creates a LocalPlatform backed by an in-memory SQLite store for
-// tests that exercise principal validation or SeedDefaults.
-func platWithStore(t *testing.T) (*local.LocalPlatform, *store.Store) {
-	t.Helper()
-
-	database, err := db.Open(ctx, ":memory:")
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { _ = database.Close() })
-
-	if err := db.Migrate(ctx, database); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	s := store.New(dbqueries.New(database), database)
-	return local.NewWithSecretStore(s, newMemSecretStore()), s
+	return local.NewWithSecretStore(nil, newMemSecretStore(), 443)
 }
 
 func TestDNSCreateRecordIsNoop(t *testing.T) {
-	plat := local.NewWithSecretStore(nil, newMemSecretStore())
+	plat := local.NewWithSecretStore(nil, newMemSecretStore(), 443)
 	if err := plat.DNS().CreateRecord(ctx, "zone", "name", "A", "1.2.3.4", 60); err != nil {
 		t.Errorf("CreateRecord: unexpected error: %v", err)
 	}
 }
 
 func TestDNSDeleteRecordIsNoop(t *testing.T) {
-	plat := local.NewWithSecretStore(nil, newMemSecretStore())
+	plat := local.NewWithSecretStore(nil, newMemSecretStore(), 443)
 	if err := plat.DNS().DeleteRecord(ctx, "zone", "name", "A"); err != nil {
 		t.Errorf("DeleteRecord: unexpected error: %v", err)
 	}
 }
 
 func TestDNSRecordExistsReturnsFalse(t *testing.T) {
-	plat := local.NewWithSecretStore(nil, newMemSecretStore())
+	plat := local.NewWithSecretStore(nil, newMemSecretStore(), 443)
 	exists, err := plat.DNS().RecordExists(ctx, "zone", "name", "A")
 	if err != nil {
 		t.Fatalf("RecordExists: unexpected error: %v", err)
@@ -137,7 +115,7 @@ func TestDNSRecordExistsReturnsFalse(t *testing.T) {
 }
 
 func TestPricesFetchedAtIsSet(t *testing.T) {
-	plat := local.NewWithSecretStore(nil, newMemSecretStore())
+	plat := local.NewWithSecretStore(nil, newMemSecretStore(), 443)
 	prices, err := plat.Pricing().Prices(ctx)
 	if err != nil {
 		t.Fatalf("Prices: unexpected error: %v", err)
@@ -147,36 +125,8 @@ func TestPricesFetchedAtIsSet(t *testing.T) {
 	}
 }
 
-func TestSeedDefaultsIsNoop(t *testing.T) {
-	plat, _ := platWithStore(t)
-	if err := plat.SeedDefaults(ctx); err != nil {
-		t.Fatalf("SeedDefaults: %v", err)
-	}
-	// SeedDefaults must not create any principals — the initial operator is
-	// provisioned via 'morsel service deploy --initial-username'.
-	if _, err := plat.Tokens().ValidateOperatorCredential(ctx, "operator@example.com", ""); !errors.Is(err, platform.ErrPrincipalNotAuthorized) {
-		t.Errorf("expected ErrPrincipalNotAuthorized after SeedDefaults, got %v", err)
-	}
-}
-
-func TestSeedDefaultsDoesNotOverwriteExisting(t *testing.T) {
-	plat, s := platWithStore(t)
-	seedPrincipals(t, s, "custom@example.com")
-
-	if err := plat.SeedDefaults(ctx); err != nil {
-		t.Fatalf("SeedDefaults: %v", err)
-	}
-	subject, err := plat.Tokens().ValidateOperatorCredential(ctx, "custom@example.com", "")
-	if err != nil {
-		t.Fatalf("ValidateOperatorCredential: %v", err)
-	}
-	if subject != "custom@example.com" {
-		t.Errorf("subject = %q, want custom@example.com", subject)
-	}
-}
-
 func TestBlobsGetNotImplemented(t *testing.T) {
-	plat := local.NewWithSecretStore(nil, newMemSecretStore())
+	plat := local.NewWithSecretStore(nil, newMemSecretStore(), 443)
 	if _, err := plat.Blobs().Get(ctx, "bucket", "key"); !errors.Is(err, platform.ErrNotImplemented) {
 		t.Errorf("Blobs.Get: err = %v, want ErrNotImplemented", err)
 	}

@@ -4,7 +4,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"time"
 
 	dbqueries "github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/db/queries"
@@ -21,6 +20,7 @@ type PriceSnapshot = dbqueries.PriceSnapshot
 type PlatformConfig = dbqueries.PlatformConfig
 type Exemption = dbqueries.Exemption
 type StaleSuppressed = dbqueries.StaleSuppressed
+type Principal = dbqueries.Principal
 
 // fallbackDefaultTier is the built-in baseline used when no default tier exists.
 const fallbackDefaultTier = "small"
@@ -44,87 +44,54 @@ func (s *Store) Ping(ctx context.Context) error {
 
 // ── Principals ───────────────────────────────────────────────────────────────
 
-// ListPrincipals returns all operator principal usernames in lexicographic order.
-func (s *Store) ListPrincipals(ctx context.Context) ([]string, error) {
-	return s.q.ListPrincipals(ctx)
-}
-
-// AddPrincipal adds an operator principal. Idempotent — a duplicate username is silently ignored.
-func (s *Store) AddPrincipal(ctx context.Context, username string) error {
-	return s.q.InsertPrincipal(ctx, username)
-}
-
-// RemovePrincipal removes an operator principal. No-op if the username is not present.
-func (s *Store) RemovePrincipal(ctx context.Context, username string) error {
-	return s.q.DeletePrincipal(ctx, username)
-}
-
-func (s *Store) PrincipalExists(ctx context.Context, username string) (bool, error) {
-	return s.q.PrincipalExists(ctx, username)
-}
-
-// GetPrincipalPasswordHash returns the stored bcrypt hash for username.
-// Returns (sql.NullString{Valid: false}, nil) if the principal has no password set.
-// Returns sql.ErrNoRows if the username does not exist.
-func (s *Store) GetPrincipalPasswordHash(ctx context.Context, username string) (sql.NullString, error) {
-	return s.q.GetPrincipalPasswordHash(ctx, username)
-}
-
-// AddPrincipalWithPasswordHash adds a principal and sets its bcrypt password hash atomically.
-// If the username already exists the insert is a no-op, but the hash is still updated.
-func (s *Store) AddPrincipalWithPasswordHash(ctx context.Context, username, hash string) error {
-	if err := s.q.InsertPrincipal(ctx, username); err != nil {
-		return err
-	}
-	return s.q.SetPrincipalPasswordHash(ctx, dbqueries.SetPrincipalPasswordHashParams{
-		PasswordHash: sql.NullString{String: hash, Valid: true},
-		Username:     username,
+// UpsertPrincipal inserts or updates a principal by GitHub ID, updating the login if it changed.
+func (s *Store) UpsertPrincipal(ctx context.Context, githubID int64, githubLogin string) (Principal, error) {
+	return s.q.UpsertPrincipal(ctx, dbqueries.UpsertPrincipalParams{
+		GithubID:    githubID,
+		GithubLogin: githubLogin,
 	})
 }
 
-// ListPrincipalsWithDetails returns all operator principals with their status fields.
-type PrincipalDetail struct {
-	Username              string
-	PasswordResetRequired bool
-	IsAdmin               bool
+// GetPrincipalByID returns the principal with the given GitHub user ID.
+func (s *Store) GetPrincipalByID(ctx context.Context, githubID int64) (Principal, error) {
+	return s.q.GetPrincipalByID(ctx, githubID)
 }
 
-func (s *Store) ListPrincipalsWithDetails(ctx context.Context) ([]PrincipalDetail, error) {
-	rows, err := s.q.ListPrincipalsWithDetails(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]PrincipalDetail, len(rows))
-	for i, r := range rows {
-		out[i] = PrincipalDetail{
-			Username:              r.Username,
-			PasswordResetRequired: r.PasswordResetRequired != 0,
-			IsAdmin:               r.IsAdmin != 0,
-		}
-	}
-	return out, nil
+// GetPrincipalByLogin returns the principal with the given GitHub login.
+func (s *Store) GetPrincipalByLogin(ctx context.Context, githubLogin string) (Principal, error) {
+	return s.q.GetPrincipalByLogin(ctx, githubLogin)
 }
 
-// IsAdmin reports whether the principal has admin privileges.
-func (s *Store) IsAdmin(ctx context.Context, username string) (bool, error) {
-	v, err := s.q.GetPrincipalIsAdmin(ctx, username)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+// ListPrincipals returns all principals ordered by GitHub login.
+func (s *Store) ListPrincipals(ctx context.Context) ([]Principal, error) {
+	return s.q.ListPrincipals(ctx)
+}
+
+// DeletePrincipal removes the principal with the given GitHub user ID.
+func (s *Store) DeletePrincipal(ctx context.Context, githubID int64) error {
+	return s.q.DeletePrincipal(ctx, githubID)
+}
+
+// SetOperator grants or revokes operator privileges for a principal.
+func (s *Store) SetOperator(ctx context.Context, githubID int64, isOperator bool) error {
+	var v int64
+	if isOperator {
+		v = 1
 	}
-	if err != nil {
-		return false, err
-	}
-	return v != 0, nil
+	return s.q.SetPrincipalIsOperator(ctx, dbqueries.SetPrincipalIsOperatorParams{
+		GithubID:   githubID,
+		IsOperator: v,
+	})
 }
 
 // SetAdmin grants or revokes admin privileges for a principal.
-func (s *Store) SetAdmin(ctx context.Context, username string, isAdmin bool) error {
+func (s *Store) SetAdmin(ctx context.Context, githubID int64, isAdmin bool) error {
 	var v int64
 	if isAdmin {
 		v = 1
 	}
 	return s.q.SetPrincipalIsAdmin(ctx, dbqueries.SetPrincipalIsAdminParams{
-		Username: username,
+		GithubID: githubID,
 		IsAdmin:  v,
 	})
 }
@@ -134,64 +101,9 @@ func (s *Store) CountAdmins(ctx context.Context) (int64, error) {
 	return s.q.CountAdmins(ctx)
 }
 
-// InvalidatePrincipalPassword clears the password hash and forces a password reset.
-// All existing refresh tokens for the principal become invalid via password_changed_at.
-func (s *Store) InvalidatePrincipalPassword(ctx context.Context, username string, at time.Time) error {
-	return s.q.InvalidatePrincipalPassword(ctx, dbqueries.InvalidatePrincipalPasswordParams{
-		Username:          username,
-		PasswordChangedAt: sql.NullTime{Time: at, Valid: true},
-	})
-}
-
-// GetPasswordResetRequired returns whether the principal must change their password on next login.
-// Returns false if the principal does not exist.
-func (s *Store) GetPasswordResetRequired(ctx context.Context, username string) (bool, error) {
-	v, err := s.q.GetPrincipalPasswordResetRequired(ctx, username)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return v != 0, nil
-}
-
-// SetPasswordResetRequired sets or clears the password-reset-required flag for a principal.
-func (s *Store) SetPasswordResetRequired(ctx context.Context, username string, required bool) error {
-	var v int64
-	if required {
-		v = 1
-	}
-	return s.q.SetPrincipalPasswordResetRequired(ctx, dbqueries.SetPrincipalPasswordResetRequiredParams{
-		Username:              username,
-		PasswordResetRequired: v,
-	})
-}
-
-// PrincipalSecurityState holds the fields needed for token-refresh security checks.
-type PrincipalSecurityState struct {
-	PasswordResetRequired bool
-	PasswordChangedAt     sql.NullTime
-}
-
-// GetPrincipalSecurityState returns the security-relevant fields for a principal.
-func (s *Store) GetPrincipalSecurityState(ctx context.Context, username string) (PrincipalSecurityState, error) {
-	row, err := s.q.GetPrincipalSecurityState(ctx, username)
-	if err != nil {
-		return PrincipalSecurityState{}, err
-	}
-	return PrincipalSecurityState{
-		PasswordResetRequired: row.PasswordResetRequired != 0,
-		PasswordChangedAt:     row.PasswordChangedAt,
-	}, nil
-}
-
-// SetPasswordChangedAt records the current time as password_changed_at and clears password_reset_required.
-func (s *Store) SetPasswordChangedAt(ctx context.Context, username string, changedAt time.Time) error {
-	return s.q.SetPasswordChangedAt(ctx, dbqueries.SetPasswordChangedAtParams{
-		Username:          username,
-		PasswordChangedAt: sql.NullTime{Time: changedAt, Valid: true},
-	})
+// CountOperators returns the number of principals with operator privileges.
+func (s *Store) CountOperators(ctx context.Context) (int64, error) {
+	return s.q.CountOperators(ctx)
 }
 
 // ── Refresh tokens ───────────────────────────────────────────────────────────

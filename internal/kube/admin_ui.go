@@ -17,11 +17,12 @@ const (
 )
 
 // EnsureAdminUI provisions the morsel-admin-ui Deployment and Service in ns.
-// It contacts the morsel-api via the cluster-local DNS address. Idempotent —
-// safe to call on every bootstrap run.
-func (c *Client) EnsureAdminUI(ctx context.Context, ns, image string) error {
+// It contacts the morsel-api via the cluster-local DNS address.
+// githubClientID and githubClientSecret, when non-empty, configure the
+// GitHub OAuth web flow used by the admin UI login page. Idempotent.
+func (c *Client) EnsureAdminUI(ctx context.Context, ns, image, githubClientID, githubClientSecret string) error {
 	apiURL := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", apiName, ns, apiPort)
-	if err := c.applyAdminUIDeployment(ctx, ns, image, apiURL); err != nil {
+	if err := c.applyAdminUIDeployment(ctx, ns, image, apiURL, githubClientID, githubClientSecret); err != nil {
 		return fmt.Errorf("deployment: %w", err)
 	}
 	if err := c.applyAdminUIService(ctx, ns); err != nil {
@@ -30,9 +31,20 @@ func (c *Client) EnsureAdminUI(ctx context.Context, ns, image string) error {
 	return nil
 }
 
-func (c *Client) applyAdminUIDeployment(ctx context.Context, ns, image, apiURL string) error {
+func (c *Client) applyAdminUIDeployment(ctx context.Context, ns, image, apiURL, githubClientID, githubClientSecret string) error {
 	replicas := int32(1)
 	labels := map[string]string{"morsel.io/component": adminUIName}
+	args := []string{
+		"run", "admin-ui",
+		"--addr", fmt.Sprintf(":%d", adminUIPort),
+		"--api-url", apiURL,
+	}
+	if githubClientID != "" {
+		args = append(args, "--github-client-id", githubClientID)
+	}
+	if githubClientSecret != "" {
+		args = append(args, "--github-client-secret", githubClientSecret)
+	}
 	desired := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      adminUIName,
@@ -50,11 +62,7 @@ func (c *Client) applyAdminUIDeployment(ctx context.Context, ns, image, apiURL s
 							Name:            "admin-ui",
 							Image:           image,
 							ImagePullPolicy: corev1.PullNever,
-							Args: []string{
-								"run", "admin-ui",
-								"--addr", fmt.Sprintf(":%d", adminUIPort),
-								"--api-url", apiURL,
-							},
+							Args:            args,
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: adminUIPort, Name: "http"},
 							},

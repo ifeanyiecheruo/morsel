@@ -19,6 +19,8 @@ func newAdminUICmd(ctx context.Context) *cobra.Command {
 	var addr string
 	var apiURL string
 	var sessionSecretHex string
+	var githubClientID string
+	var githubClientSecret string
 
 	cmd := &cobra.Command{
 		Use:   "admin-ui",
@@ -56,7 +58,7 @@ access to the database or Kubernetes.`,
 			uiHealth := reporter.NewComponent("ui", true)
 
 			httpClient := &http.Client{Timeout: 30 * time.Second}
-			h := adminui.NewMux(ctx, apiURL, httpClient, sessionKey, receiver)
+			h := adminui.NewMux(ctx, apiURL, httpClient, sessionKey, githubClientID, githubClientSecret, receiver)
 			uiHealth.Report(true, "ready")
 
 			runServer(ctx, addr, 30*time.Second, func() *http.Server {
@@ -69,6 +71,8 @@ access to the database or Kubernetes.`,
 	cmd.Flags().StringVar(&addr, "addr", ":8090", "HTTP listen address for the admin UI")
 	cmd.Flags().StringVar(&apiURL, "api-url", "", "base URL of the Morsel control-plane REST API (required)")
 	cmd.Flags().StringVar(&sessionSecretHex, "session-secret", "", "hex-encoded 32-byte key for signing session cookies (auto-generated if omitted)")
+	cmd.Flags().StringVar(&githubClientID, "github-client-id", "", "GitHub OAuth App client ID")
+	cmd.Flags().StringVar(&githubClientSecret, "github-client-secret", "", "GitHub OAuth App client secret")
 
 	return cmd
 }

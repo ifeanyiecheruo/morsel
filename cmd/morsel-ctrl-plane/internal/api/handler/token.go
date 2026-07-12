@@ -11,10 +11,8 @@ import (
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/server"
-	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
-	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 const operatorRefreshTTL = 90 * 24 * time.Hour
@@ -45,68 +43,6 @@ func (h *Handler) TokenDeploy(ctx context.Context, req *server.TokenDeployReq) (
 	return &server.TokenDeployOK{AccessToken: accessToken, ExpiresIn: 600}, nil
 }
 
-func (h *Handler) TokenOIDC(ctx context.Context, req *server.TokenOIDCReq) (server.TokenOIDCRes, error) {
-	log := ctxlog.From(ctx)
-	log.Info("operator login attempt", "username", req.Username)
-	subject, err := h.plat.Tokens().ValidateOperatorCredential(ctx, req.Username, req.Password)
-	if errors.Is(err, platform.ErrPrincipalNotAuthorized) {
-		log.Warn("operator login rejected", "username", req.Username, "reason", err)
-		return &server.ErrorResponse{Error: server.ErrorDetail{
-			Code:    "invalid_token",
-			Message: "operator identity could not be verified",
-			Remedy:  "ensure your principal is in the operator list and re-authenticate",
-		}}, nil
-	}
-	if err != nil {
-		log.Error("operator login error", "username", req.Username, "err", err)
-		return nil, fmt.Errorf("validate operator token: %w", err)
-	}
-
-	passwordResetRequired, err := h.store.GetPasswordResetRequired(ctx, subject)
-	if err != nil {
-		return nil, fmt.Errorf("check password reset flag: %w", err)
-	}
-
-	isAdmin, err := h.store.IsAdmin(ctx, subject)
-	if err != nil {
-		return nil, fmt.Errorf("check admin status: %w", err)
-	}
-
-	claims := tokens.CreateOperatorClaims(subject)
-	if isAdmin {
-		claims = tokens.CreateAdminAPIClaims(subject)
-	}
-	accessToken, err := tokens.IssueToken(h.signingKey, claims)
-	if err != nil {
-		return nil, fmt.Errorf("issue access token: %w", err)
-	}
-
-	raw, encoded, err := tokens.GenerateRefreshToken()
-	if err != nil {
-		return nil, fmt.Errorf("generate refresh token: %w", err)
-	}
-
-	id, err := newTokenID()
-	if err != nil {
-		return nil, fmt.Errorf("generate token id: %w", err)
-	}
-
-	if err := h.store.InsertRefreshToken(ctx, id, tokens.HashRefreshToken(raw), subject, tokens.RoleOperator, time.Now().Add(operatorRefreshTTL)); err != nil {
-		return nil, fmt.Errorf("store refresh token: %w", err)
-	}
-
-	resp := &server.TokenPairResponse{
-		AccessToken:      accessToken,
-		RefreshToken:     encoded,
-		ExpiresIn:        int(tokens.OperatorTokenTTL.Seconds()),
-		RefreshExpiresIn: int(operatorRefreshTTL.Seconds()),
-	}
-	if passwordResetRequired {
-		resp.PasswordResetRequired = server.NewOptBool(true)
-	}
-	return resp, nil
-}
-
 func (h *Handler) TokenRefresh(ctx context.Context, req *server.TokenRefreshReq) (server.TokenRefreshRes, error) {
 	if req.RefreshToken == "" {
 		return &server.TokenRefreshBadRequest{Error: server.ErrorDetail{
@@ -134,32 +70,31 @@ func (h *Handler) TokenRefresh(ctx context.Context, req *server.TokenRefreshReq)
 		return typedResp, nil
 	}
 
-	sec, err := h.store.GetPrincipalSecurityState(ctx, rt.Subject)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("check principal security state: %w", err)
-	}
-	if sec.PasswordResetRequired {
+	principal, err := h.store.GetPrincipalByLogin(ctx, rt.Subject)
+	if errors.Is(err, sql.ErrNoRows) {
 		return &server.TokenRefreshUnauthorized{Error: server.ErrorDetail{
-			Code:    "password_reset_required",
-			Message: "operator must change their password before the token can be refreshed",
-			Remedy:  "re-authenticate and change your password before continuing",
-		}}, nil
-	}
-	if sec.PasswordChangedAt.Valid && sec.PasswordChangedAt.Time.After(rt.CreatedAt) {
-		return &server.TokenRefreshUnauthorized{Error: server.ErrorDetail{
-			Code:    "token_invalidated",
-			Message: "token was issued before a password change and is no longer valid",
+			Code:    "invalid_token",
+			Message: "principal no longer exists",
 			Remedy:  "re-authenticate to obtain a new token",
 		}}, nil
 	}
-
-	isAdmin, err := h.store.IsAdmin(ctx, rt.Subject)
 	if err != nil {
-		return nil, fmt.Errorf("check admin status: %w", err)
+		return nil, fmt.Errorf("get principal: %w", err)
 	}
-	refreshClaims := tokens.CreateOperatorClaims(rt.Subject)
-	if isAdmin {
+
+	var refreshClaims tokens.Claims
+	switch {
+	case principal.IsAdmin != 0:
 		refreshClaims = tokens.CreateAdminAPIClaims(rt.Subject)
+	case principal.IsOperator != 0:
+		refreshClaims = tokens.CreateOperatorClaims(rt.Subject)
+	default:
+		// Principal was demoted since the token was issued — deny refresh.
+		return &server.TokenRefreshUnauthorized{Error: server.ErrorDetail{
+			Code:    "insufficient_role",
+			Message: "principal no longer has elevated access",
+			Remedy:  "contact your platform admin",
+		}}, nil
 	}
 	accessToken, err := tokens.IssueToken(h.signingKey, refreshClaims)
 	if err != nil {

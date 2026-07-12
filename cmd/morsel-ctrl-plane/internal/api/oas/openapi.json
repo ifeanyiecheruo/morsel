@@ -606,20 +606,6 @@
         ],
         "type": "object"
       },
-      "ChangePasswordReq": {
-        "description": "Request to reset the currently authenticated operator's password. A valid bearer token is sufficient proof of identity.",
-        "properties": {
-          "new_password": {
-            "description": "The new password to set. Must be at least 8 characters.",
-            "minLength": 8,
-            "type": "string"
-          }
-        },
-        "required": [
-          "new_password"
-        ],
-        "type": "object"
-      },
       "ComponentHealth": {
         "properties": {
           "critical": {
@@ -974,22 +960,22 @@
       "OperatorPrincipalDetail": {
         "description": "An operator principal with its current status.",
         "properties": {
+          "github_login": {
+            "description": "The principal's GitHub login name.",
+            "type": "string"
+          },
           "is_admin": {
             "description": "Whether this principal has admin privileges.",
             "type": "boolean"
           },
-          "password_reset_required": {
-            "description": "Whether this principal must change their password on next login.",
+          "is_operator": {
+            "description": "Whether this principal has operator privileges.",
             "type": "boolean"
-          },
-          "username": {
-            "description": "The principal's identity (email address).",
-            "type": "string"
           }
         },
         "required": [
-          "username",
-          "password_reset_required",
+          "github_login",
+          "is_operator",
           "is_admin"
         ],
         "type": "object"
@@ -1002,22 +988,22 @@
             "items": {
               "description": "An operator principal with its current status.",
               "properties": {
+                "github_login": {
+                  "description": "The principal's GitHub login name.",
+                  "type": "string"
+                },
                 "is_admin": {
                   "description": "Whether this principal has admin privileges.",
                   "type": "boolean"
                 },
-                "password_reset_required": {
-                  "description": "Whether this principal must change their password on next login.",
+                "is_operator": {
+                  "description": "Whether this principal has operator privileges.",
                   "type": "boolean"
-                },
-                "username": {
-                  "description": "The principal's identity (email address).",
-                  "type": "string"
                 }
               },
               "required": [
-                "username",
-                "password_reset_required",
+                "github_login",
+                "is_operator",
                 "is_admin"
               ],
               "type": "object"
@@ -1113,25 +1099,6 @@
         ],
         "type": "object"
       },
-      "SetPrincipalPasswordReq": {
-        "description": "Admin request to set a password for any operator principal.",
-        "properties": {
-          "invalidate": {
-            "default": false,
-            "description": "If true, mark the password as requiring a reset on next login (temporary password flow).",
-            "type": "boolean"
-          },
-          "new_password": {
-            "description": "The password to set for the principal. Must be at least 8 characters.",
-            "minLength": 8,
-            "type": "string"
-          }
-        },
-        "required": [
-          "new_password"
-        ],
-        "type": "object"
-      },
       "Tier": {
         "description": "A quota tier defining resource limits for repos assigned to it.",
         "properties": {
@@ -1205,10 +1172,6 @@
           "expires_in": {
             "description": "Seconds until the access token expires.",
             "type": "integer"
-          },
-          "password_reset_required": {
-            "description": "When true the operator must change their password before accessing the platform.",
-            "type": "boolean"
           },
           "refresh_expires_in": {
             "description": "Seconds until the refresh token expires.",
@@ -3717,267 +3680,6 @@
         ]
       }
     },
-    "/api/operator/password": {
-      "post": {
-        "description": "Self-service password reset. The operator must supply their current password for\nverification. On success, the password-reset flag is cleared and all refresh tokens\nissued before this change are invalidated.\n",
-        "operationId": "resetOperatorPassword",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "description": "Request to reset the currently authenticated operator's password. A valid bearer token is sufficient proof of identity.",
-                "properties": {
-                  "new_password": {
-                    "description": "The new password to set. Must be at least 8 characters.",
-                    "minLength": 8,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "new_password"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Password reset successfully."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "summary": "Reset the authenticated operator's own password",
-        "tags": [
-          "operator"
-        ]
-      }
-    },
     "/api/operator/prices/history": {
       "get": {
         "description": "Returns all stored platform price snapshots in reverse chronological order, for debugging cost estimate changes.",
@@ -4240,22 +3942,22 @@
                       "items": {
                         "description": "An operator principal with its current status.",
                         "properties": {
+                          "github_login": {
+                            "description": "The principal's GitHub login name.",
+                            "type": "string"
+                          },
                           "is_admin": {
                             "description": "Whether this principal has admin privileges.",
                             "type": "boolean"
                           },
-                          "password_reset_required": {
-                            "description": "Whether this principal must change their password on next login.",
+                          "is_operator": {
+                            "description": "Whether this principal has operator privileges.",
                             "type": "boolean"
-                          },
-                          "username": {
-                            "description": "The principal's identity (email address).",
-                            "type": "string"
                           }
                         },
                         "required": [
-                          "username",
-                          "password_reset_required",
+                          "github_login",
+                          "is_operator",
                           "is_admin"
                         ],
                         "type": "object"
@@ -4494,22 +4196,22 @@
                       "items": {
                         "description": "An operator principal with its current status.",
                         "properties": {
+                          "github_login": {
+                            "description": "The principal's GitHub login name.",
+                            "type": "string"
+                          },
                           "is_admin": {
                             "description": "Whether this principal has admin privileges.",
                             "type": "boolean"
                           },
-                          "password_reset_required": {
-                            "description": "Whether this principal must change their password on next login.",
+                          "is_operator": {
+                            "description": "Whether this principal has operator privileges.",
                             "type": "boolean"
-                          },
-                          "username": {
-                            "description": "The principal's identity (email address).",
-                            "type": "string"
                           }
                         },
                         "required": [
-                          "username",
-                          "password_reset_required",
+                          "github_login",
+                          "is_operator",
                           "is_admin"
                         ],
                         "type": "object"
@@ -4741,22 +4443,22 @@
                       "items": {
                         "description": "An operator principal with its current status.",
                         "properties": {
+                          "github_login": {
+                            "description": "The principal's GitHub login name.",
+                            "type": "string"
+                          },
                           "is_admin": {
                             "description": "Whether this principal has admin privileges.",
                             "type": "boolean"
                           },
-                          "password_reset_required": {
-                            "description": "Whether this principal must change their password on next login.",
+                          "is_operator": {
+                            "description": "Whether this principal has operator privileges.",
                             "type": "boolean"
-                          },
-                          "username": {
-                            "description": "The principal's identity (email address).",
-                            "type": "string"
                           }
                         },
                         "required": [
-                          "username",
-                          "password_reset_required",
+                          "github_login",
+                          "is_operator",
                           "is_admin"
                         ],
                         "type": "object"
@@ -5000,829 +4702,6 @@
           }
         ],
         "summary": "Remove an operator principal",
-        "tags": [
-          "operator"
-        ]
-      }
-    },
-    "/api/operator/principals/{principal}/invalidate-password": {
-      "post": {
-        "description": "Admin-only. Marks the specified principal as requiring a password reset and\nimmediately invalidates all existing refresh tokens. The password hash is\npreserved so the principal can still perform a self-service reset using their\nold password via POST /api/operator/password.\n",
-        "operationId": "invalidateOperatorPrincipalPassword",
-        "parameters": [
-          {
-            "description": "The principal identity (URL-encoded email address).",
-            "in": "path",
-            "name": "principal",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Password invalidated successfully."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "summary": "Invalidate a principal's password (admin only)",
-        "tags": [
-          "operator"
-        ]
-      }
-    },
-    "/api/operator/principals/{principal}/require-password-reset": {
-      "post": {
-        "description": "Flags the specified principal so they must change their password on next login.",
-        "operationId": "requirePasswordResetForPrincipal",
-        "parameters": [
-          {
-            "description": "The principal identity (URL-encoded email address) to flag.",
-            "in": "path",
-            "name": "principal",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Flagged successfully."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "summary": "Mark a principal as requiring a password reset",
-        "tags": [
-          "operator"
-        ]
-      }
-    },
-    "/api/operator/principals/{principal}/set-password": {
-      "post": {
-        "description": "Admin-only. Sets a new password for the specified principal without requiring the\ncurrent password. If `invalidate` is true, the principal will be required to change\ntheir password on next login (temporary password flow). Invalidates all existing\nrefresh tokens for that principal.\n",
-        "operationId": "setOperatorPrincipalPassword",
-        "parameters": [
-          {
-            "description": "The principal identity (URL-encoded email address).",
-            "in": "path",
-            "name": "principal",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "description": "Admin request to set a password for any operator principal.",
-                "properties": {
-                  "invalidate": {
-                    "default": false,
-                    "description": "If true, mark the password as requiring a reset on next login (temporary password flow).",
-                    "type": "boolean"
-                  },
-                  "new_password": {
-                    "description": "The password to set for the principal. Must be at least 8 characters.",
-                    "minLength": 8,
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "new_password"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Password set successfully."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Bad request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "summary": "Set a password for any operator principal (admin only)",
         "tags": [
           "operator"
         ]
@@ -13703,213 +12582,6 @@
         ]
       }
     },
-    "/api/token/oidc": {
-      "post": {
-        "description": "For interactive operator sessions. Exchanges a platform credential for an access/refresh token pair. Use the refresh endpoint to stay authenticated without re-presenting credentials.",
-        "operationId": "tokenOIDC",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "password": {
-                    "description": "Platform credential for the operator identity (e.g. OIDC token).",
-                    "type": "string"
-                  },
-                  "username": {
-                    "description": "Operator identity (e.g. email address or service account).",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "username",
-                  "password"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "A short-lived access token paired with a rotatable refresh token.",
-                  "properties": {
-                    "access_token": {
-                      "description": "Bearer token to include in the Authorization header.",
-                      "type": "string"
-                    },
-                    "expires_in": {
-                      "description": "Seconds until the access token expires.",
-                      "type": "integer"
-                    },
-                    "password_reset_required": {
-                      "description": "When true the operator must change their password before accessing the platform.",
-                      "type": "boolean"
-                    },
-                    "refresh_expires_in": {
-                      "description": "Seconds until the refresh token expires.",
-                      "type": "integer"
-                    },
-                    "refresh_token": {
-                      "description": "Long-lived token used to obtain a new access token without re-authenticating.",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "access_token",
-                    "refresh_token",
-                    "expires_in",
-                    "refresh_expires_in"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Envelope returned for all error responses.",
-                  "properties": {
-                    "error": {
-                      "description": "Structured error information attached to every non-2xx response.",
-                      "properties": {
-                        "code": {
-                          "description": "Machine-readable error code.",
-                          "type": "string"
-                        },
-                        "context": {
-                          "additionalProperties": true,
-                          "description": "Additional key/value pairs that give context for the error.",
-                          "type": "object"
-                        },
-                        "message": {
-                          "description": "Human-readable explanation of what went wrong.",
-                          "type": "string"
-                        },
-                        "remedy": {
-                          "description": "Suggested action to resolve the error.",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "remedy"
-                      ],
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Exchange a platform identity credential for an operator access token and refresh token",
-        "tags": [
-          "token"
-        ]
-      }
-    },
     "/api/token/refresh": {
       "post": {
         "description": "Rotates both tokens. The supplied refresh token is immediately invalidated; use the new pair going forward.",
@@ -13947,10 +12619,6 @@
                     "expires_in": {
                       "description": "Seconds until the access token expires.",
                       "type": "integer"
-                    },
-                    "password_reset_required": {
-                      "description": "When true the operator must change their password before accessing the platform.",
-                      "type": "boolean"
                     },
                     "refresh_expires_in": {
                       "description": "Seconds until the refresh token expires.",

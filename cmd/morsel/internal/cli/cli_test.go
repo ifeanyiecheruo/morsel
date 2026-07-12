@@ -14,39 +14,38 @@ import (
 // Hooks that are nil return zero values with no error (except OperatorLogin,
 // which returns a safe empty profile). Tests set only the hooks they care about.
 type mockCliHandler struct {
-	onLoadProfile                           func(name string, ensureValid bool) (*Profile, error)
-	onServiceDeploy                         func(kubeconfig string, b platform.ServiceDeployer, dockerfile []byte, yes bool) (*Profile, error)
-	onServiceDeployPlatform                 func(prof *Profile) (string, error)
-	onBootstrapOperator                     func(apiURL, username, bootstrapToken string) (string, error)
-	onOperatorLogin                         func(apiURL, username, password string) (*Profile, bool, error)
-	onOperatorChangePassword                func(prof *Profile, newPassword string) error
-	onSaveProfile                           func(name string, prof *Profile) error
-	onDeleteProfile                         func(name string) error
-	onLint                                  func(staged, fix bool) error
-	onServiceStatus                         func(prof *Profile) error
-	onServiceDelete                         func(prof *Profile, kubecontext, namespace string) error
-	onServiceUpgradeRetry                   func(prof *Profile) error
-	onOperatorLogout                        func(prof *Profile) error
-	onOperatorPrincipalAdd                  func(prof *Profile, principal string) error
-	onOperatorPrincipalRemove               func(prof *Profile, principal string) error
-	onOperatorPrincipalList                 func(prof *Profile) error
-	onOperatorPrincipalRequirePasswordReset func(prof *Profile, principal string) error
-	onTierList                              func(prof *Profile) error
-	onTierCreate                            func(prof *Profile, flags TierFlags) error
-	onTierEdit                              func(prof *Profile, flags TierFlags) error
-	onTierSetDefault                        func(prof *Profile, name string) error
-	onTierDelete                            func(prof *Profile, name string) error
-	onAppExemptAdd                          func(prof *Profile, repo, app string) error
-	onAppExemptRemove                       func(prof *Profile, repo, app string) error
-	onRepoExemptAdd                         func(prof *Profile, repo string) error
-	onRepoExemptRemove                      func(prof *Profile, repo string) error
-	onAppDeploy                             func(prof *Profile) error
-	onAppList                               func(prof *Profile, org, repo string) error
-	onAppGet                                func(prof *Profile, org, repo, name string) error
-	onAppStatus                             func(prof *Profile, org, repo, name string) error
-	onAppDelete                             func(prof *Profile, org, repo, name string) error
-	onAppHistory                            func(prof *Profile, org, repo, name string) error
-	onAppSync                               func(prof *Profile, org, repo, name string) error
+	onLoadProfile             func(name string, ensureValid bool) (*Profile, error)
+	onServiceDeploy           func(kubeconfig string, b platform.ServiceDeployer, dockerfile []byte, yes bool) (*Profile, error)
+	onServiceDeployPlatform   func(prof *Profile) (string, error)
+	onOperatorLogin           func(apiURL string) (*Profile, error)
+	onCompleteBootstrap       func(apiURL, bootstrapToken, idToken string) (*Profile, error)
+	onSaveProfile             func(name string, prof *Profile) error
+	onDeleteProfile           func(name string) error
+	onLint                    func(staged, fix bool) error
+	onServiceStatus           func(prof *Profile) error
+	onServiceDelete           func(prof *Profile, kubecontext, namespace string) error
+	onServiceUpgradeRetry     func(prof *Profile) error
+	onOperatorLogout          func(prof *Profile) error
+	onOperatorPrincipalAdd    func(prof *Profile, login string) error
+	onOperatorPrincipalRemove func(prof *Profile, login string) error
+	onOperatorPrincipalList   func(prof *Profile) error
+	onOperatorPrincipalPatch  func(prof *Profile, login string, isOperator, isAdmin *bool) error
+	onTierList                func(prof *Profile) error
+	onTierCreate              func(prof *Profile, flags TierFlags) error
+	onTierEdit                func(prof *Profile, flags TierFlags) error
+	onTierSetDefault          func(prof *Profile, name string) error
+	onTierDelete              func(prof *Profile, name string) error
+	onAppExemptAdd            func(prof *Profile, repo, app string) error
+	onAppExemptRemove         func(prof *Profile, repo, app string) error
+	onRepoExemptAdd           func(prof *Profile, repo string) error
+	onRepoExemptRemove        func(prof *Profile, repo string) error
+	onAppDeploy               func(prof *Profile) error
+	onAppList                 func(prof *Profile, org, repo string) error
+	onAppGet                  func(prof *Profile, org, repo, name string) error
+	onAppStatus               func(prof *Profile, org, repo, name string) error
+	onAppDelete               func(prof *Profile, org, repo, name string) error
+	onAppHistory              func(prof *Profile, org, repo, name string) error
+	onAppSync                 func(prof *Profile, org, repo, name string) error
 }
 
 func (h *mockCliHandler) LoadProfile(_ context.Context, name string, ensureValid bool) (*Profile, error) {
@@ -70,25 +69,18 @@ func (h *mockCliHandler) ServiceDeployPlatform(_ context.Context, prof *Profile)
 	return "local", nil
 }
 
-func (h *mockCliHandler) BootstrapOperator(_ context.Context, apiURL, username, bootstrapToken string) (string, error) {
-	if h.onBootstrapOperator != nil {
-		return h.onBootstrapOperator(apiURL, username, bootstrapToken)
-	}
-	return "", nil
-}
-
-func (h *mockCliHandler) OperatorLogin(_ context.Context, apiURL, username, password string) (*Profile, bool, error) {
+func (h *mockCliHandler) OperatorLogin(_ context.Context, apiURL string) (*Profile, error) {
 	if h.onOperatorLogin != nil {
-		return h.onOperatorLogin(apiURL, username, password)
+		return h.onOperatorLogin(apiURL)
 	}
-	return &Profile{}, false, nil
+	return &Profile{}, nil
 }
 
-func (h *mockCliHandler) OperatorChangePassword(_ context.Context, prof *Profile, newPassword string) error {
-	if h.onOperatorChangePassword != nil {
-		return h.onOperatorChangePassword(prof, newPassword)
+func (h *mockCliHandler) CompleteBootstrap(_ context.Context, apiURL, bootstrapToken, idToken string) (*Profile, error) {
+	if h.onCompleteBootstrap != nil {
+		return h.onCompleteBootstrap(apiURL, bootstrapToken, idToken)
 	}
-	return nil
+	return &Profile{}, nil
 }
 
 func (h *mockCliHandler) SaveProfile(_ context.Context, name string, prof *Profile) error {
@@ -161,9 +153,9 @@ func (h *mockCliHandler) OperatorPrincipalList(_ context.Context, prof *Profile)
 	return nil
 }
 
-func (h *mockCliHandler) OperatorPrincipalRequirePasswordReset(_ context.Context, prof *Profile, principal string) error {
-	if h.onOperatorPrincipalRequirePasswordReset != nil {
-		return h.onOperatorPrincipalRequirePasswordReset(prof, principal)
+func (h *mockCliHandler) OperatorPrincipalPatch(_ context.Context, prof *Profile, login string, isOperator, isAdmin *bool) error {
+	if h.onOperatorPrincipalPatch != nil {
+		return h.onOperatorPrincipalPatch(prof, login, isOperator, isAdmin)
 	}
 	return nil
 }
@@ -294,12 +286,12 @@ func TestOperatorLoginUsesProfileAPIURL(t *testing.T) {
 	var gotURL string
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(fakeProfile),
-		onOperatorLogin: func(apiURL, _, _ string) (*Profile, bool, error) {
+		onOperatorLogin: func(apiURL string) (*Profile, error) {
 			gotURL = apiURL
-			return &Profile{}, false, nil
+			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"}, nil); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login"}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != fakeProfile.APIURL {
@@ -312,12 +304,12 @@ func TestOperatorLoginUsesAPIURLFlag(t *testing.T) {
 	const want = "http://localhost:9090"
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(&Profile{APIURL: "http://localhost:8080"}),
-		onOperatorLogin: func(apiURL, _, _ string) (*Profile, bool, error) {
+		onOperatorLogin: func(apiURL string) (*Profile, error) {
 			gotURL = apiURL
-			return &Profile{}, false, nil
+			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--username", "a@b.com", "--password", "x"}, nil); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != want {
@@ -325,38 +317,20 @@ func TestOperatorLoginUsesAPIURLFlag(t *testing.T) {
 	}
 }
 
-func TestOperatorLoginPassesUsernameToHandler(t *testing.T) {
-	var gotUsername string
-	mock := &mockCliHandler{
-		onLoadProfile: withProfile(fakeProfile),
-		onOperatorLogin: func(_, username, _ string) (*Profile, bool, error) {
-			gotUsername = username
-			return &Profile{}, false, nil
-		},
-	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--username", "alice@example.com", "--password", "x"}, nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if gotUsername != "alice@example.com" {
-		t.Errorf("username: want %q, got %q", "alice@example.com", gotUsername)
-	}
-}
-
 func TestOperatorLoginFailsWithoutAPIURLWhenNoProfile(t *testing.T) {
 	// onLoadProfile is nil → LoadProfile returns (nil, nil) → c.profile is nil, no --api-url → error.
 	mock := &mockCliHandler{}
-	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"}, nil)
+	err := run(context.Background(), mock, []string{"operator", "login"}, nil)
 	if err == nil {
 		t.Fatal("expected error when no profile and no --api-url, got nil")
 	}
 }
 
 func TestOperatorLoginFailsWithEmptyAPIURLInProfile(t *testing.T) {
-	// Profile exists but has no APIURL — should get a clear message, not a raw HTTP scheme error.
 	mock := &mockCliHandler{
 		onLoadProfile: withProfile(&Profile{APIURL: ""}),
 	}
-	err := run(context.Background(), mock, []string{"operator", "login", "--username", "a@b.com", "--password", "x"}, nil)
+	err := run(context.Background(), mock, []string{"operator", "login"}, nil)
 	if err == nil {
 		t.Fatal("expected error when profile has empty APIURL, got nil")
 	}
@@ -366,13 +340,12 @@ func TestOperatorLoginSucceedsWithAPIURLAndNoProfile(t *testing.T) {
 	var gotURL string
 	const want = "http://remote:8080"
 	mock := &mockCliHandler{
-		// no onLoadProfile → c.profile stays nil
-		onOperatorLogin: func(apiURL, _, _ string) (*Profile, bool, error) {
+		onOperatorLogin: func(apiURL string) (*Profile, error) {
 			gotURL = apiURL
-			return &Profile{}, false, nil
+			return &Profile{}, nil
 		},
 	}
-	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want, "--username", "a@b.com", "--password", "x"}, nil); err != nil {
+	if err := run(context.Background(), mock, []string{"operator", "login", "--api-url", want}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotURL != want {

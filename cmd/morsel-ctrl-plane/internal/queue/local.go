@@ -84,13 +84,11 @@ func openSQLite(path, schema string) (*sql.DB, error) {
 		`PRAGMA busy_timeout=5000`,
 	} {
 		if _, err := db.Exec(pragma); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("%s: %w", pragma, err)
+			return nil, errors.Join(fmt.Errorf("%s: %w", pragma, err), db.Close())
 		}
 	}
 	if _, err := db.Exec(schema); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("schema: %w", err)
+		return nil, errors.Join(fmt.Errorf("schema: %w", err), db.Close())
 	}
 	return db, nil
 }
@@ -275,7 +273,9 @@ func (lq *LocalQueue) Enqueue(ctx context.Context, name string, body []byte, sen
 		BodySize:   int64(len(body)),
 		EnqueuedAt: now,
 	}); err != nil {
-		_ = tx.Rollback()
+		if rErr := tx.Rollback(); rErr != nil {
+			ctxlog.From(ctx).Warn("rollback transaction", "err", rErr)
+		}
 		return fmt.Errorf("insert: %w", err)
 	}
 
@@ -284,7 +284,9 @@ func (lq *LocalQueue) Enqueue(ctx context.Context, name string, body []byte, sen
 			Key:   "last_external_enqueue_at",
 			Value: now,
 		}); err != nil {
-			_ = tx.Rollback()
+			if rErr := tx.Rollback(); rErr != nil {
+				ctxlog.From(ctx).Warn("rollback transaction", "err", rErr)
+			}
 			return fmt.Errorf("update meta: %w", err)
 		}
 	}
@@ -295,7 +297,9 @@ func (lq *LocalQueue) Enqueue(ctx context.Context, name string, body []byte, sen
 
 	// Update quota best-effort; a crash here under-counts slightly but
 	// self-corrects on the next full recalculation.
-	_ = queries.New(quotaDB).AddBytes(ctx, int64(len(body)))
+	if err := queries.New(quotaDB).AddBytes(ctx, int64(len(body))); err != nil {
+		ctxlog.From(ctx).Warn("update quota bytes", "err", err)
+	}
 
 	signalQueue(lq.namespace, name)
 	return nil
@@ -325,11 +329,15 @@ func (lq *LocalQueue) Dequeue(ctx context.Context, name string, visibilityTimeou
 
 	row, err := q.SelectNextMessage(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
-		_ = tx.Rollback()
+		if rErr := tx.Rollback(); rErr != nil {
+			ctxlog.From(ctx).Warn("rollback transaction", "err", rErr)
+		}
 		return nil, nil
 	}
 	if err != nil {
-		_ = tx.Rollback()
+		if rErr := tx.Rollback(); rErr != nil {
+			ctxlog.From(ctx).Warn("rollback transaction", "err", rErr)
+		}
 		return nil, fmt.Errorf("select: %w", err)
 	}
 
@@ -337,7 +345,9 @@ func (lq *LocalQueue) Dequeue(ctx context.Context, name string, visibilityTimeou
 		VisibilityUntil: sql.NullString{String: until, Valid: true},
 		ID:              row.ID,
 	}); err != nil {
-		_ = tx.Rollback()
+		if rErr := tx.Rollback(); rErr != nil {
+			ctxlog.From(ctx).Warn("rollback transaction", "err", rErr)
+		}
 		return nil, fmt.Errorf("update visibility: %w", err)
 	}
 
@@ -345,7 +355,10 @@ func (lq *LocalQueue) Dequeue(ctx context.Context, name string, visibilityTimeou
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 
-	t, _ := time.Parse(sqliteTimeLayout, row.EnqueuedAt)
+	t, parseErr := time.Parse(sqliteTimeLayout, row.EnqueuedAt)
+	if parseErr != nil {
+		ctxlog.From(ctx).Warn("parse enqueued_at timestamp", "value", row.EnqueuedAt, "err", parseErr)
+	}
 	return &Message{ID: row.ID, Body: row.Body, EnqueuedAt: t}, nil
 }
 
@@ -383,8 +396,10 @@ func (lq *LocalQueue) Ack(ctx context.Context, name, id string) error {
 		}
 	}()
 	// Clamp at zero in case of any accounting drift.
-	_, _ = quotaDB.ExecContext(ctx,
-		`UPDATE quota SET total_bytes = MAX(0, total_bytes - ?)`, bodySize)
+	if _, err := quotaDB.ExecContext(ctx,
+		`UPDATE quota SET total_bytes = MAX(0, total_bytes - ?)`, bodySize); err != nil {
+		ctxlog.From(ctx).Warn("decrement quota bytes", "err", err)
+	}
 	return nil
 }
 

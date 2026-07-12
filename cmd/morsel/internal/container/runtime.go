@@ -229,15 +229,19 @@ func execBuild(ctx context.Context, name string, dockerfile []byte, args ...stri
 	if err != nil {
 		return fmt.Errorf("create temp dockerfile: %w", err)
 	}
-	defer func() { _ = os.Remove(f.Name()) }()
-	if err := func() error {
-		defer func() { _ = f.Close() }()
-		if _, err := f.Write(dockerfile); err != nil {
-			return fmt.Errorf("write dockerfile: %w", err)
+	defer func() {
+		if err := os.Remove(f.Name()); err != nil {
+			ctxlog.From(ctx).Warn("remove temp dockerfile", "err", err)
 		}
-		return nil
-	}(); err != nil {
-		return err
+	}()
+	if _, err := f.Write(dockerfile); err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			ctxlog.From(ctx).Warn("close temp dockerfile", "err", closeErr)
+		}
+		return fmt.Errorf("write dockerfile: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close temp dockerfile: %w", err)
 	}
 	final := make([]string, len(args))
 	copy(final, args)

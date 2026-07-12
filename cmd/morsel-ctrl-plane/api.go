@@ -26,6 +26,8 @@ func newAPICmd(ctx context.Context) *cobra.Command {
 	var platformName string
 	var dbPath string
 	var kubeconfigPath string
+	var githubClientID string
+	var gatewayPort int
 
 	cmd := &cobra.Command{
 		Use:   "api",
@@ -38,7 +40,7 @@ func newAPICmd(ctx context.Context) *cobra.Command {
 			storeInstance, closeStore := initializeStore(ctx, dbPath)
 			defer closeStore()
 
-			plat := initializePlatform(ctx, platformName, storeInstance)
+			plat := initializePlatform(ctx, platformName, storeInstance, gatewayPort)
 			kubeClient := initializeKube(ctx, kubeconfigPath)
 
 			go runCertRenewal(ctx, plat, kubeClient)
@@ -46,7 +48,7 @@ func newAPICmd(ctx context.Context) *cobra.Command {
 			go watchers.NewBudget(storeInstance, kubeClient, plat, 0).Run(ctx)
 			go runPriceFetch(ctx, plat, storeInstance)
 
-			apiH := api.NewMux(ctx, plat, storeInstance, kubeClient, receiver)
+			apiH := api.NewMux(ctx, plat, storeInstance, kubeClient, receiver, githubClientID)
 			runServer(ctx, addr, 30*time.Second, func() *http.Server {
 				return &http.Server{Handler: apiH}
 			})
@@ -58,6 +60,8 @@ func newAPICmd(ctx context.Context) *cobra.Command {
 	cmd.Flags().StringVar(&platformName, "platform", "local", "platform implementation (local|gcp)")
 	cmd.Flags().StringVar(&dbPath, "db", "morsel.db", "SQLite database path")
 	cmd.Flags().StringVar(&kubeconfigPath, "kubeconfig", "", "path to kubeconfig file (defaults to in-cluster config, then ~/.kube/config)")
+	cmd.Flags().StringVar(&githubClientID, "github-client-id", "", "GitHub OAuth App client ID (enables Device Flow login)")
+	cmd.Flags().IntVar(&gatewayPort, "gateway-port", 443, "host port the HTTPS app gateway listens on")
 
 	return cmd
 }
@@ -93,7 +97,7 @@ func initializeStore(ctx context.Context, dbPath string) (*store.Store, func()) 
 	return result, closeStore
 }
 
-func initializePlatform(ctx context.Context, platformName string, s *store.Store) platform.Platform {
+func initializePlatform(ctx context.Context, platformName string, s *store.Store, gatewayPort int) platform.Platform {
 	logger := ctxlog.From(ctx)
 	reporter, err := health.From(ctx)
 	if err != nil {
@@ -103,7 +107,7 @@ func initializePlatform(ctx context.Context, platformName string, s *store.Store
 
 	platformHealth := reporter.NewComponent("platform", true)
 
-	plat, err := platforms.Create(platformName, s)
+	plat, err := platforms.Create(platformName, s, gatewayPort)
 	if err != nil {
 		logger.Error("platform error", "err", err)
 		os.Exit(1)

@@ -21,7 +21,9 @@ func (h *Handler) ServeStatus(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.apiGet(ctx, "/api/operator/status")
 	if err != nil || resp.StatusCode == http.StatusUnauthorized {
 		if resp != nil {
-			_ = resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				ctxlog.From(ctx).Warn("close response body", "err", closeErr)
+			}
 		}
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -33,7 +35,9 @@ func (h *Handler) ServeStatus(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	var statusData apiStatusResponse
-	_ = json.NewDecoder(resp.Body).Decode(&statusData)
+	if err := json.NewDecoder(resp.Body).Decode(&statusData); err != nil {
+		ctxlog.From(ctx).Warn("decode status response", "err", err)
+	}
 
 	certExpiringSoon := statusData.Certs != nil && len(statusData.Certs.ExpiringSoon) > 0
 	certDomain := ""
@@ -41,10 +45,12 @@ func (h *Handler) ServeStatus(w http.ResponseWriter, r *http.Request) {
 		certDomain = statusData.Certs.ExpiringSoon[0]
 	}
 
-	_ = pages.StatusPage(pages.StatusPageData{
+	if err := pages.StatusPage(pages.StatusPageData{
 		ClusterHealthy:      true,
 		ControlPlaneHealthy: resp.StatusCode == http.StatusOK,
 		CertExpiringSoon:    certExpiringSoon,
 		CertDomain:          certDomain,
-	}).Render(ctx, w)
+	}).Render(ctx, w); err != nil {
+		ctxlog.From(ctx).Warn("render status page", "err", err)
+	}
 }

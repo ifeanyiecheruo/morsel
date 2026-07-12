@@ -3,9 +3,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -24,9 +21,6 @@ func (c *cli) serviceDeployCmd() *cobra.Command {
 	var kubeconfigFlag string
 	var yesFlag bool
 	var forceFlag bool
-	var initialUsernameFlag string
-	var outInitialPasswdFlag string
-	var noLoginFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "deploy",
@@ -91,38 +85,34 @@ func (c *cli) serviceDeployCmd() *cobra.Command {
 			if bt, ok := b.(interface{ BootstrapToken() string }); ok {
 				bootstrapToken = bt.BootstrapToken()
 			}
-			passwd, err := c.handler.BootstrapOperator(cmd.Context(), prof.APIURL, initialUsernameFlag, bootstrapToken)
-			if err != nil {
-				return err
-			}
-
-			if passwd != "" {
-				// First deploy — output the password.
-				if outInitialPasswdFlag != "" {
-					if err := os.WriteFile(outInitialPasswdFlag, []byte(passwd+"\n"), 0600); err != nil {
-						return fmt.Errorf("write initial password to %s: %w", outInitialPasswdFlag, err)
-					}
-					fmt.Printf("Initial operator %q password written to: %s\n", initialUsernameFlag, outInitialPasswdFlag)
-				} else {
-					fmt.Printf("Initial operator %q password: %s\n", initialUsernameFlag, passwd)
+			if bootstrapToken != "" {
+				clientID, clientIDErr := fetchMorselGitHubClientID(cmd.Context(), prof.APIURL)
+				if clientIDErr != nil {
+					ctxlog.From(cmd.Context()).Warn("fetch github client id", "err", clientIDErr)
 				}
-
-				if !noLoginFlag {
-					loginProf, _, err := c.handler.OperatorLogin(cmd.Context(), prof.APIURL, initialUsernameFlag, passwd)
+				var idToken string
+				if clientID != "" {
+					fmt.Println("Instance bootstrapped. Authenticate with GitHub to complete setup...")
+					idProf, err := c.handler.OperatorLogin(cmd.Context(), prof.APIURL)
 					if err != nil {
-						return fmt.Errorf("auto-login: %w", err)
+						return fmt.Errorf("authenticate: %w", err)
 					}
-					prof.AccessToken = loginProf.AccessToken
-					prof.AccessTokenExpiresAt = loginProf.AccessTokenExpiresAt
-					prof.RefreshToken = loginProf.RefreshToken
-					prof.RefreshTokenExpiresAt = loginProf.RefreshTokenExpiresAt
-					if err := c.handler.SaveProfile(cmd.Context(), c.profileName, prof); err != nil {
-						return err
-					}
-					fmt.Printf("Logged in as %q.\n", initialUsernameFlag)
+					idToken = idProf.AccessToken
 				} else {
-					fmt.Println("Run 'morsel operator login' to authenticate.")
+					fmt.Println("Instance bootstrapped. No GitHub OAuth configured — creating local admin...")
 				}
+				adminProf, err := c.handler.CompleteBootstrap(cmd.Context(), prof.APIURL, bootstrapToken, idToken)
+				if err != nil {
+					return fmt.Errorf("complete bootstrap: %w", err)
+				}
+				prof.AccessToken = adminProf.AccessToken
+				prof.AccessTokenExpiresAt = adminProf.AccessTokenExpiresAt
+				prof.RefreshToken = adminProf.RefreshToken
+				prof.RefreshTokenExpiresAt = adminProf.RefreshTokenExpiresAt
+				if err := c.handler.SaveProfile(cmd.Context(), c.profileName, prof); err != nil {
+					return err
+				}
+				fmt.Println("Authenticated as admin.")
 			} else if c.profile != nil {
 				// Re-deploy — the stored tokens may be stale. Attempt a silent
 				// refresh so subsequent commands (e.g. morsel app deploy) work
@@ -139,9 +129,6 @@ func (c *cli) serviceDeployCmd() *cobra.Command {
 	cmd.Flags().StringVar(&kubeconfigFlag, "kubeconfig", "", "path to kubeconfig file")
 	cmd.Flags().BoolVarP(&yesFlag, "yes", "y", false, "accept defaults for all prompts and skip confirmation")
 	cmd.Flags().BoolVar(&forceFlag, "force", false, "recreate cluster resources even when the instance is unreachable (requires --platform)")
-	cmd.Flags().StringVar(&initialUsernameFlag, "initial-username", "admin", "username for the initial operator (first deploy only)")
-	cmd.Flags().StringVar(&outInitialPasswdFlag, "out-initial-passwd", "", "write the initial operator password to this file instead of printing it")
-	cmd.Flags().BoolVar(&noLoginFlag, "no-login", false, "skip automatic login after first-time bootstrap")
 	return cmd
 }
 
@@ -176,7 +163,7 @@ func (h *cliHandler) ServiceDeployPlatform(ctx context.Context, prof *Profile) (
 }
 
 func (h *cliHandler) ServiceDeploy(ctx context.Context, kubeconfig string, b platform.ServiceDeployer, dockerfile []byte, yes bool) (*Profile, error) {
-	ui := NewConsolePrompter(os.Stdin, os.Stdout)
+	ui := NewConsolePrompter(ctx, os.Stdin, os.Stdout)
 	ui.autoAcceptDefault = yes
 
 	answers, err := ui.Ask(b.Prompts())
@@ -208,36 +195,17 @@ func (h *cliHandler) ServiceDeploy(ctx context.Context, kubeconfig string, b pla
 	return &Profile{APIURL: b.APIURL()}, nil
 }
 
-func (h *cliHandler) BootstrapOperator(ctx context.Context, apiURL, username, bootstrapToken string) (string, error) {
-	return bootstrapOperator(ctx, apiURL, username, bootstrapToken)
-}
-
-// bootstrapOperator calls POST /bootstrap on a freshly provisioned instance.
-// Returns the generated password on first deploy (201 Created) so the caller
-// can log in. Returns "" on subsequent deploys (409 Conflict, no-op).
-func bootstrapOperator(ctx context.Context, apiURL, username, bootstrapToken string) (string, error) {
-	passwd, err := generatePassword()
+func (h *cliHandler) BootstrapOperator(ctx context.Context, apiURL, bootstrapToken string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL+"/bootstrap", bytes.NewReader([]byte("{}")))
 	if err != nil {
-		return "", fmt.Errorf("generate initial password: %w", err)
-	}
-
-	body, err := json.Marshal(map[string]string{"username": username, "password": passwd})
-	if err != nil {
-		return "", err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL+"/bootstrap", bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("bootstrap request: %w", err)
+		return fmt.Errorf("bootstrap request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if bootstrapToken != "" {
-		req.Header.Set("X-Bootstrap-Token", bootstrapToken)
-	}
+	req.Header.Set("X-Bootstrap-Token", bootstrapToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("bootstrap: %w", err)
+		return fmt.Errorf("bootstrap: %w", err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -246,19 +214,11 @@ func bootstrapOperator(ctx context.Context, apiURL, username, bootstrapToken str
 	}()
 
 	switch resp.StatusCode {
-	case http.StatusCreated:
-		return passwd, nil
-	case http.StatusConflict:
-		return "", nil
+	case http.StatusNoContent:
+		return nil
+	case http.StatusUnauthorized:
+		return fmt.Errorf("bootstrap token invalid or already used")
 	default:
-		return "", fmt.Errorf("bootstrap: unexpected status %d", resp.StatusCode)
+		return fmt.Errorf("bootstrap: unexpected status %d", resp.StatusCode)
 	}
-}
-
-func generatePassword() (string, error) {
-	b := make([]byte, 18)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(b), nil
 }

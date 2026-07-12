@@ -16,6 +16,7 @@ import (
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/platform"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/store"
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/tokens"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 	"github.com/ifeanyiecheruo/morsel/internal/health"
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/version"
@@ -42,16 +43,18 @@ type AppDeployer interface {
 
 // Handler implements server.Handler for all Morsel API operations.
 type Handler struct {
-	plat       platform.Platform
-	store      *store.Store
-	signingKey []byte
-	deployer   AppDeployer
-	receiver   *health.Receiver
+	plat           platform.Platform
+	store          *store.Store
+	signingKey     []byte
+	deployer       AppDeployer
+	receiver       *health.Receiver
+	githubClientID string
 }
 
-// New constructs a Handler.
-func New(plat platform.Platform, s *store.Store, signingKey []byte, deployer AppDeployer, receiver *health.Receiver) *Handler {
-	return &Handler{plat: plat, store: s, signingKey: signingKey, deployer: deployer, receiver: receiver}
+// New constructs a Handler. githubClientID is the GitHub OAuth App client ID exposed
+// via GET /api/auth/github/config for CLI Device Flow; leave empty to disable.
+func New(plat platform.Platform, s *store.Store, signingKey []byte, deployer AppDeployer, receiver *health.Receiver, githubClientID string) *Handler {
+	return &Handler{plat: plat, store: s, signingKey: signingKey, deployer: deployer, receiver: receiver, githubClientID: githubClientID}
 }
 
 // apiError is the internal structured error type. It is written by WriteError
@@ -77,7 +80,7 @@ var errNotImplemented = &apiError{
 
 // WriteError is the error handler for ogen's WithErrorHandler option. It
 // translates any error into the morsel JSON error shape.
-func WriteError(_ context.Context, w http.ResponseWriter, _ *http.Request, err error) {
+func WriteError(ctx context.Context, w http.ResponseWriter, _ *http.Request, err error) {
 	var ae *apiError
 	if errors.As(err, &ae) {
 		// Already a structured API error from a handler or security check.
@@ -99,9 +102,11 @@ func WriteError(_ context.Context, w http.ResponseWriter, _ *http.Request, err e
 		Message string `json:"message"`
 		Remedy  string `json:"remedy"`
 	}
-	_ = json.NewEncoder(w).Encode(struct {
+	if err := json.NewEncoder(w).Encode(struct {
 		Error errorDetail `json:"error"`
-	}{Error: errorDetail{Code: ae.code, Message: ae.message, Remedy: ae.remedy}})
+	}{Error: errorDetail{Code: ae.code, Message: ae.message, Remedy: ae.remedy}}); err != nil {
+		ctxlog.From(ctx).Warn("write error response", "err", err)
+	}
 }
 
 // ogenAPIError converts an ogen HTTP status code into a structured apiError.

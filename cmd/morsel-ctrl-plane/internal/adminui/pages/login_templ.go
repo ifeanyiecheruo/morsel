@@ -8,9 +8,7 @@ package pages
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// LoginPage renders the sign-in form for the admin UI.
-// For LocalPlatform the form accepts a username and password verified by the
-// control plane using the platform's ValidateOperatorCredential mechanism.
+// LoginPage renders an error page shown when GitHub OAuth is not configured.
 func LoginPage(flashErr string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -52,7 +50,7 @@ func LoginPage(flashErr string) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(flashErr)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `login.templ`, Line: 21, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `login.templ`, Line: 19, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -63,7 +61,7 @@ func LoginPage(flashErr string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<form method=\"post\" action=\"/login\"><div class=\"form-group\"><label for=\"username\">Username</label> <input id=\"username\" name=\"username\" type=\"text\" autocomplete=\"username\" required></div><div class=\"form-group\"><label for=\"password\">Password</label> <input id=\"password\" name=\"password\" type=\"password\" autocomplete=\"current-password\" required></div><button type=\"submit\" class=\"btn btn--primary\" style=\"width:100%;justify-content:center;margin-top:8px\">Sign in</button></form></div></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

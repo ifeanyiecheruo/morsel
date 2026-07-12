@@ -106,9 +106,9 @@ type StalePageData struct {
 }
 
 type OperatorRow struct {
-	Username              string
-	PasswordResetRequired bool
-	IsAdmin               bool
+	GithubLogin string
+	IsOperator  bool
+	IsAdmin     bool
 }
 
 type OperatorsPageData struct {

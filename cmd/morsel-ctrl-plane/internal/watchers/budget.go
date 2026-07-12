@@ -206,8 +206,14 @@ func (w *Budget) forceHibernateAll(ctx context.Context, logger *slog.Logger) {
 			}
 		}
 
-		_ = w.store.RecordScaleEvent(ctx, ns, app.Name, "scale_to_0")
-		_ = w.store.SetAppHibernated(ctx, app.ID, "budget")
-		_ = w.store.UpdateAppStatus(ctx, app.ID, "hibernated")
+		if err := w.store.RecordScaleEvent(ctx, ns, app.Name, "scale_to_0"); err != nil {
+			logger.Warn("budget watcher: record scale event", "app", app.Name, "err", err)
+		}
+		if err := w.store.SetAppHibernated(ctx, app.ID, "budget"); err != nil {
+			logger.Warn("budget watcher: set app hibernated", "app", app.Name, "err", err)
+		}
+		if err := w.store.UpdateAppStatus(ctx, app.ID, "hibernated"); err != nil {
+			logger.Warn("budget watcher: update app status", "app", app.Name, "err", err)
+		}
 	}
 }

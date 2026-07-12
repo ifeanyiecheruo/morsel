@@ -1,48 +1,29 @@
--- name: ListPrincipals :many
-SELECT username FROM principals ORDER BY username;
+-- name: UpsertPrincipal :one
+INSERT INTO principals (github_id, github_login)
+VALUES (@github_id, @github_login)
+ON CONFLICT (github_id) DO UPDATE SET github_login = excluded.github_login
+RETURNING *;
 
--- name: InsertPrincipal :exec
-INSERT INTO principals (username) VALUES (@username)
-ON CONFLICT (username) DO NOTHING;
+-- name: GetPrincipalByID :one
+SELECT * FROM principals WHERE github_id = @github_id;
+
+-- name: GetPrincipalByLogin :one
+SELECT * FROM principals WHERE github_login = @github_login;
+
+-- name: ListPrincipals :many
+SELECT * FROM principals ORDER BY github_login;
 
 -- name: DeletePrincipal :exec
-DELETE FROM principals WHERE username = @username;
+DELETE FROM principals WHERE github_id = @github_id;
 
--- name: PrincipalExists :one
-SELECT EXISTS(SELECT 1 FROM principals WHERE username = @username) AS "exists";
-
--- name: GetPrincipalPasswordHash :one
-SELECT password_hash FROM principals WHERE username = @username;
-
--- name: SetPrincipalPasswordHash :exec
-UPDATE principals SET password_hash = @password_hash WHERE username = @username;
-
--- name: ListPrincipalsWithDetails :many
-SELECT username, password_reset_required, is_admin FROM principals ORDER BY username;
-
--- name: GetPrincipalPasswordResetRequired :one
-SELECT password_reset_required FROM principals WHERE username = @username;
-
--- name: SetPrincipalPasswordResetRequired :exec
-UPDATE principals SET password_reset_required = @password_reset_required WHERE username = @username;
-
--- name: GetPrincipalSecurityState :one
-SELECT password_reset_required, password_changed_at FROM principals WHERE username = @username;
-
--- name: SetPasswordChangedAt :exec
-UPDATE principals SET password_changed_at = @password_changed_at, password_reset_required = 0 WHERE username = @username;
-
--- name: GetPrincipalIsAdmin :one
-SELECT is_admin FROM principals WHERE username = @username;
+-- name: SetPrincipalIsOperator :exec
+UPDATE principals SET is_operator = @is_operator WHERE github_id = @github_id;
 
 -- name: SetPrincipalIsAdmin :exec
-UPDATE principals SET is_admin = @is_admin WHERE username = @username;
+UPDATE principals SET is_admin = @is_admin WHERE github_id = @github_id;
 
 -- name: CountAdmins :one
 SELECT COUNT(*) FROM principals WHERE is_admin = 1;
 
--- name: InvalidatePrincipalPassword :exec
-UPDATE principals
-SET password_reset_required = 1,
-    password_changed_at = @password_changed_at
-WHERE username = @username;
+-- name: CountOperators :one
+SELECT COUNT(*) FROM principals WHERE is_operator = 1;

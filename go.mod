@@ -14,7 +14,6 @@ require (
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/metric v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
-	golang.org/x/crypto v0.53.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.33.0
 	k8s.io/apimachinery v0.33.0
@@ -319,6 +318,7 @@ require (
 tool (
 	github.com/a-h/templ/cmd/templ
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	github.com/ifeanyiecheruo/morsel/cmd/go-deps
 	github.com/ogen-go/ogen/cmd/ogen
 	github.com/sqlc-dev/sqlc/cmd/sqlc
 )

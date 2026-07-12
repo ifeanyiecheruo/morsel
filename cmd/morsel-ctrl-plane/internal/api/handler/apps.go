@@ -120,8 +120,12 @@ func (h *Handler) runDeploy(ctx context.Context, opID string, appID int64, m kub
 
 	if err := h.deployer.Apply(ctx, m); err != nil {
 		logger.Error("apply manifests", "err", err)
-		_ = h.store.FailOperation(ctx, opID, err.Error())
-		_ = h.store.UpdateAppStatus(ctx, appID, "failed")
+		if fErr := h.store.FailOperation(ctx, opID, err.Error()); fErr != nil {
+			logger.Warn("fail operation", "err", fErr)
+		}
+		if fErr := h.store.UpdateAppStatus(ctx, appID, "failed"); fErr != nil {
+			logger.Warn("update app status failed", "err", fErr)
+		}
 		return
 	}
 
@@ -132,17 +136,27 @@ func (h *Handler) runDeploy(ctx context.Context, opID string, appID int64, m kub
 				if rbErr := h.deployer.RollbackDeployment(ctx, m.Namespace, lastHealthyImage); rbErr != nil {
 					logger.Error("rollback failed", "err", rbErr)
 				} else {
-					_ = h.store.UpdateAppImages(ctx, appID, lastHealthyImage, lastHealthyImage)
+					if err := h.store.UpdateAppImages(ctx, appID, lastHealthyImage, lastHealthyImage); err != nil {
+						logger.Warn("update app images after rollback", "err", err)
+					}
 				}
 			}
-			_ = h.store.FailOperation(ctx, opID, err.Error())
-			_ = h.store.UpdateAppStatus(ctx, appID, "failed")
+			if fErr := h.store.FailOperation(ctx, opID, err.Error()); fErr != nil {
+				logger.Warn("fail operation", "err", fErr)
+			}
+			if fErr := h.store.UpdateAppStatus(ctx, appID, "failed"); fErr != nil {
+				logger.Warn("update app status failed", "err", fErr)
+			}
 			return
 		}
 	}
 
-	_ = h.store.UpdateAppImages(ctx, appID, m.Image, m.Image)
-	_ = h.store.UpdateAppStatus(ctx, appID, "running")
+	if err := h.store.UpdateAppImages(ctx, appID, m.Image, m.Image); err != nil {
+		logger.Warn("update app images", "err", err)
+	}
+	if err := h.store.UpdateAppStatus(ctx, appID, "running"); err != nil {
+		logger.Warn("update app status", "err", err)
+	}
 	if err := h.store.RecordScaleEvent(ctx, m.Namespace, m.AppName, "scale_to_1"); err != nil {
 		logger.Error("record scale event", "err", err)
 	}

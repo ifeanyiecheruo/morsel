@@ -24,22 +24,23 @@ import (
 // NewMux constructs the root HTTP handler for the Morsel API using the
 // ogen-generated router. Panics if the server cannot be constructed (indicates
 // a programmer error such as a nil handler).
-func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deployer handler.AppDeployer, receiver *health.Receiver) http.Handler {
+// githubClientID is exposed via GET /api/auth/github/config for CLI Device Flow.
+func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deployer handler.AppDeployer, receiver *health.Receiver, githubClientID string) http.Handler {
 	keys, err := plat.Secrets().EnsureSigningKey(ctx)
 	if err != nil || len(keys) == 0 {
 		panic("morsel api: signing key unavailable: " + err.Error())
 	}
 	signingKey := keys[0]
-	h := handler.New(plat, s, signingKey, deployer, receiver)
+	h := handler.New(plat, s, signingKey, deployer, receiver, githubClientID)
 	sec := handler.NewSecurityHandler(signingKey)
 
 	srv, err := server.NewServer(h, sec,
 		server.WithErrorHandler(handler.WriteError),
-		server.WithNotFound(func(w http.ResponseWriter, _ *http.Request) {
-			writeJSONError(w, http.StatusNotFound, "not_found", "the requested resource was not found", "check the API documentation for valid endpoints")
+		server.WithNotFound(func(w http.ResponseWriter, r *http.Request) {
+			writeJSONError(r.Context(), w, http.StatusNotFound, "not_found", "the requested resource was not found", "check the API documentation for valid endpoints")
 		}),
-		server.WithMethodNotAllowed(func(w http.ResponseWriter, _ *http.Request, _ string) {
-			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "this HTTP method is not allowed for this endpoint", "check the API documentation for allowed methods")
+		server.WithMethodNotAllowed(func(w http.ResponseWriter, r *http.Request, _ string) {
+			writeJSONError(r.Context(), w, http.StatusMethodNotAllowed, "method_not_allowed", "this HTTP method is not allowed for this endpoint", "check the API documentation for allowed methods")
 		}),
 	)
 	if err != nil {
@@ -53,6 +54,9 @@ func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deploye
 	apiMux.Handle("/.well-known/", wellknown.New("/.well-known"))
 	apiMux.Handle("/internal/wake", internalWakeHandler(ctx, s, deployer, plat))
 	apiMux.HandleFunc("POST /bootstrap", h.HandleBootstrap)
+	apiMux.HandleFunc("POST /token/oidc", h.HandleGitHubAuth)
+	apiMux.HandleFunc("GET /github/config", h.HandleGitHubConfig)
+	apiMux.HandleFunc("PATCH /api/operator/principals/{github_login}", h.HandlePrincipalPatch)
 	apiMux.HandleFunc("GET /api/operator/apps", h.HandleAdminListApps)
 	apiMux.HandleFunc("GET /api/operator/stale", h.HandleAdminListStale)
 	apiMux.HandleFunc("POST /api/operator/stale/{org}/{repo}/{appName}/ignore", h.HandleAdminIgnoreStale)
@@ -72,23 +76,23 @@ type wakeResponse struct {
 func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.AppDeployer, plat platform.Platform) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required", "use POST")
+			writeJSONError(r.Context(), w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required", "use POST")
 			return
 		}
 
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if token == "" {
-			writeJSONError(w, http.StatusUnauthorized, "unauthorized", "missing wake token", "")
+			writeJSONError(r.Context(), w, http.StatusUnauthorized, "unauthorized", "missing wake token", "")
 			return
 		}
 		if err := deployer.VerifyWakeToken(r.Context(), token); err != nil {
-			writeJSONError(w, http.StatusUnauthorized, "unauthorized", "invalid wake token", "")
+			writeJSONError(r.Context(), w, http.StatusUnauthorized, "unauthorized", "invalid wake token", "")
 			return
 		}
 
 		host := r.URL.Query().Get("host")
 		if host == "" {
-			writeJSONError(w, http.StatusBadRequest, "invalid_request", "host query param required", "use ?host={hostname}")
+			writeJSONError(r.Context(), w, http.StatusBadRequest, "invalid_request", "host query param required", "use ?host={hostname}")
 			return
 		}
 
@@ -97,7 +101,7 @@ func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.App
 		// Find the app whose public hostname matches.
 		apps, err := s.ListAllApps(reqCtx)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "internal_error", "list apps failed", "")
+			writeJSONError(reqCtx, w, http.StatusInternalServerError, "internal_error", "list apps failed", "")
 			return
 		}
 
@@ -125,29 +129,33 @@ func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.App
 			}
 		}
 		if matchedApp == nil {
-			writeJSONError(w, http.StatusNotFound, "not_found", "no app found for host", "check the hostname")
+			writeJSONError(reqCtx, w, http.StatusNotFound, "not_found", "no app found for host", "check the hostname")
 			return
 		}
 
-		_ = s.UpdateLastActiveAt(reqCtx, matchedApp.id)
+		if err := s.UpdateLastActiveAt(reqCtx, matchedApp.id); err != nil {
+			ctxlog.From(reqCtx).Warn("update last active at", "err", err)
+		}
 
 		// Budget enforcement: block wake when a limit is active and the app is not exempt.
 		if retryAfter, blocked := isBudgetBlocked(reqCtx, s, matchedApp.repoSlug, matchedApp.name); blocked {
 			w.Header().Set("Retry-After", retryAfter)
-			writeJSONError(w, http.StatusServiceUnavailable, "budget_soft_limit",
+			writeJSONError(reqCtx, w, http.StatusServiceUnavailable, "budget_soft_limit",
 				"platform is over budget for this period",
 				"wait for the next billing period")
 			return
 		}
 
 		if err := wakeApp(reqCtx, s, deployer, plat, matchedApp.id, matchedApp.appType, matchedApp.namespace); err != nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "wake_failed", fmt.Sprintf("wake error: %v", err), "retry in a moment")
+			writeJSONError(reqCtx, w, http.StatusServiceUnavailable, "wake_failed", fmt.Sprintf("wake error: %v", err), "retry in a moment")
 			return
 		}
 
 		serviceAddr := names.AppServiceAddr(matchedApp.namespace)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(wakeResponse{ServiceAddr: serviceAddr})
+		if err := json.NewEncoder(w).Encode(wakeResponse{ServiceAddr: serviceAddr}); err != nil {
+			ctxlog.From(reqCtx).Warn("write wake response", "err", err)
+		}
 	})
 }
 
@@ -192,7 +200,10 @@ func isBudgetBlocked(ctx context.Context, s *store.Store, repoSlug, appName stri
 	if err != nil || (cfg.BudgetSoftLimitActive == 0 && cfg.BudgetHardLimitActive == 0) {
 		return "", false
 	}
-	exempt, _ := s.IsAppExempt(ctx, repoSlug, appName)
+	exempt, exemptErr := s.IsAppExempt(ctx, repoSlug, appName)
+	if exemptErr != nil {
+		ctxlog.From(ctx).Warn("check app budget exemption", "err", exemptErr)
+	}
 	if exempt {
 		return "", false
 	}
@@ -210,8 +221,10 @@ type jsonErrorDetail struct {
 	Remedy  string `json:"remedy"`
 }
 
-func writeJSONError(w http.ResponseWriter, status int, code, message, remedy string) {
+func writeJSONError(ctx context.Context, w http.ResponseWriter, status int, code, message, remedy string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(jsonErrorBody{Error: jsonErrorDetail{Code: code, Message: message, Remedy: remedy}})
+	if err := json.NewEncoder(w).Encode(jsonErrorBody{Error: jsonErrorDetail{Code: code, Message: message, Remedy: remedy}}); err != nil {
+		ctxlog.From(ctx).Warn("write error response", "err", err)
+	}
 }

@@ -19,10 +19,6 @@ var (
 
 	// ErrSecretNotFound is returned when a named secret does not exist.
 	ErrSecretNotFound = errors.New("secret not found")
-
-	// ErrPrincipalNotAuthorized is returned by Secrets.ValidateOperatorCredential
-	// when the identity is not an authorised operator. Callers map this to 401.
-	ErrPrincipalNotAuthorized = errors.New("principal not authorized")
 )
 
 // Seeder is an optional interface implemented by platforms that need to
@@ -36,6 +32,7 @@ type Platform interface {
 	Name() string
 	Namespace() string
 	BaseDomain() string
+	GatewayPort() int
 	Deploy() AppDeployer
 	Blobs() BlobStore
 	// Queues returns a Queue scoped to the given app. The platform implementation
@@ -92,10 +89,6 @@ type Tokens interface {
 
 	// VerifyDeployToken validates a deploy identity token and returns the repo slug.
 	VerifyDeployToken(ctx context.Context, token string) (slug string, err error)
-
-	// ValidateOperatorCredential checks an operator login and returns the subject.
-	// Returns ErrPrincipalNotAuthorized for any auth failure.
-	ValidateOperatorCredential(ctx context.Context, username, password string) (subject string, err error)
 }
 
 // AppDeployer provides registry and credential information needed for a deploy run.

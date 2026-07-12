@@ -155,14 +155,6 @@ type Handler interface {
 	//
 	// POST /api/repos/{org}/{repo}/apps/{name}/hibernate
 	HibernateApp(ctx context.Context, params HibernateAppParams) (HibernateAppRes, error)
-	// InvalidateOperatorPrincipalPassword implements invalidateOperatorPrincipalPassword operation.
-	//
-	// Admin-only. Marks the specified principal as requiring a password reset and immediately invalidates
-	// all existing refresh tokens. The password hash is preserved so the principal can still perform a
-	// self-service reset using their old password via POST /api/operator/password.
-	//
-	// POST /api/operator/principals/{principal}/invalidate-password
-	InvalidateOperatorPrincipalPassword(ctx context.Context, params InvalidateOperatorPrincipalPasswordParams) (InvalidateOperatorPrincipalPasswordRes, error)
 	// ListApps implements listApps operation.
 	//
 	// Returns every app currently deployed in the repo, including their status and image.
@@ -236,34 +228,12 @@ type Handler interface {
 	//
 	// DELETE /api/operator/repo-exemptions/{org}/{repo}
 	RemoveRepoExemption(ctx context.Context, params RemoveRepoExemptionParams) (RemoveRepoExemptionRes, error)
-	// RequirePasswordResetForPrincipal implements requirePasswordResetForPrincipal operation.
-	//
-	// Flags the specified principal so they must change their password on next login.
-	//
-	// POST /api/operator/principals/{principal}/require-password-reset
-	RequirePasswordResetForPrincipal(ctx context.Context, params RequirePasswordResetForPrincipalParams) (RequirePasswordResetForPrincipalRes, error)
-	// ResetOperatorPassword implements resetOperatorPassword operation.
-	//
-	// Self-service password reset. The operator must supply their current password for verification. On
-	// success, the password-reset flag is cleared and all refresh tokens issued before this change are
-	// invalidated.
-	//
-	// POST /api/operator/password
-	ResetOperatorPassword(ctx context.Context, req *ChangePasswordReq) (ResetOperatorPasswordRes, error)
 	// SetDefaultTier implements setDefaultTier operation.
 	//
 	// Set the platform default tier for new repos.
 	//
 	// POST /api/operator/tiers/{name}/set-default
 	SetDefaultTier(ctx context.Context, params SetDefaultTierParams) (SetDefaultTierRes, error)
-	// SetOperatorPrincipalPassword implements setOperatorPrincipalPassword operation.
-	//
-	// Admin-only. Sets a new password for the specified principal without requiring the current password.
-	// If `invalidate` is true, the principal will be required to change their password on next login
-	// (temporary password flow). Invalidates all existing refresh tokens for that principal.
-	//
-	// POST /api/operator/principals/{principal}/set-password
-	SetOperatorPrincipalPassword(ctx context.Context, req *SetPrincipalPasswordReq, params SetOperatorPrincipalPasswordParams) (SetOperatorPrincipalPasswordRes, error)
 	// SyncRepo implements syncRepo operation.
 	//
 	// Reconciles the cluster against the supplied app list. Apps present in the cluster but absent from
@@ -279,13 +249,6 @@ type Handler interface {
 	//
 	// POST /api/token/deploy
 	TokenDeploy(ctx context.Context, req *TokenDeployReq) (TokenDeployRes, error)
-	// TokenOIDC implements tokenOIDC operation.
-	//
-	// For interactive operator sessions. Exchanges a platform credential for an access/refresh token pair.
-	// Use the refresh endpoint to stay authenticated without re-presenting credentials.
-	//
-	// POST /api/token/oidc
-	TokenOIDC(ctx context.Context, req *TokenOIDCReq) (TokenOIDCRes, error)
 	// TokenRefresh implements tokenRefresh operation.
 	//
 	// Rotates both tokens. The supplied refresh token is immediately invalidated; use the new pair going

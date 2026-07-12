@@ -7,7 +7,7 @@ import (
 )
 
 func TestCreateLocalByName(t *testing.T) {
-	plat, err := platforms.Create("local", nil)
+	plat, err := platforms.Create("local", nil, 443)
 	if err != nil {
 		t.Fatalf("Create(local): unexpected error: %v", err)
 	}
@@ -17,7 +17,7 @@ func TestCreateLocalByName(t *testing.T) {
 }
 
 func TestCreateUnknownReturnsError(t *testing.T) {
-	plat, err := platforms.Create("aws", nil)
+	plat, err := platforms.Create("aws", nil, 443)
 	if err == nil {
 		t.Error("Create(aws): expected error, got nil")
 	}

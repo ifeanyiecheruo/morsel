@@ -16,8 +16,9 @@ import (
 // NewMux constructs the root HTTP handler for the Morsel admin UI.
 // apiURL is the base URL of the Morsel REST API (e.g. "http://localhost:8080").
 // sessionKey is used to sign session cookies; must be at least 32 bytes.
-func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, sessionKey []byte, receiver *health.Receiver) http.Handler {
-	h := uihandler.New(apiURL, httpClient, sessionKey)
+// githubClientID and githubClientSecret are the GitHub OAuth App credentials.
+func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, sessionKey []byte, githubClientID, githubClientSecret string, receiver *health.Receiver) http.Handler {
+	h := uihandler.New(apiURL, httpClient, sessionKey, githubClientID, githubClientSecret)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /livez", receiver.LivezHandler)
@@ -25,7 +26,7 @@ func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, session
 
 	// Unauthenticated routes.
 	mux.HandleFunc("GET /login", h.ServeLogin)
-	mux.HandleFunc("POST /login", h.HandleLogin)
+	mux.HandleFunc("GET /oidc/callback", h.HandleGitHubCallback)
 	mux.HandleFunc("POST /logout", h.HandleLogout)
 
 	// Session-protected routes.
@@ -52,13 +53,6 @@ func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, session
 	mux.Handle("POST /stale/{org}/{repo}/{appName}/ignore", protected(http.HandlerFunc(h.HandleStaleIgnore)))
 
 	mux.Handle("GET /operators", protected(http.HandlerFunc(h.ServeOperators)))
-	mux.Handle("POST /operators/{principal}/require-password-reset", protected(http.HandlerFunc(h.HandleRequirePasswordReset)))
-	mux.Handle("POST /operators/{principal}/invalidate-password", protected(http.HandlerFunc(h.HandleInvalidatePrincipalPassword)))
-	mux.Handle("POST /operators/{principal}/set-password", protected(http.HandlerFunc(h.HandleSetPrincipalPassword)))
-
-	// Password reset — accessible to any authenticated session (including those with PasswordResetRequired set).
-	mux.Handle("GET /password-reset", h.RequireSession(http.HandlerFunc(h.ServePasswordReset)))
-	mux.Handle("POST /password-reset", h.RequireSession(http.HandlerFunc(h.HandlePasswordReset)))
 
 	mux.HandleFunc("GET /healthz", receiver.HealthzHandler)
 

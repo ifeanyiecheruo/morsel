@@ -89,10 +89,6 @@ type HibernateAppRes interface {
 	hibernateAppRes()
 }
 
-type InvalidateOperatorPrincipalPasswordRes interface {
-	invalidateOperatorPrincipalPasswordRes()
-}
-
 type ListAppsRes interface {
 	listAppsRes()
 }
@@ -137,20 +133,8 @@ type RemoveRepoExemptionRes interface {
 	removeRepoExemptionRes()
 }
 
-type RequirePasswordResetForPrincipalRes interface {
-	requirePasswordResetForPrincipalRes()
-}
-
-type ResetOperatorPasswordRes interface {
-	resetOperatorPasswordRes()
-}
-
 type SetDefaultTierRes interface {
 	setDefaultTierRes()
-}
-
-type SetOperatorPrincipalPasswordRes interface {
-	setOperatorPrincipalPasswordRes()
 }
 
 type SyncRepoRes interface {
@@ -159,10 +143,6 @@ type SyncRepoRes interface {
 
 type TokenDeployRes interface {
 	tokenDeployRes()
-}
-
-type TokenOIDCRes interface {
-	tokenOIDCRes()
 }
 
 type TokenRefreshRes interface {

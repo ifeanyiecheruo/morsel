@@ -7,7 +7,6 @@ package queries
 
 import (
 	"context"
-	"database/sql"
 )
 
 const countAdmins = `-- name: CountAdmins :one
@@ -21,138 +20,80 @@ func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-const deletePrincipal = `-- name: DeletePrincipal :exec
-DELETE FROM principals WHERE username = ?1
+const countOperators = `-- name: CountOperators :one
+SELECT COUNT(*) FROM principals WHERE is_operator = 1
 `
 
-func (q *Queries) DeletePrincipal(ctx context.Context, username string) error {
-	_, err := q.db.ExecContext(ctx, deletePrincipal, username)
+func (q *Queries) CountOperators(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOperators)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deletePrincipal = `-- name: DeletePrincipal :exec
+DELETE FROM principals WHERE github_id = ?1
+`
+
+func (q *Queries) DeletePrincipal(ctx context.Context, githubID int64) error {
+	_, err := q.db.ExecContext(ctx, deletePrincipal, githubID)
 	return err
 }
 
-const getPrincipalIsAdmin = `-- name: GetPrincipalIsAdmin :one
-SELECT is_admin FROM principals WHERE username = ?1
+const getPrincipalByID = `-- name: GetPrincipalByID :one
+SELECT github_id, github_login, is_operator, is_admin, created_at FROM principals WHERE github_id = ?1
 `
 
-func (q *Queries) GetPrincipalIsAdmin(ctx context.Context, username string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getPrincipalIsAdmin, username)
-	var is_admin int64
-	err := row.Scan(&is_admin)
-	return is_admin, err
-}
-
-const getPrincipalPasswordHash = `-- name: GetPrincipalPasswordHash :one
-SELECT password_hash FROM principals WHERE username = ?1
-`
-
-func (q *Queries) GetPrincipalPasswordHash(ctx context.Context, username string) (sql.NullString, error) {
-	row := q.db.QueryRowContext(ctx, getPrincipalPasswordHash, username)
-	var password_hash sql.NullString
-	err := row.Scan(&password_hash)
-	return password_hash, err
-}
-
-const getPrincipalPasswordResetRequired = `-- name: GetPrincipalPasswordResetRequired :one
-SELECT password_reset_required FROM principals WHERE username = ?1
-`
-
-func (q *Queries) GetPrincipalPasswordResetRequired(ctx context.Context, username string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getPrincipalPasswordResetRequired, username)
-	var password_reset_required int64
-	err := row.Scan(&password_reset_required)
-	return password_reset_required, err
-}
-
-const getPrincipalSecurityState = `-- name: GetPrincipalSecurityState :one
-SELECT password_reset_required, password_changed_at FROM principals WHERE username = ?1
-`
-
-type GetPrincipalSecurityStateRow struct {
-	PasswordResetRequired int64
-	PasswordChangedAt     sql.NullTime
-}
-
-func (q *Queries) GetPrincipalSecurityState(ctx context.Context, username string) (GetPrincipalSecurityStateRow, error) {
-	row := q.db.QueryRowContext(ctx, getPrincipalSecurityState, username)
-	var i GetPrincipalSecurityStateRow
-	err := row.Scan(&i.PasswordResetRequired, &i.PasswordChangedAt)
+func (q *Queries) GetPrincipalByID(ctx context.Context, githubID int64) (Principal, error) {
+	row := q.db.QueryRowContext(ctx, getPrincipalByID, githubID)
+	var i Principal
+	err := row.Scan(
+		&i.GithubID,
+		&i.GithubLogin,
+		&i.IsOperator,
+		&i.IsAdmin,
+		&i.CreatedAt,
+	)
 	return i, err
 }
 
-const insertPrincipal = `-- name: InsertPrincipal :exec
-INSERT INTO principals (username) VALUES (?1)
-ON CONFLICT (username) DO NOTHING
+const getPrincipalByLogin = `-- name: GetPrincipalByLogin :one
+SELECT github_id, github_login, is_operator, is_admin, created_at FROM principals WHERE github_login = ?1
 `
 
-func (q *Queries) InsertPrincipal(ctx context.Context, username string) error {
-	_, err := q.db.ExecContext(ctx, insertPrincipal, username)
-	return err
-}
-
-const invalidatePrincipalPassword = `-- name: InvalidatePrincipalPassword :exec
-UPDATE principals
-SET password_reset_required = 1,
-    password_changed_at = ?1
-WHERE username = ?2
-`
-
-type InvalidatePrincipalPasswordParams struct {
-	PasswordChangedAt sql.NullTime
-	Username          string
-}
-
-func (q *Queries) InvalidatePrincipalPassword(ctx context.Context, arg InvalidatePrincipalPasswordParams) error {
-	_, err := q.db.ExecContext(ctx, invalidatePrincipalPassword, arg.PasswordChangedAt, arg.Username)
-	return err
+func (q *Queries) GetPrincipalByLogin(ctx context.Context, githubLogin string) (Principal, error) {
+	row := q.db.QueryRowContext(ctx, getPrincipalByLogin, githubLogin)
+	var i Principal
+	err := row.Scan(
+		&i.GithubID,
+		&i.GithubLogin,
+		&i.IsOperator,
+		&i.IsAdmin,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const listPrincipals = `-- name: ListPrincipals :many
-SELECT username FROM principals ORDER BY username
+SELECT github_id, github_login, is_operator, is_admin, created_at FROM principals ORDER BY github_login
 `
 
-func (q *Queries) ListPrincipals(ctx context.Context) ([]string, error) {
+func (q *Queries) ListPrincipals(ctx context.Context) ([]Principal, error) {
 	rows, err := q.db.QueryContext(ctx, listPrincipals)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []Principal{}
 	for rows.Next() {
-		var username string
-		if err := rows.Scan(&username); err != nil {
-			return nil, err
-		}
-		items = append(items, username)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPrincipalsWithDetails = `-- name: ListPrincipalsWithDetails :many
-SELECT username, password_reset_required, is_admin FROM principals ORDER BY username
-`
-
-type ListPrincipalsWithDetailsRow struct {
-	Username              string
-	PasswordResetRequired int64
-	IsAdmin               int64
-}
-
-func (q *Queries) ListPrincipalsWithDetails(ctx context.Context) ([]ListPrincipalsWithDetailsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPrincipalsWithDetails)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListPrincipalsWithDetailsRow{}
-	for rows.Next() {
-		var i ListPrincipalsWithDetailsRow
-		if err := rows.Scan(&i.Username, &i.PasswordResetRequired, &i.IsAdmin); err != nil {
+		var i Principal
+		if err := rows.Scan(
+			&i.GithubID,
+			&i.GithubLogin,
+			&i.IsOperator,
+			&i.IsAdmin,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -166,69 +107,55 @@ func (q *Queries) ListPrincipalsWithDetails(ctx context.Context) ([]ListPrincipa
 	return items, nil
 }
 
-const principalExists = `-- name: PrincipalExists :one
-SELECT EXISTS(SELECT 1 FROM principals WHERE username = ?1) AS "exists"
-`
-
-func (q *Queries) PrincipalExists(ctx context.Context, username string) (bool, error) {
-	row := q.db.QueryRowContext(ctx, principalExists, username)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const setPasswordChangedAt = `-- name: SetPasswordChangedAt :exec
-UPDATE principals SET password_changed_at = ?1, password_reset_required = 0 WHERE username = ?2
-`
-
-type SetPasswordChangedAtParams struct {
-	PasswordChangedAt sql.NullTime
-	Username          string
-}
-
-func (q *Queries) SetPasswordChangedAt(ctx context.Context, arg SetPasswordChangedAtParams) error {
-	_, err := q.db.ExecContext(ctx, setPasswordChangedAt, arg.PasswordChangedAt, arg.Username)
-	return err
-}
-
 const setPrincipalIsAdmin = `-- name: SetPrincipalIsAdmin :exec
-UPDATE principals SET is_admin = ?1 WHERE username = ?2
+UPDATE principals SET is_admin = ?1 WHERE github_id = ?2
 `
 
 type SetPrincipalIsAdminParams struct {
 	IsAdmin  int64
-	Username string
+	GithubID int64
 }
 
 func (q *Queries) SetPrincipalIsAdmin(ctx context.Context, arg SetPrincipalIsAdminParams) error {
-	_, err := q.db.ExecContext(ctx, setPrincipalIsAdmin, arg.IsAdmin, arg.Username)
+	_, err := q.db.ExecContext(ctx, setPrincipalIsAdmin, arg.IsAdmin, arg.GithubID)
 	return err
 }
 
-const setPrincipalPasswordHash = `-- name: SetPrincipalPasswordHash :exec
-UPDATE principals SET password_hash = ?1 WHERE username = ?2
+const setPrincipalIsOperator = `-- name: SetPrincipalIsOperator :exec
+UPDATE principals SET is_operator = ?1 WHERE github_id = ?2
 `
 
-type SetPrincipalPasswordHashParams struct {
-	PasswordHash sql.NullString
-	Username     string
+type SetPrincipalIsOperatorParams struct {
+	IsOperator int64
+	GithubID   int64
 }
 
-func (q *Queries) SetPrincipalPasswordHash(ctx context.Context, arg SetPrincipalPasswordHashParams) error {
-	_, err := q.db.ExecContext(ctx, setPrincipalPasswordHash, arg.PasswordHash, arg.Username)
+func (q *Queries) SetPrincipalIsOperator(ctx context.Context, arg SetPrincipalIsOperatorParams) error {
+	_, err := q.db.ExecContext(ctx, setPrincipalIsOperator, arg.IsOperator, arg.GithubID)
 	return err
 }
 
-const setPrincipalPasswordResetRequired = `-- name: SetPrincipalPasswordResetRequired :exec
-UPDATE principals SET password_reset_required = ?1 WHERE username = ?2
+const upsertPrincipal = `-- name: UpsertPrincipal :one
+INSERT INTO principals (github_id, github_login)
+VALUES (?1, ?2)
+ON CONFLICT (github_id) DO UPDATE SET github_login = excluded.github_login
+RETURNING github_id, github_login, is_operator, is_admin, created_at
 `
 
-type SetPrincipalPasswordResetRequiredParams struct {
-	PasswordResetRequired int64
-	Username              string
+type UpsertPrincipalParams struct {
+	GithubID    int64
+	GithubLogin string
 }
 
-func (q *Queries) SetPrincipalPasswordResetRequired(ctx context.Context, arg SetPrincipalPasswordResetRequiredParams) error {
-	_, err := q.db.ExecContext(ctx, setPrincipalPasswordResetRequired, arg.PasswordResetRequired, arg.Username)
-	return err
+func (q *Queries) UpsertPrincipal(ctx context.Context, arg UpsertPrincipalParams) (Principal, error) {
+	row := q.db.QueryRowContext(ctx, upsertPrincipal, arg.GithubID, arg.GithubLogin)
+	var i Principal
+	err := row.Scan(
+		&i.GithubID,
+		&i.GithubLogin,
+		&i.IsOperator,
+		&i.IsAdmin,
+		&i.CreatedAt,
+	)
+	return i, err
 }

@@ -16,17 +16,26 @@ import (
 // It calls the Morsel REST API for all data; it has no direct access to the
 // database, platform, or Kubernetes.
 type Handler struct {
-	apiURL     string
-	httpClient *http.Client
-	sessionKey []byte
+	apiURL             string
+	httpClient         *http.Client
+	sessionKey         []byte
+	githubClientID     string
+	githubClientSecret string
 }
 
-// New constructs an admin Handler.
-func New(apiURL string, httpClient *http.Client, sessionKey []byte) *Handler {
+// New constructs an admin Handler. githubClientID and githubClientSecret are the
+// GitHub OAuth App credentials; leave empty to disable GitHub login.
+func New(apiURL string, httpClient *http.Client, sessionKey []byte, githubClientID, githubClientSecret string) *Handler {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	return &Handler{apiURL: apiURL, httpClient: httpClient, sessionKey: sessionKey}
+	return &Handler{
+		apiURL:             apiURL,
+		httpClient:         httpClient,
+		sessionKey:         sessionKey,
+		githubClientID:     githubClientID,
+		githubClientSecret: githubClientSecret,
+	}
 }
 
 // apiSessionCtxKey is the context key for the active session injected by RequireSession.
@@ -34,9 +43,8 @@ type apiSessionCtxKey struct{}
 
 // session holds the tokens for an authenticated admin session.
 type session struct {
-	AccessToken           string `json:"at"`
-	RefreshToken          string `json:"rt"`
-	PasswordResetRequired bool   `json:"prr,omitempty"`
+	AccessToken  string `json:"at"`
+	RefreshToken string `json:"rt"`
 }
 
 func sessionFromContext(ctx context.Context) *session {

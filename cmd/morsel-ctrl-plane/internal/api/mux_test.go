@@ -89,13 +89,6 @@ func (fakeDeployer) VerifyWakeToken(_ context.Context, _ string) error { return 
 
 var _ handler.AppDeployer = fakeDeployer{}
 
-// jsonPost returns a POST request with Content-Type: application/json.
-func jsonPost(target, body string) *http.Request {
-	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	return req
-}
-
 func newTestMux(t *testing.T) http.Handler {
 	t.Helper()
 	_, _, mux := testSetup(t)
@@ -116,13 +109,13 @@ func testSetup(t *testing.T) (*local.LocalPlatform, *store.Store, http.Handler) 
 	}
 
 	s := store.New(dbqueries.New(database), database)
-	plat := local.NewWithSecretStore(s, newMemSecretStore())
+	plat := local.NewWithSecretStore(s, newMemSecretStore(), 443)
 	reporter, receiver := health.NewReporter()
 	testComponent := reporter.NewComponent("test", true)
 	testComponent.Report(true, "ready")
 
 	receiver.DrainForTest()
-	mux := api.NewMux(context.Background(), plat, s, &fakeDeployer{}, receiver)
+	mux := api.NewMux(context.Background(), plat, s, &fakeDeployer{}, receiver, "")
 	return plat, s, mux
 }
 
@@ -179,50 +172,5 @@ func TestHealthzIgnoresWrongMethod(t *testing.T) {
 
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want 405", rec.Code)
-	}
-}
-
-func TestTokenOIDCIssuesBothTokens(t *testing.T) {
-	_, s, mux := testSetup(t)
-	if err := s.AddPrincipal(context.Background(), "alice@example.com"); err != nil {
-		t.Fatalf("seed principal: %v", err)
-	}
-
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"username":"alice@example.com","password":""}`))
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body)
-	}
-	var body struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    int    `json:"expires_in"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body.AccessToken == "" {
-		t.Error("access_token is empty")
-	}
-	if body.RefreshToken == "" {
-		t.Error("refresh_token is empty")
-	}
-	if body.ExpiresIn != 900 {
-		t.Errorf("expires_in = %d, want 900", body.ExpiresIn)
-	}
-}
-
-func TestTokenOIDCRejectsUnknownPrincipal(t *testing.T) {
-	_, s, mux := testSetup(t)
-	if err := s.AddPrincipal(context.Background(), "alice@example.com"); err != nil {
-		t.Fatalf("seed principal: %v", err)
-	}
-
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, jsonPost("/api/token/oidc", `{"username":"eve@example.com","password":""}`))
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want 401", rec.Code)
 	}
 }

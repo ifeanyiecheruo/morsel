@@ -1,8 +1,6 @@
 package pages
 
-// LoginPage renders the sign-in form for the admin UI.
-// For LocalPlatform the form accepts a username and password verified by the
-// control plane using the platform's ValidateOperatorCredential mechanism.
+// LoginPage renders an error page shown when GitHub OAuth is not configured.
 templ LoginPage(flashErr string) {
 	<!DOCTYPE html>
 	<html lang="en">
@@ -20,17 +18,6 @@ templ LoginPage(flashErr string) {
 					if flashErr != "" {
 						<div class="alert alert--warn" style="margin-bottom:20px">{ flashErr }</div>
 					}
-					<form method="post" action="/login">
-						<div class="form-group">
-							<label for="username">Username</label>
-							<input id="username" name="username" type="text" autocomplete="username" required/>
-						</div>
-						<div class="form-group">
-							<label for="password">Password</label>
-							<input id="password" name="password" type="password" autocomplete="current-password" required/>
-						</div>
-						<button type="submit" class="btn btn--primary" style="width:100%;justify-content:center;margin-top:8px">Sign in</button>
-					</form>
 				</div>
 			</div>
 		</body>

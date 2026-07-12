@@ -4,11 +4,15 @@ import (
 	"net/http"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/adminui/pages"
+	"github.com/ifeanyiecheruo/morsel/internal/ctxlog"
 )
 
 // ServeApprovals handles GET /approvals.
 func (h *Handler) ServeApprovals(w http.ResponseWriter, r *http.Request) {
-	_ = pages.ApprovalsPage(pages.ApprovalsPageData{}).Render(r.Context(), w)
+	ctx := r.Context()
+	if err := pages.ApprovalsPage(pages.ApprovalsPageData{}).Render(ctx, w); err != nil {
+		ctxlog.From(ctx).Warn("render approvals page", "err", err)
+	}
 }
 
 // HandleApprovalsBatch handles POST /approvals/batch.

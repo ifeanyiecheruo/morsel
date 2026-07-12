@@ -7,13 +7,16 @@ import (
 )
 
 const (
-	RoleDeveloper    = "developer"
-	RoleOperator     = "operator"
-	RoleAdmin        = "admin"
+	RoleDeveloper   = "developer"
+	RoleOperator    = "operator"
+	RoleAdmin       = "admin"
+	RoleBootstrapID = "bootstrap_id" // identity-only token issued during bootstrap mode; carries no API access
+
 	OperatorTokenTTL = 15 * time.Minute
 	AdminSessionTTL  = 8 * time.Hour
 
-	deployTokenTTL = 10 * time.Minute
+	deployTokenTTL      = 10 * time.Minute
+	bootstrapIDTokenTTL = 5 * time.Minute
 )
 
 // IsOperatorRole reports whether r grants operator-level access (operator or admin).
@@ -21,8 +24,9 @@ func IsOperatorRole(r string) bool { return r == RoleOperator || r == RoleAdmin 
 
 type Claims struct {
 	jwt.RegisteredClaims
-	Repo string `json:"repo,omitempty"` // set for developer tokens; empty for operator tokens
-	Role string `json:"role"`
+	Repo     string `json:"repo,omitempty"` // set for developer tokens; empty for operator tokens
+	Role     string `json:"role"`
+	GithubID int64  `json:"github_id,omitempty"` // set for bootstrap_id tokens
 }
 
 func CreateOperatorClaims(subject string) Claims {
@@ -61,6 +65,22 @@ func CreateAdminSessionClaims(subject, role string) Claims {
 			ExpiresAt: jwt.NewNumericDate(now.Add(AdminSessionTTL)),
 		},
 		Role: role,
+	}
+}
+
+// CreateBootstrapIDClaims issues a short-lived identity-only token during bootstrap mode.
+// The token carries the GitHub identity but no role — it cannot pass any API auth check.
+// Its only valid use is as proof-of-identity when calling the bootstrap completion endpoint.
+func CreateBootstrapIDClaims(githubLogin string, githubID int64) Claims {
+	now := time.Now()
+	return Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   githubLogin,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(bootstrapIDTokenTTL)),
+		},
+		Role:     RoleBootstrapID,
+		GithubID: githubID,
 	}
 }
 

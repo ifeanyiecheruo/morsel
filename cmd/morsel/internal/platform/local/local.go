@@ -3,7 +3,9 @@ package local
 import (
 	"context"
 	"crypto/rand"
+	_ "embed"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,6 +18,22 @@ import (
 	"github.com/ifeanyiecheruo/morsel/internal/kube"
 	"github.com/ifeanyiecheruo/morsel/internal/selfcert"
 )
+
+//go:embed github_oauth.json
+var embeddedGitHubOAuth []byte
+
+type githubOAuthConfig struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+}
+
+func localGitHubOAuth(ctx context.Context) githubOAuthConfig {
+	var cfg githubOAuthConfig
+	if err := json.Unmarshal(embeddedGitHubOAuth, &cfg); err != nil {
+		ctxlog.From(ctx).Error("unmarshal embedded github oauth config", "err", err)
+	}
+	return cfg
+}
 
 const (
 	// apiImage is the local tag used for the morsel-api image built during bootstrap.
@@ -201,7 +219,8 @@ func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[strin
 		return fmt.Errorf("provision wake proxy: %w", err)
 	}
 
-	if err := kubeClient.EnsureAPI(ctx, ns, imageTag, apiDBPath); err != nil {
+	oauth := localGitHubOAuth(ctx)
+	if err := kubeClient.EnsureAPI(ctx, ns, imageTag, apiDBPath, oauth.ClientID, container.HTTPSHostPort); err != nil {
 		return fmt.Errorf("provision morsel-api: %w", err)
 	}
 
@@ -233,7 +252,7 @@ func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[strin
 	}
 
 	fmt.Println("Provisioning admin UI…")
-	if err := kubeClient.EnsureAdminUI(ctx, ns, imageTag); err != nil {
+	if err := kubeClient.EnsureAdminUI(ctx, ns, imageTag, oauth.ClientID, oauth.ClientSecret); err != nil {
 		return fmt.Errorf("provision admin ui: %w", err)
 	}
 
