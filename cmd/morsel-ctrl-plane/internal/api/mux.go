@@ -3,9 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/api/handler"
@@ -65,15 +66,23 @@ func NewMux(ctx context.Context, plat platform.Platform, s *store.Store, deploye
 	return middleware.InjectLogger(ctxlog.From(ctx), middleware.LogRequests(apiMux))
 }
 
-// wakeResponse is returned by the internal wake endpoint.
-type wakeResponse struct {
-	ServiceAddr string `json:"service_addr"`
+// wakeAckResponse is returned by the internal wake endpoint. The scale-up
+// itself runs in the background — see internalWakeHandler — so the proxy
+// gets this back immediately and shows an interstitial rather than holding
+// the original request open until the app is ready (which risks tripping the
+// gateway's upstream timeout on slow-starting apps).
+type wakeAckResponse struct {
+	Status string `json:"status"`
+	App    string `json:"app"`
 }
 
 // internalWakeHandler handles POST /internal/wake?host={hostname} requests from
-// the wake proxy. It scales up the app if hibernated, waits for it to become
-// ready, then returns the in-cluster service address for the proxy to forward to.
+// the wake proxy. It scales up the app if hibernated and returns immediately;
+// the scale-up, readiness wait, and route restoration happen in the
+// background. wakingNow deduplicates concurrent wake requests for the same
+// namespace (e.g. several browser tabs refreshing at once).
 func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.AppDeployer, plat platform.Platform) http.Handler {
+	var wakingNow sync.Map // namespace (string) -> struct{}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			writeJSONError(r.Context(), w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required", "use POST")
@@ -94,6 +103,12 @@ func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.App
 		if host == "" {
 			writeJSONError(r.Context(), w, http.StatusBadRequest, "invalid_request", "host query param required", "use ?host={hostname}")
 			return
+		}
+		// The wake proxy forwards the raw Host header, which includes a port
+		// suffix whenever the gateway isn't on 443 (e.g. local platform). App
+		// hostnames never include a port, so strip it before matching.
+		if bareHost, _, err := net.SplitHostPort(host); err == nil {
+			host = bareHost
 		}
 
 		reqCtx := r.Context()
@@ -146,15 +161,21 @@ func internalWakeHandler(_ context.Context, s *store.Store, deployer handler.App
 			return
 		}
 
-		if err := wakeApp(reqCtx, s, deployer, plat, matchedApp.id, matchedApp.appType, matchedApp.namespace); err != nil {
-			writeJSONError(reqCtx, w, http.StatusServiceUnavailable, "wake_failed", fmt.Sprintf("wake error: %v", err), "retry in a moment")
-			return
+		if _, alreadyWaking := wakingNow.LoadOrStore(matchedApp.namespace, struct{}{}); !alreadyWaking {
+			bgCtx := context.WithoutCancel(reqCtx)
+			ns, appID, appType := matchedApp.namespace, matchedApp.id, matchedApp.appType
+			go func() {
+				defer wakingNow.Delete(ns)
+				if err := wakeApp(bgCtx, s, deployer, plat, appID, appType, ns); err != nil {
+					ctxlog.From(bgCtx).Error("background wake", "namespace", ns, "err", err)
+				}
+			}()
 		}
 
-		serviceAddr := names.AppServiceAddr(matchedApp.namespace)
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(wakeResponse{ServiceAddr: serviceAddr}); err != nil {
-			ctxlog.From(reqCtx).Warn("write wake response", "err", err)
+		w.WriteHeader(http.StatusAccepted)
+		if err := json.NewEncoder(w).Encode(wakeAckResponse{Status: "waking", App: matchedApp.name}); err != nil {
+			ctxlog.From(reqCtx).Warn("write wake ack response", "err", err)
 		}
 	})
 }

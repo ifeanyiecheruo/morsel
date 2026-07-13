@@ -57,15 +57,15 @@ When idle threshold is exceeded, the control plane issues a `scale to 0` command
 When a request arrives for a hibernated HTTP app:
 
 1. Platform gateway routes the request to the wake-on-request proxy
-2. The proxy reads the `Host` header to identify the target app, and holds the TCP connection open
-3. The proxy calls the control plane internal wake endpoint (`POST /internal/wake/{namespace}/{name}`)
-4. The control plane scales the Deployment to 1, watches until the readiness probe passes, then updates the `HTTPRoute` back to the app's Service — the wake endpoint is synchronous and returns only when the app is ready
-5. The control plane returns the app's in-cluster Service address in the wake response
-6. The proxy forwards the held request directly to the Service address (bypassing the gateway for this first request)
-7. The pod responds; the proxy passes the response back to the original caller
-8. Subsequent requests route directly to the app's Service via the restored `HTTPRoute` — the proxy is no longer in the path
+2. The proxy reads the `Host` header to identify the target app
+3. The proxy calls the control plane internal wake endpoint (`POST /internal/wake?host={hostname}`)
+4. The control plane scales the Deployment to 1 and returns `202 Accepted` immediately — it does not wait for the pod to become ready. The readiness wait and `HTTPRoute` restoration happen in the background
+5. The proxy responds to the original request with an HTML interstitial page ("Waking `{app}`…") that self-refreshes every 5 seconds — it does not hold the connection open
+6. On each refresh, the gateway still routes to the wake-on-request proxy until the background wake finishes, so the operator keeps seeing the interstitial
+7. Once the background wake completes, the control plane restores the `HTTPRoute` to the app's own Service
+8. The next refresh is routed by the gateway directly to the app's Service, bypassing the wake proxy — the real response is what the browser finally renders
 
-**Cold start time:** Typically 5–15 seconds depending on container image size and application startup time. The held connection ensures the original caller receives the response rather than a timeout or error.
+**Cold start time:** Typically 5–15 seconds depending on container image size and application startup time. Returning the interstitial immediately avoids tripping the gateway's upstream request timeout on slower-starting apps — the wait is visible to the caller instead of surfacing as a request timeout.
 
 ### Subsequent Requests
 
@@ -92,14 +92,16 @@ When an app hibernates, its `HTTPRoute` is updated to point to the wake-proxy Se
 
 The internal wake endpoint (`POST /internal/wake/{namespace}/{name}`) is cluster-internal only — bound to `127.0.0.1` or reachable only within the cluster via `NetworkPolicy`. It is not part of the public control plane.
 
-### Connection Timeout
+### Wake Failure
 
-The proxy holds connections for up to the configured `wake_timeout` (default `60s`, configurable via `PATCH /api/operator/config`). If the app does not become ready within this window, the proxy returns `503` and restores the `HTTPRoute` so subsequent attempts retry cleanly:
+The proxy's call to `/internal/wake` is a fast fire-and-trigger request (a few seconds at most) — it only fails if the app can't be found, the wake token is invalid, or the platform is over its cost budget. In those cases the proxy returns `503` immediately rather than showing the interstitial:
 
 ```json
 HTTP 503 Service Unavailable
-{ "error": "wake_timeout", "message": "app did not become ready within 60s" }
+{ "error": { "code": "budget_soft_limit", "message": "platform is over budget for this period" } }
 ```
+
+If the background scale-up itself fails (e.g. the readiness probe never passes), the operation is recorded as failed but the caller isn't notified directly — the interstitial keeps refreshing and the app remains routed through the wake proxy. An operator can see the failure in the app's operation history.
 
 ---
 

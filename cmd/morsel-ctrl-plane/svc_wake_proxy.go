@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -28,6 +29,21 @@ func readToken(path string) (string, error) {
 		return "", fmt.Errorf("read token file %s: %w", path, err)
 	}
 	return strings.TrimSpace(string(b)), nil
+}
+
+//go:embed wake-proxy-wait.html
+var waitPageHTML string
+
+// waitPageTmpl is the interstitial shown while an app wakes from hibernation.
+// The control plane kicks off the scale-up and returns immediately (see
+// wakeProxyWakeApp), so this page — not a held connection — is what carries
+// the wait: the meta-refresh retries the request every 5s until the app's
+// HTTPRoute has been restored and the gateway routes straight to it,
+// bypassing this proxy entirely.
+var waitPageTmpl = template.Must(template.New("wait").Parse(waitPageHTML))
+
+type waitPageData struct {
+	App string
 }
 
 func newWakeProxyCmd(ctx context.Context) *cobra.Command {
@@ -70,7 +86,7 @@ func newWakeProxyCmd(ctx context.Context) *cobra.Command {
 					return
 				}
 
-				serviceAddr, retryAfter, err := wakeProxyWakeApp(r.Context(), ctrlPlane, host, token)
+				appName, retryAfter, err := wakeProxyWakeApp(r.Context(), ctrlPlane, host, token)
 				if err != nil {
 					rlog.Error("wake app", "host", host, "err", err)
 					if retryAfter != "" {
@@ -81,20 +97,17 @@ func newWakeProxyCmd(ctx context.Context) *cobra.Command {
 					}
 					return
 				}
-
-				target, err := url.Parse(serviceAddr)
-				if err != nil {
-					rlog.Error("parse service addr", "addr", serviceAddr, "err", err)
-					http.Error(w, "invalid service address", http.StatusInternalServerError)
-					return
+				if appName == "" {
+					// Fall back to a best-effort label parsed from the hostname
+					// ("app.repo.app.domain") if the control plane didn't send one.
+					appName, _, _ = strings.Cut(host, ".")
 				}
 
-				proxy := httputil.NewSingleHostReverseProxy(target)
-				proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-					ctxlog.From(r.Context()).Error("proxy", "host", host, "target", serviceAddr, "err", err)
-					http.Error(w, "upstream unavailable", http.StatusBadGateway)
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusOK)
+				if err := waitPageTmpl.Execute(w, waitPageData{App: appName}); err != nil {
+					rlog.Error("render wait page", "err", err)
 				}
-				proxy.ServeHTTP(w, r)
 			})
 
 			proxyHealth.Report(true, "ready")
@@ -102,8 +115,8 @@ func newWakeProxyCmd(ctx context.Context) *cobra.Command {
 			runServer(ctx, addr, 30*time.Second, func() *http.Server {
 				return &http.Server{
 					Handler:      mux,
-					ReadTimeout:  10 * time.Minute,
-					WriteTimeout: 10 * time.Minute,
+					ReadTimeout:  10 * time.Second,
+					WriteTimeout: 10 * time.Second,
 				}
 			})
 			return nil
@@ -117,18 +130,26 @@ func newWakeProxyCmd(ctx context.Context) *cobra.Command {
 	return cmd
 }
 
-type wakeProxyResponse struct {
-	ServiceAddr string `json:"service_addr"`
+// wakeAckResponse mirrors the control plane's immediate response to
+// /internal/wake — it no longer waits for the app to become ready, so there's
+// no service address to forward to; just an app name for the wait page.
+type wakeAckResponse struct {
+	Status string `json:"status"`
+	App    string `json:"app"`
 }
 
-func wakeProxyWakeApp(ctx context.Context, ctrlPlane, host, token string) (serviceAddr, retryAfter string, _ error) {
+// wakeProxyWakeApp asks the control plane to wake the app for host. The
+// control plane kicks off the scale-up in the background and responds
+// immediately, so this call is fast — it does not wait for the app to
+// actually become ready.
+func wakeProxyWakeApp(ctx context.Context, ctrlPlane, host, token string) (appName, retryAfter string, _ error) {
 	wakeURL := ctrlPlane + "/internal/wake?host=" + url.QueryEscape(host)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wakeURL, http.NoBody)
 	if err != nil {
 		return "", "", fmt.Errorf("build wake request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	client := &http.Client{Timeout: 6 * time.Minute}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", "", fmt.Errorf("POST wake: %w", err)
@@ -142,15 +163,12 @@ func wakeProxyWakeApp(ctx context.Context, ctrlPlane, host, token string) (servi
 	if readErr != nil {
 		ctxlog.From(ctx).Warn("read wake response body", "err", readErr)
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusAccepted {
 		return "", resp.Header.Get("Retry-After"), fmt.Errorf("wake returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
-	var wr wakeProxyResponse
-	if err := json.Unmarshal(body, &wr); err != nil {
+	var ack wakeAckResponse
+	if err := json.Unmarshal(body, &ack); err != nil {
 		return "", "", fmt.Errorf("decode wake response: %w", err)
 	}
-	if wr.ServiceAddr == "" {
-		return "", "", fmt.Errorf("wake response missing service_addr")
-	}
-	return wr.ServiceAddr, "", nil
+	return ack.App, "", nil
 }

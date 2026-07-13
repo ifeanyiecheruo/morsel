@@ -100,7 +100,7 @@ func (c *Client) applyAPIRBAC(ctx context.Context, ns string) error {
 			},
 			{
 				APIGroups: []string{"gateway.networking.k8s.io"},
-				Resources: []string{"gatewayclasses", "gateways", "httproutes"},
+				Resources: []string{"gatewayclasses", "gateways", "httproutes", "referencegrants"},
 				Verbs:     []string{"get", "list", "create", "update", "patch", "delete"},
 			},
 			{
