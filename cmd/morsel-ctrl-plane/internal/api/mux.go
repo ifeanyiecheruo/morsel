@@ -174,7 +174,7 @@ func wakeApp(ctx context.Context, s *store.Store, deployer handler.AppDeployer, 
 			return err
 		}
 		host := names.AppHostname(app.Name, names.RepoName(app.RepoSlug), plat.BaseDomain())
-		if err := deployer.RestoreHTTPRoute(ctx, namespace, host, plat.Namespace(), kube.GatewayExternal, 8080); err != nil {
+		if err := deployer.RestoreHTTPRoute(ctx, namespace, host, plat.Namespace(), kube.GatewayExternal); err != nil {
 			return err
 		}
 	case "worker":

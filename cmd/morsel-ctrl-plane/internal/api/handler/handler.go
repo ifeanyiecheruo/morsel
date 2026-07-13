@@ -34,7 +34,7 @@ type AppDeployer interface {
 	SuspendCronJob(ctx context.Context, namespace string) error
 	UnsuspendCronJob(ctx context.Context, namespace string) error
 	RouteToWakeProxy(ctx context.Context, namespace, host, gatewayNS, gatewayName string) error
-	RestoreHTTPRoute(ctx context.Context, namespace, host, gatewayNS, gatewayName string, port int32) error
+	RestoreHTTPRoute(ctx context.Context, namespace, host, gatewayNS, gatewayName string) error
 	WatchDeploymentReady(ctx context.Context, namespace string, timeout time.Duration) error
 	AppReplicaCounts(ctx context.Context, namespace, appType string) (desired, ready int32)
 	ApplyNamespaceTier(ctx context.Context, namespace string, limits kube.TierLimits) error

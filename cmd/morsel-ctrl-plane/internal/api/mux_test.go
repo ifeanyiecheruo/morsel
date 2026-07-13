@@ -73,7 +73,7 @@ func (fakeDeployer) UnsuspendCronJob(_ context.Context, _ string) error         
 func (fakeDeployer) RouteToWakeProxy(_ context.Context, _, _, _, _ string) error {
 	return nil
 }
-func (fakeDeployer) RestoreHTTPRoute(_ context.Context, _, _, _, _ string, _ int32) error {
+func (fakeDeployer) RestoreHTTPRoute(_ context.Context, _, _, _, _ string) error {
 	return nil
 }
 func (fakeDeployer) WatchDeploymentReady(_ context.Context, _ string, _ time.Duration) error {

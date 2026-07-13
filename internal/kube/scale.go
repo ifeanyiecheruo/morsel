@@ -8,6 +8,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 const (
@@ -17,6 +18,9 @@ const (
 	wakeProxyNamespace = "morsel-services"
 	// wakeProxyPort is the port the wake proxy listens on.
 	wakeProxyPort = int32(8080)
+	// wakeProxyReferenceGrantName is the ReferenceGrant in morsel-services that
+	// authorizes app-namespace HTTPRoutes to reference the wake-proxy Service.
+	wakeProxyReferenceGrantName = "wake-proxy-access"
 )
 
 // ScaleDeployment sets the replica count for the app Deployment in namespace.
@@ -66,6 +70,10 @@ func (c *Client) UnsuspendCronJob(ctx context.Context, namespace string) error {
 // RouteToWakeProxy updates the HTTPRoute in namespace to forward traffic to the
 // shared wake-on-request proxy in morsel-services instead of the app Service.
 func (c *Client) RouteToWakeProxy(ctx context.Context, namespace, host, gatewayNS, gatewayName string) error {
+	if err := c.ensureWakeProxyReferenceGrant(ctx, namespace); err != nil {
+		return fmt.Errorf("reference grant: %w", err)
+	}
+
 	gwNS := gatewayv1.Namespace(gatewayNS)
 	proxyNS := gatewayv1.Namespace(wakeProxyNamespace)
 	hostName := gatewayv1.Hostname(host)
@@ -118,10 +126,69 @@ func (c *Client) RouteToWakeProxy(ctx context.Context, namespace, host, gatewayN
 	return err
 }
 
+// ensureWakeProxyReferenceGrant grants HTTPRoutes in namespace permission to
+// reference the wake-proxy Service in morsel-services. Gateway API requires a
+// ReferenceGrant in the target namespace for any cross-namespace backendRef;
+// without one Envoy Gateway marks the route ResolvedRefs=False and serves a
+// 500 for requests matching it. One shared ReferenceGrant accumulates a "from"
+// entry per app namespace that has ever hibernated.
+func (c *Client) ensureWakeProxyReferenceGrant(ctx context.Context, namespace string) error {
+	from := gatewayv1beta1.ReferenceGrantFrom{
+		Group:     gatewayv1.GroupName,
+		Kind:      "HTTPRoute",
+		Namespace: gatewayv1beta1.Namespace(namespace),
+	}
+	wakeProxyName := gatewayv1beta1.ObjectName(wakeProxyService)
+	to := gatewayv1beta1.ReferenceGrantTo{
+		Kind: "Service",
+		Name: &wakeProxyName,
+	}
+
+	existing, err := c.gw.GatewayV1beta1().ReferenceGrants(wakeProxyNamespace).Get(ctx, wakeProxyReferenceGrantName, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		grant := &gatewayv1beta1.ReferenceGrant{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      wakeProxyReferenceGrantName,
+				Namespace: wakeProxyNamespace,
+				Labels:    map[string]string{"morsel.io/managed": "true"},
+			},
+			Spec: gatewayv1beta1.ReferenceGrantSpec{
+				From: []gatewayv1beta1.ReferenceGrantFrom{from},
+				To:   []gatewayv1beta1.ReferenceGrantTo{to},
+			},
+		}
+		_, err = c.gw.GatewayV1beta1().ReferenceGrants(wakeProxyNamespace).Create(ctx, grant, metav1.CreateOptions{})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+
+	for _, f := range existing.Spec.From {
+		if f == from {
+			return nil
+		}
+	}
+	existing.Spec.From = append(existing.Spec.From, from)
+	_, err = c.gw.GatewayV1beta1().ReferenceGrants(wakeProxyNamespace).Update(ctx, existing, metav1.UpdateOptions{})
+	return err
+}
+
 // RestoreHTTPRoute updates the HTTPRoute in namespace to forward traffic back to
-// the app's own Service after waking from hibernation.
-func (c *Client) RestoreHTTPRoute(ctx context.Context, namespace, host, gatewayNS, gatewayName string, port int32) error {
-	return c.ApplyHTTPRoute(ctx, namespace, host, gatewayNS, gatewayName, port)
+// the app's own Service after waking from hibernation. The port is read from
+// the existing Service rather than passed in by the caller, since the Service
+// (set up once at deploy time from the app's declared port) is the source of
+// truth — a hardcoded port here would drift from apps that declare a
+// non-default port and break the route on every wake.
+func (c *Client) RestoreHTTPRoute(ctx context.Context, namespace, host, gatewayNS, gatewayName string) error {
+	svc, err := c.cs.CoreV1().Services(namespace).Get(ctx, appServiceName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get app service: %w", err)
+	}
+	if len(svc.Spec.Ports) == 0 {
+		return fmt.Errorf("app service %s/%s has no ports", namespace, appServiceName)
+	}
+	return c.ApplyHTTPRoute(ctx, namespace, host, gatewayNS, gatewayName, svc.Spec.Ports[0].Port)
 }
 
 // WatchDeploymentReady polls until the Deployment in namespace has ≥1 ready

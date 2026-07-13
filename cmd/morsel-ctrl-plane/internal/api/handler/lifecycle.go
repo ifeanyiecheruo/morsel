@@ -86,7 +86,7 @@ func wakeApp(ctx context.Context, s *store.Store, d AppDeployer, platNS string, 
 			}
 			return
 		}
-		if err := d.RestoreHTTPRoute(ctx, ns, host, platNS, kube.GatewayExternal, 8080); err != nil {
+		if err := d.RestoreHTTPRoute(ctx, ns, host, platNS, kube.GatewayExternal); err != nil {
 			logger.Error("restore http route", "err", err)
 			if fErr := s.FailOperation(ctx, opID, err.Error()); fErr != nil {
 				logger.Warn("fail operation", "err", fErr)
