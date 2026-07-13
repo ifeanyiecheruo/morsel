@@ -136,7 +136,7 @@ POST /api/repos/:slug/apps/:name/hibernate
 POST /api/repos/:slug/apps/:name/wake
 ```
 
-Both are synchronous — they return when the Kubernetes scale operation is complete.
+Both are asynchronous — they return `202 Accepted` with an operation ID immediately, and the scale operation runs in the background. Poll `GET /api/repos/:slug/apps/:name/operations/:id` to track completion.
 
 Force hibernate is useful for temporarily suspending an app to save cost during a known period of non-use. Wake is useful to pre-warm an app before a demo.
 

@@ -77,6 +77,8 @@ func (h *Handler) ServeApps(w http.ResponseWriter, r *http.Request) {
 		Total:      len(rows),
 		Repos:      repos,
 		RepoFilter: repoFilter,
+		Flash:      r.URL.Query().Get("flash"),
+		FlashError: r.URL.Query().Get("flash_error") != "",
 	}).Render(ctx, w); err != nil {
 		ctxlog.From(ctx).Warn("render apps page", "err", err)
 	}
@@ -92,7 +94,9 @@ func (h *Handler) ServeAppDeleteConfirm(w http.ResponseWriter, r *http.Request) 
 }
 
 // HandleAppDelete handles POST /apps/{org}/{repo}/{appName}/delete.
-// It calls DELETE /api/repos/{org}/{repo}/apps/{name} on the REST API.
+// It calls DELETE /api/repos/{org}/{repo}/apps/{name} on the REST API, which
+// runs the deletion asynchronously — redirect to the operation status page
+// to track it rather than assuming it's done when the request returns.
 func (h *Handler) HandleAppDelete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug, appName := appParams(r)
@@ -100,19 +104,12 @@ func (h *Handler) HandleAppDelete(w http.ResponseWriter, r *http.Request) {
 	path := "/api/repos/" + org + "/" + repo + "/apps/" + appName
 
 	resp, err := h.apiDelete(ctx, path)
-	if resp != nil {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
-		}
-	}
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/apps", http.StatusSeeOther)
+	h.redirectToAppOperation(w, r, resp, err, slug, appName, "Deleting "+appName+"…", "/apps")
 }
 
 // HandleAppHibernate handles POST /apps/{org}/{repo}/{appName}/hibernate.
+// Hibernation runs asynchronously on the control plane, so redirect to the
+// operation status page to poll it rather than assuming it's already done.
 func (h *Handler) HandleAppHibernate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug, appName := appParams(r)
@@ -120,19 +117,12 @@ func (h *Handler) HandleAppHibernate(w http.ResponseWriter, r *http.Request) {
 	path := "/api/repos/" + org + "/" + repo + "/apps/" + appName + "/hibernate"
 
 	resp, err := h.apiPost(ctx, path, nil)
-	if resp != nil {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
-		}
-	}
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/apps", http.StatusSeeOther)
+	h.redirectToAppOperation(w, r, resp, err, slug, appName, "Hibernating "+appName+"…", "/apps")
 }
 
 // HandleAppWake handles POST /apps/{org}/{repo}/{appName}/wake.
+// Wake runs asynchronously on the control plane, so redirect to the
+// operation status page to poll it rather than assuming it's already done.
 func (h *Handler) HandleAppWake(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug, appName := appParams(r)
@@ -140,14 +130,5 @@ func (h *Handler) HandleAppWake(w http.ResponseWriter, r *http.Request) {
 	path := "/api/repos/" + org + "/" + repo + "/apps/" + appName + "/wake"
 
 	resp, err := h.apiPost(ctx, path, nil)
-	if resp != nil {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			ctxlog.From(ctx).Warn("close response body", "err", closeErr)
-		}
-	}
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/apps", http.StatusSeeOther)
+	h.redirectToAppOperation(w, r, resp, err, slug, appName, "Waking "+appName+"…", "/apps")
 }

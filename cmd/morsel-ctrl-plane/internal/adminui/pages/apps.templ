@@ -7,6 +7,9 @@ templ AppsPage(d AppsPageData) {
 	@Layout("apps", "Apps") {
 		<h1 class="page-title">Apps</h1>
 		<p class="page-sub">{ fmt.Sprintf("%d apps across %d repos", d.Total, len(d.Repos)) }</p>
+		if d.Flash != "" {
+			<div class={ "alert", templ.KV("alert--danger", d.FlashError), templ.KV("alert--success", !d.FlashError) }>{ d.Flash }</div>
+		}
 		<hr/>
 		<form method="get" action="/apps" class="filters">
 			<select name="repo" class="filter-select" onchange="this.form.submit()">

@@ -1,0 +1,36 @@
+package pages
+
+// OperationRow is a single async operation being tracked on the status page.
+type OperationRow struct {
+	Name      string // human label for this row, e.g. an app name
+	StatusURL string // JSON endpoint polled for {status, progress, error}
+}
+
+// OperationStatusPageData describes one or more in-flight operations to poll.
+type OperationStatusPageData struct {
+	Title   string
+	Rows    []OperationRow
+	Return  string // URL to redirect to once every row settles
+}
+
+// OperationStatusPage polls one or more async operations and redirects to
+// Return once they all reach a terminal state. It is the only admin UI page
+// that ships JavaScript — everywhere else data is fetched on navigation only.
+templ OperationStatusPage(d OperationStatusPageData) {
+	@Layout("apps", d.Title) {
+		<h1 class="page-title">{ d.Title }</h1>
+		<p class="page-sub" id="op-poll-summary">Waiting for the platform to finish…</p>
+		<hr/>
+		<div class="card" id="op-poll" data-return={ d.Return }>
+			for _, row := range d.Rows {
+				<div class="op-row" data-state="pending" data-status-url={ row.StatusURL }>
+					<span class="op-row-name">{ row.Name }</span>
+					<span class="badge badge--yellow op-row-badge">↻ In progress</span>
+					<span class="op-row-message"></span>
+				</div>
+			}
+		</div>
+		<a href={ templ.SafeURL(d.Return) } id="op-poll-return" class="btn btn--secondary" style="display:none">Back</a>
+		@inlineOperationPollJS()
+	}
+}

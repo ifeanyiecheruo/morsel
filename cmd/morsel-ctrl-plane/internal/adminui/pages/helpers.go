@@ -23,6 +23,8 @@ type AppsPageData struct {
 	Total      int
 	Repos      []string
 	RepoFilter string
+	Flash      string
+	FlashError bool
 }
 
 type RepoRow struct {
@@ -34,7 +36,9 @@ type RepoRow struct {
 }
 
 type ReposPageData struct {
-	Repos []RepoRow
+	Repos      []RepoRow
+	Flash      string
+	FlashError bool
 }
 
 type ApprovalRow struct {

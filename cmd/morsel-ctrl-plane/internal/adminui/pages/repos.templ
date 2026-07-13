@@ -7,6 +7,9 @@ templ ReposPage(d ReposPageData) {
 	@Layout("repos", "Repos") {
 		<h1 class="page-title">Repos</h1>
 		<p class="page-sub">{ fmt.Sprintf("%d repos", len(d.Repos)) }</p>
+		if d.Flash != "" {
+			<div class={ "alert", templ.KV("alert--danger", d.FlashError), templ.KV("alert--success", !d.FlashError) }>{ d.Flash }</div>
+		}
 		<hr/>
 		if len(d.Repos) == 0 {
 			<div class="empty">No repos found.</div>

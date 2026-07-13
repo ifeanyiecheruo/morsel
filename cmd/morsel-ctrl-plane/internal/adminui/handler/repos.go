@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/ifeanyiecheruo/morsel/cmd/morsel-ctrl-plane/internal/adminui/pages"
@@ -63,7 +64,11 @@ func (h *Handler) ServeRepos(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if err := pages.ReposPage(pages.ReposPageData{Repos: rows}).Render(ctx, w); err != nil {
+	if err := pages.ReposPage(pages.ReposPageData{
+		Repos:      rows,
+		Flash:      r.URL.Query().Get("flash"),
+		FlashError: r.URL.Query().Get("flash_error") != "",
+	}).Render(ctx, w); err != nil {
 		ctxlog.From(ctx).Warn("render repos page", "err", err)
 	}
 }
@@ -98,7 +103,9 @@ func (h *Handler) ServeRepoDeleteAllConfirm(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleRepoDeleteAll handles POST /repos/{org}/{repo}/delete-all.
-// It lists all apps in the repo and deletes each one via the REST API.
+// It lists all apps in the repo and deletes each one via the REST API. Each
+// delete runs asynchronously on the control plane, so the apps that started
+// successfully are handed off to the multi-operation status page to poll.
 func (h *Handler) HandleRepoDeleteAll(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := repoSlug(r)
@@ -120,19 +127,29 @@ func (h *Handler) HandleRepoDeleteAll(w http.ResponseWriter, r *http.Request) {
 		ctxlog.From(ctx).Warn("decode apps response", "err", err)
 	}
 
+	values := url.Values{}
 	for _, app := range apps {
 		delResp, delErr := h.apiDelete(ctx, "/api/repos/"+org+"/"+repo+"/apps/"+app.Name)
-		if delResp != nil {
-			if closeErr := delResp.Body.Close(); closeErr != nil {
-				ctxlog.From(ctx).Warn("close delete response body", "err", closeErr)
-			}
-		}
 		if delErr != nil {
 			ctxlog.From(ctx).Warn("delete app", "app", app.Name, "err", delErr)
+			continue
 		}
+		opID, ok := decodeAcceptedOperationID(delResp)
+		if !ok {
+			ctxlog.From(ctx).Warn("delete app did not accept", "app", app.Name, "status", delResp.Status)
+			continue
+		}
+		values.Add("app", app.Name)
+		values.Add("op", opID)
 	}
 
-	http.Redirect(w, r, "/repos", http.StatusSeeOther)
+	if len(values) == 0 {
+		http.Redirect(w, r, "/repos", http.StatusSeeOther)
+		return
+	}
+	values.Set("label", "Deleting "+strings.ReplaceAll(slug, "/", " / ")+" apps…")
+	values.Set("return", "/repos")
+	http.Redirect(w, r, "/repos/"+org+"/"+repo+"/operations?"+values.Encode(), http.StatusSeeOther)
 }
 
 // HandleRepoPromote handles POST /repos/{org}/{repo}/promote.

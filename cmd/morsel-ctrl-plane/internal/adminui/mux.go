@@ -36,10 +36,13 @@ func NewMux(ctx context.Context, apiURL string, httpClient *http.Client, session
 	mux.Handle("POST /apps/{org}/{repo}/{appName}/delete", protected(http.HandlerFunc(h.HandleAppDelete)))
 	mux.Handle("POST /apps/{org}/{repo}/{appName}/hibernate", protected(http.HandlerFunc(h.HandleAppHibernate)))
 	mux.Handle("POST /apps/{org}/{repo}/{appName}/wake", protected(http.HandlerFunc(h.HandleAppWake)))
+	mux.Handle("GET /apps/{org}/{repo}/{appName}/operations/{opID}", protected(http.HandlerFunc(h.ServeAppOperationStatus)))
+	mux.Handle("GET /apps/{org}/{repo}/{appName}/operations/{opID}/status", protected(http.HandlerFunc(h.HandleAppOperationStatusJSON)))
 
 	mux.Handle("GET /repos", protected(http.HandlerFunc(h.ServeRepos)))
 	mux.Handle("GET /repos/{org}/{repo}/delete-all", protected(http.HandlerFunc(h.ServeRepoDeleteAllConfirm)))
 	mux.Handle("POST /repos/{org}/{repo}/delete-all", protected(http.HandlerFunc(h.HandleRepoDeleteAll)))
+	mux.Handle("GET /repos/{org}/{repo}/operations", protected(http.HandlerFunc(h.ServeRepoOperationsStatus)))
 	mux.Handle("POST /repos/{org}/{repo}/promote", protected(http.HandlerFunc(h.HandleRepoPromote)))
 	mux.Handle("POST /repos/{org}/{repo}/demote", protected(http.HandlerFunc(h.HandleRepoDemote)))
 

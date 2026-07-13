@@ -152,7 +152,8 @@ No scalability considerations for the UI itself. API call throughput is negligib
 
 ## Performance
 
-- API calls: data fetched on navigation; no background polling.
+- API calls: data fetched on navigation.
+- Actions that trigger an async control-plane operation (hibernate, wake, delete) redirect to a lightweight operation-status page that polls `GET .../operations/{id}` with a small inline script until the operation completes or fails, then redirects back with a result banner. No other page polls in the background.
 - Large repo lists (100+ repos, 500+ apps): paginated API responses; 
 
 ---
