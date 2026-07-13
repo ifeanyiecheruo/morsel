@@ -145,9 +145,9 @@ The JWT is signed with `local-deploy-signing-key`, generated at bootstrap and st
 
 `DNSProvider.CreateRecord()` and `DeleteRecord()` are no-ops — records do not need to be created because wildcard resolution handles all subdomains.
 
-### CertProvider — Self-Signed
+### CertProvider — Self-Signed, Embedded
 
-A wildcard self-signed certificate for `*.morsel.localhost` is generated at bootstrap time using the Go `crypto/tls` package. `CertProvider.Provision()` returns the `*tls.Certificate`; the control plane writes it to a Kubernetes Secret (type `kubernetes.io/tls`) in the `morsel` namespace via its existing `client-go` connection. Envoy Gateway references that Secret in its listener TLS configuration for termination.
+A single wildcard self-signed certificate for `*.morsel.localhost`, valid for 10 years, is generated once and committed to the repo (base64-encoded, under `internal/selfcert/embedded/`) rather than generated fresh at bootstrap time. `CertProvider.Provision()` decodes and returns the embedded `*tls.Certificate`; the control plane writes it to a Kubernetes Secret (type `kubernetes.io/tls`) in the `morsel` namespace via its existing `client-go` connection. Envoy Gateway references that Secret in its listener TLS configuration for termination.
 
 Browsers will show a certificate warning on first visit. Developers can add the certificate to their local trust store to suppress the warning:
 ```
@@ -155,7 +155,7 @@ morsel --profile local service bootstrap --trust-cert
 ```
 (This flag adds the self-signed CA to the OS trust store.)
 
-Renewal is not required — the certificate is regenerated on each bootstrap run.
+Because the same key material is reused on every bootstrap instead of being regenerated, a developer only has to trust the certificate once — re-running bootstrap does not invalidate that trust. Rotating the embedded cert (compromise, expiry) is a manual step; see `internal/selfcert/embedded/README.md`.
 
 ---
 

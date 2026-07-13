@@ -11,17 +11,18 @@ import (
 
 type localCertProvider struct{}
 
-// Provision generates a self-signed wildcard TLS certificate for *.domain.
-// The certificate is valid for 1 year.
-func (lct *localCertProvider) Provision(_ context.Context, domain string) (*tls.Certificate, error) {
-	return selfcert.GenerateSelfSignedWildcard(domain, 365*24*time.Hour)
+// Provision returns the wildcard TLS certificate committed under
+// internal/selfcert/embedded, so a developer who has trusted it once doesn't
+// have to re-trust a freshly generated cert on every provision.
+func (lct *localCertProvider) Provision(_ context.Context, _ string) (*tls.Certificate, error) {
+	return selfcert.LoadEmbeddedWildcardCert()
 }
 
-// Renew generates a fresh self-signed wildcard TLS certificate for *.domain.
-// For the local platform renewal is identical to provisioning — self-signed certs
-// are regenerated rather than renewed via ACME.
-func (lct *localCertProvider) Renew(_ context.Context, domain string, _ time.Duration) (*tls.Certificate, error) {
-	return selfcert.GenerateSelfSignedWildcard(domain, 365*24*time.Hour)
+// Renew returns the same embedded certificate as Provision. For the local
+// platform renewal is a no-op — the embedded cert is long-lived and rotated
+// manually (see internal/selfcert/embedded/README.md) rather than via ACME.
+func (lct *localCertProvider) Renew(_ context.Context, _ string, _ time.Duration) (*tls.Certificate, error) {
+	return selfcert.LoadEmbeddedWildcardCert()
 }
 
 var _ platform.CertProvider = (*localCertProvider)(nil)

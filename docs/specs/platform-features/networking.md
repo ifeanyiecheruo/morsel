@@ -144,7 +144,7 @@ A hibernated app wakes transparently on an inbound request from another app, sub
 
 ## Local Mode
 
-In local mode, apps use the `*.morsel.localhost` domain, which resolves natively in modern browsers without any DNS configuration. Certificates are self-signed, generated at bootstrap time. No ACME flow, no DNS provider required.
+In local mode, apps use the `*.morsel.localhost` domain, which resolves natively in modern browsers without any DNS configuration. The certificate is self-signed and embedded in the repo — the same one is reused on every bootstrap instead of being regenerated, so a developer only has to trust it once. No ACME flow, no DNS provider required.
 
 See [platform/local.md](../platform/local.md).
 

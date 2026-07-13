@@ -241,7 +241,7 @@ func (lb *localServiceDeployer) Provision(ctx context.Context, answers map[strin
 	}
 
 	fmt.Println("Provisioning TLS certificate…")
-	cert, err := selfcert.GenerateSelfSignedWildcard(selfcert.LocalBaseDomain, 365*24*time.Hour)
+	cert, err := selfcert.LoadEmbeddedWildcardCert()
 	if err != nil {
 		return fmt.Errorf("provision tls cert: %w", err)
 	}
